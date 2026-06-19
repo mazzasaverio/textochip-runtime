@@ -1,0 +1,60 @@
+// Host (PC) implementation of the HAL — lets the VM run with no board at all.
+// Pins are a simulated array, the clock is advanced from main(), serial = stdout.
+// This is the spirit of Zephyr's native_sim, but with the plain host compiler so
+// it builds & runs without installing the Zephyr toolchain.
+#include <array>
+#include <cstdio>
+#include <string>
+
+#include "hal.h"
+#include "hal_host.h"
+
+namespace {
+std::array<int, 128> g_level{};  // last written pin levels
+std::array<int, 128> g_mode{};   // 1 = OUTPUT, 0 = INPUT_PULLUP
+uint32_t g_now = 0;
+int g_buttonPin = -1;
+bool g_buttonPressed = false;
+}  // namespace
+
+void host_advance(uint32_t ms) { g_now += ms; }
+void host_set_button(int pin, bool pressed) {
+  g_buttonPin = pin;
+  g_buttonPressed = pressed;
+}
+
+namespace hal {
+
+void init() {}
+
+void pinMode(int pin, bool output) {
+  if (pin >= 0 && pin < 128) g_mode[pin] = output ? 1 : 0;
+}
+
+void pinWrite(int pin, int level) {
+  if (pin < 0 || pin >= 128) return;
+  if (g_level[pin] != level) {  // only print transitions, keeps the trace readable
+    g_level[pin] = level;
+    std::printf("    [t=%6ums] pin%-2d = %d\n", g_now, pin, level);
+  }
+}
+
+int pinRead(int pin) {
+  if (pin == g_buttonPin) return g_buttonPressed ? 0 : 1;  // active-low: pressed = LOW
+  if (pin >= 0 && pin < 128) {
+    if (g_mode[pin] == 0) return 1;  // INPUT_PULLUP idle reads HIGH
+    return g_level[pin];
+  }
+  return 0;
+}
+
+void tone(int pin, int hz) { std::printf("    [t=%6ums] buzzer pin%d -> %d Hz\n", g_now, pin, hz); }
+void toneOff(int pin) { std::printf("    [t=%6ums] buzzer pin%d off\n", g_now, pin); }
+
+uint32_t nowMs() { return g_now; }
+
+int serialReadChar() { return -1; }  // host demo injects lines via runtime::feedLine
+void serialWrite(const std::string& s) { std::printf("%s", s.c_str()); }
+void serialWriteLine(const std::string& s) { std::printf("%s\n", s.c_str()); }
+
+}  // namespace hal

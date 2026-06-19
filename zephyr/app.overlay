@@ -1,0 +1,18 @@
+/*
+ * Board overlay for the Sakura Board VM.
+ *
+ * LEDs / button / serial work from the board's default devicetree, so for a first
+ * `west build` you may not need anything here.
+ *
+ * The buzzer uses PWM. To make `tone` beep, enable a PWM node and route the buzzer
+ * pin to one of its channels, then set its label to `pwm0` (or adjust hal_zephyr.cpp).
+ * Example shape (fill in the real pin for your board):
+ *
+ *   &pwm0 {
+ *       status = "okay";
+ *       pinctrl-0 = <&pwm0_default>;
+ *       pinctrl-names = "default";
+ *   };
+ *
+ * See the nRF Connect SDK PWM samples and your board's .dts for the exact syntax.
+ */

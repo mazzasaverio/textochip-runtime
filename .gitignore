@@ -1,0 +1,5 @@
+# host build artifact
+host/sakura_vm_host
+# Zephyr/west build output
+build/
+zephyr/build/

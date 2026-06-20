@@ -107,8 +107,12 @@ PING/PONG (this mirrors the Arduino "USB CDC On Boot" behavior).
 - **Pin numbers**: the bytecode bakes RAW pin numbers from `lib/boardProfile.ts`.
   `hal_zephyr.cpp` maps `raw = port*32 + pin` → `gpio0`/`gpio1`. Adjust the board
   profile to the GPIOs you wire (e.g. nRF P0/P1).
-- **Buzzer (PWM)**: `tone` needs a `pwm0` node — add it in `app.overlay` (LEDs,
-  button, serial and timing already work without it).
+- **Buzzer (PWM): ✅ wired for the ESP32-S3.** `hal::tone` drives the buzzer over a
+  **LEDC PWM** channel. `app.overlay` defines a `pwm0: &ledc0` node with a
+  `ledc0_default` pinctrl group on **GPIO 5** (`LEDC_CH0_GPIO5`) and one channel.
+  The `Semaforo` mission therefore does **not** `gpio-configure` the buzzer pin —
+  the PWM peripheral owns it (driving it as a plain GPIO would kill the square
+  wave). For another board, repoint the pinctrl group to your buzzer GPIO.
 - **std::string** needs a full libc + heap → already set in `prj.conf`
   (`CONFIG_REQUIRES_FULL_LIBC`, `CONFIG_COMMON_LIBC_MALLOC_ARENA_SIZE`).
 
@@ -125,5 +129,9 @@ PING/PONG (this mirrors the Arduino "USB CDC On Boot" behavior).
   the IDE over Web Serial on the native-USB CDC-ACM port — PING/PONG, load/run, and the native
   MISSION **with parameters** all verified end-to-end. (See "Two USB ports, two roles" and "USB
   CDC-ACM console" above.)
+- ✅ **Buzzer + button on the SEMAFORO mission**: the walk-beep plays through the **LEDC PWM**
+  (GPIO 5) on real hardware, and a button press during green gives **immediate feedback** — the
+  green LED blinks to acknowledge the crossing request, then the light turns red once green has
+  lasted at least `minGreen`.
 - ⏳ Next: the **nRF54LM20 DK** (`-b nrf54lm20dk/...`) when the kits arrive, then BLE OVERRIDE as
   the Nordic-specific demo, and edge-AI missions on the Axon NPU.

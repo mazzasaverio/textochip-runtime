@@ -48,7 +48,10 @@ void tone(int /*pin*/, int hz) {
   // TODO(board): map `pin` -> its PWM channel via the overlay; channel 0 assumed.
   pwm_set(pwm_dev, 0, period, period / 2, 0);
 }
-void toneOff(int /*pin*/) { pwm_set(pwm_dev, 0, 0, 0, 0); }
+// Silence = a valid period with a 0 pulse width (constant LOW). A period of 0
+// is rejected by the LEDC driver, which would leave the channel running its
+// boot-default duty → a continuous tone. Keep a real period, drop the duty.
+void toneOff(int /*pin*/) { pwm_set(pwm_dev, 0, 1000000u, 0, 0); }
 #else
 // No pwm node yet → buzzer is a no-op (LEDs/button still work). Add one in app.overlay.
 void tone(int, int) {}

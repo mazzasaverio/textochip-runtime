@@ -56,7 +56,8 @@ class Semaforo : public Mission {
     hal::pinMode(redPin, true);
     hal::pinMode(yellowPin, true);
     hal::pinMode(greenPin, true);
-    hal::pinMode(buzzerPin, true);
+    // NOTE: do NOT gpio-configure the buzzer pin — the LEDC PWM (tone) owns it
+    // (see app.overlay). Driving it as a plain GPIO would kill the square wave.
     hal::pinMode(buttonPin, false);  // INPUT_PULLUP
     enter(GREEN);
   }
@@ -66,6 +67,13 @@ class Semaforo : public Mission {
     switch (state) {
       case GREEN:
         if (buttonEnabled && buttonPressed()) requested = true;
+        // Immediate feedback: blink the green LED while a crossing is pending,
+        // so a button press is visibly acknowledged at once.
+        if (requested && now - blinkAt >= 250) {
+          blinkAt = now;
+          greenLit = !greenLit;
+          hal::pinWrite(greenPin, greenLit ? 1 : 0);
+        }
         if (now - phaseStart >= greenMs ||
             (requested && now - phaseStart >= minGreenMs)) {
           enter(YELLOW);
@@ -95,7 +103,7 @@ class Semaforo : public Mission {
 
   // Parameters (set/clamped by setParams; defaults below).
   uint32_t greenMs = 6000;     // max green with no request
-  uint32_t minGreenMs = 3000;  // min green before a request is served
+  uint32_t minGreenMs = 2000;  // min green before a request is served (responsive)
   uint32_t yellowMs = 2000;
   uint32_t redMs = 5000;
   uint32_t beepHalfMs = 300;  // walk-beep half-period; 0 = beep off
@@ -107,6 +115,8 @@ class Semaforo : public Mission {
   uint32_t beepAt = 0;
   bool beepOn = false;
   bool requested = false;
+  uint32_t blinkAt = 0;
+  bool greenLit = true;  // tracks the green LED while blinking a pending request
 
   static uint32_t clampU(unsigned long v, uint32_t lo, uint32_t hi) {
     if (v < lo) return lo;
@@ -130,7 +140,11 @@ class Semaforo : public Mission {
   void enter(Phase p) {
     state = p;
     phaseStart = hal::nowMs();
-    if (p == GREEN) requested = false;
+    if (p == GREEN) {
+      requested = false;
+      greenLit = true;
+      blinkAt = phaseStart;
+    }
     hal::pinWrite(redPin, p == RED ? 1 : 0);
     hal::pinWrite(yellowPin, p == YELLOW ? 1 : 0);
     hal::pinWrite(greenPin, p == GREEN ? 1 : 0);

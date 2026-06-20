@@ -23,7 +23,31 @@
 };
 
 /*
- * Buzzer (PWM) — still TODO. To make `tone` beep, enable a PWM node and route
- * the buzzer pin to one of its channels, label it `pwm0` (or adjust
- * hal_zephyr.cpp). LEDs / button work from the board's default devicetree.
+ * Buzzer (PWM/tone) on GPIO5. The ESP32-S3 LEDC peripheral drives the passive
+ * piezo with a square wave; hal_zephyr.cpp uses DT_NODELABEL(pwm0) channel 0, so
+ * we give ledc0 the `pwm0` label + a channel routed to GPIO5 (the board profile's
+ * buzzer pin). The mission must NOT gpio-configure GPIO5 (LEDC owns the pad).
  */
+#include <zephyr/dt-bindings/pinctrl/esp32s3-pinctrl.h>
+
+&pinctrl {
+	ledc0_default: ledc0_default {
+		group1 {
+			pinmux = <LEDC_CH0_GPIO5>;
+			output-enable;
+		};
+	};
+};
+
+pwm0: &ledc0 {
+	pinctrl-0 = <&ledc0_default>;
+	pinctrl-names = "default";
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	channel0@0 {
+		reg = <0x0>;
+		timer = <0>;
+	};
+};

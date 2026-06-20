@@ -47,6 +47,21 @@ int main() {
   runtime::feedLine("RUN");
   run(15);  // ~1 pedestrian-crossing cycle (green->yellow->red+walk-beep)
 
+  // ── Demo 3: parameterized MISSION (WITH green=3s yellow=1s red=2s) ──
+  // The native Semaforo must honour + clamp the baked params: green should now
+  // turn off at ~3000ms, yellow at ~4000ms, red at ~6000ms (vs the 6/2/5s defaults).
+  std::printf(
+      "\n--- Demo 3: MISSION \"SEMAFORO\" WITH green=3s yellow=1s red=2s "
+      "beep=off button=off ---\n");
+  feedProgram({
+      "LOAD",
+      "CALL SEMAFORO 1 2 4 5 6 green=3000 yellow=1000 red=2000 beep=off "
+      "button=off mingreen=2000",
+      ".",
+  });
+  runtime::feedLine("RUN");
+  run(7);  // one faster cycle
+
   std::printf("\n=== done — same bytecode will run identically on ESP32 + nRF54L via Zephyr ===\n");
   return 0;
 }

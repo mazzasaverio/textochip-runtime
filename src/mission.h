@@ -11,5 +11,6 @@ class Mission {
   virtual ~Mission() {}
 };
 
-// string id (+ pins baked into the bytecode) -> native mission object, or nullptr.
-Mission* missionFor(const std::string& id, const int* args, int argc);
+// string id (+ pins + params baked into the bytecode) -> native mission, or nullptr.
+Mission* missionFor(const std::string& id, const int* args, int argc,
+                    const std::string& params);

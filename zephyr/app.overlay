@@ -1,18 +1,29 @@
 /*
  * Board overlay for the Sakura Board VM.
  *
- * LEDs / button / serial work from the board's default devicetree, so for a first
- * `west build` you may not need anything here.
- *
- * The buzzer uses PWM. To make `tone` beep, enable a PWM node and route the buzzer
- * pin to one of its channels, then set its label to `pwm0` (or adjust hal_zephyr.cpp).
- * Example shape (fill in the real pin for your board):
- *
- *   &pwm0 {
- *       status = "okay";
- *       pinctrl-0 = <&pwm0_default>;
- *       pinctrl-names = "default";
- *   };
- *
- * See the nRF Connect SDK PWM samples and your board's .dts for the exact syntax.
+ * USB CDC-ACM console: redirect the Zephyr console to an app-provided CDC-ACM
+ * UART on the USB-OTG controller (zephyr_udc0), instead of the ESP32-S3
+ * USB-Serial-JTAG console. The JTAG console resets the chip whenever the host
+ * toggles DTR/RTS (which Web Serial does on open); an app CDC-ACM does not, so
+ * the IDE connects cleanly over the same native-USB port (like the Arduino
+ * "USB CDC On Boot"). The HAL reads/writes DT_CHOSEN(zephyr,console), so it
+ * picks this up automatically. See prj.conf for the matching CONFIG_* options.
+ */
+/ {
+	chosen {
+		zephyr,console = &cdc_acm_uart0;
+		zephyr,shell-uart = &cdc_acm_uart0;
+	};
+};
+
+&zephyr_udc0 {
+	cdc_acm_uart0: cdc_acm_uart0 {
+		compatible = "zephyr,cdc-acm-uart";
+	};
+};
+
+/*
+ * Buzzer (PWM) — still TODO. To make `tone` beep, enable a PWM node and route
+ * the buzzer pin to one of its channels, label it `pwm0` (or adjust
+ * hal_zephyr.cpp). LEDs / button work from the board's default devicetree.
  */

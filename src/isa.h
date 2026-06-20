@@ -24,6 +24,7 @@ struct Instruction {
   std::string missionId;  // CALL target
   int callArgs[6] = {0, 0, 0, 0, 0, 0};
   int callArgc = 0;
+  std::string callParams;  // CALL key=value params (e.g. "green=4000 beep=fast")
 };
 
 const char* opcodeName(OpCode op);

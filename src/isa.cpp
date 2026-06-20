@@ -108,13 +108,21 @@ bool parseInstructionLine(const std::string& raw, Instruction& out) {
       break;
     case OP_CALL: {
       out.missionId = t1;
+      // After the id: integer pin tokens, then optional key=value param tokens
+      // (e.g. "green=4000 beep=fast"). Pins -> callArgs; params -> callParams.
       std::string rargs = t2;
-      while (!rargs.empty() && out.callArgc < 6) {
+      while (!rargs.empty()) {
         size_t sp = rargs.find(' ');
         std::string tok = sp == std::string::npos ? rargs : rargs.substr(0, sp);
         rargs = sp == std::string::npos ? "" : trim(rargs.substr(sp + 1));
         tok = trim(tok);
-        if (!tok.empty()) out.callArgs[out.callArgc++] = (int)toLong(tok);
+        if (tok.empty()) continue;
+        if (tok.find('=') != std::string::npos) {
+          if (!out.callParams.empty()) out.callParams += ' ';
+          out.callParams += tok;
+        } else if (out.callArgc < 6) {
+          out.callArgs[out.callArgc++] = (int)toLong(tok);
+        }
       }
       break;
     }

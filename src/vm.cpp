@@ -87,7 +87,8 @@ void VM::step(const Instruction& in) {
     case OP_NOP:
       break;
     case OP_CALL:
-      currentMission = missionFor(in.missionId, in.callArgs, in.callArgc);
+      currentMission =
+          missionFor(in.missionId, in.callArgs, in.callArgc, in.callParams);
       if (currentMission != nullptr) {
         currentMission->begin();
         state = VM_RUNNING_MISSION;

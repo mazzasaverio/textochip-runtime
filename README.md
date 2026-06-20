@@ -7,7 +7,9 @@ differs per board. The ISA and the serial protocol are identical everywhere, so 
 browser compiler and the same `.bas` → bytecode run unchanged on all three.
 
 > This is the Zephyr port of the working Arduino firmware in `../firmware/ichigo_runtime/`.
-> The Arduino version stays the reference until this one passes the same tests on hardware.
+> It now **runs on real ESP32-S3 hardware**: verified end-to-end over Web Serial from the IDE —
+> PING/PONG, load/run, and the native MISSION with parameters. The Arduino version remains as a
+> reference implementation, but the Zephyr port is the path forward (it also targets the nRF54L).
 
 ## Layout
 
@@ -20,7 +22,7 @@ src/      portable core (shared by ALL targets) — DO NOT put hardware calls he
   runtime.{h,cpp}  serial protocol (PING/LOAD/RUN/STOP/OVERRIDE) + VM driver
 host/     PC build (plain g++) — runs the VM with no board, for fast verification
   hal_host.cpp   HAL on the PC: simulated pins + clock, serial = stdout
-  main.cpp       demo: runs semaforo bytecode AND MISSION "SEMAFORO"
+  main.cpp       demo: semaforo bytecode, MISSION "SEMAFORO", and MISSION ... WITH params
 zephyr/   Zephyr build (nRF Connect SDK for nRF54L, upstream Zephyr for ESP32)
   src/hal_zephyr.cpp   HAL on Zephyr (gpio_* / pwm / uart / k_uptime)
   CMakeLists.txt, prj.conf, app.overlay, src/main.cpp
@@ -34,8 +36,20 @@ make run
 ```
 
 Expected: the traffic-light cycle prints with timestamps (red 5s → yellow 1s →
-green 5s → loop), then the native `MISSION "SEMAFORO"` cycle with the walk-beep.
-This proves the VM is off-Arduino and ready for the Zephyr HAL. ✓ (verified)
+green 5s → loop), then the native `MISSION "SEMAFORO"` cycle with the walk-beep, and
+a Demo 3 that exercises mission **parameters** (see below). This proves the VM is
+off-Arduino and ready for the Zephyr HAL. ✓ (verified)
+
+### Mission parameters (honored in the firmware)
+
+The native `Semaforo` mission now accepts the IDE's parameter form:
+
+```
+MISSION "SEMAFORO" WITH green=.. yellow=.. red=.. beep=off|slow|fast button=on|off minGreen=..
+```
+
+`Semaforo::setParams()` parses these and **clamps them to the guardrails**. The host build's
+Demo 3 drives this path end-to-end.
 
 ## Build for hardware with Zephyr
 
@@ -44,15 +58,50 @@ For the **nRF54L** (incoming): the **nRF Connect SDK** (Nordic's Zephyr + BLE + 
 it reuses the same Zephyr SDK. From this folder:
 
 ```bash
-# nRF54LM20 DK  (verify the exact board string with: west boards | grep 54lm20)
-west build -b nrf54lm20dk/nrf54lm20a/cpuapp zephyr
+# ESP32-S3 via upstream Zephyr (runs today)
+west build -b esp32s3_devkitc/esp32s3/procpu zephyr
 west flash
 
-# ESP32-S3 via upstream Zephyr (same code, same toolchain)
-west build -b esp32s3_devkitc/esp32s3/procpu zephyr
+# nRF54LM20 DK  (incoming — verify the exact board string with: west boards | grep 54lm20)
+west build -b nrf54lm20dk/nrf54lm20a/cpuapp zephyr
+west flash
 ```
 
 Then connect from the IDE (Real board) exactly as today — same protocol.
+
+### Two USB ports, two roles (ESP32-S3)
+
+The Freenove ESP32-S3 exposes **two** USB-C ports; the Zephyr setup uses each for a
+different job — do not swap them:
+
+- **Flash** via the **"USB UART"** port (CH343 chip, VID `1a86`) with `west flash`.
+  esptool's DTR/RTS auto-reset into download mode works on this port.
+- **Connect the IDE / Web Serial** via the **"USB OTG"** (native-USB) port. The app
+  brings up a CDC-ACM device there that enumerates with VID `2fe3` as
+  `CDC_ACM_serial_backend` — that is the port you pick in the browser's Web Serial chooser.
+
+When reflashing while the CDC app is already running, esptool may not be able to auto-reset
+into download mode — force it manually: hold **BOOT**, tap **RST**, release **BOOT**, then
+`west flash`.
+
+### USB CDC-ACM console (why the IDE talks to the native-USB port)
+
+The app provides its **own USB CDC-ACM console on the USB-OTG controller** rather than using the
+default UART0 console. In `zephyr/prj.conf`:
+
+```
+CONFIG_USB_DEVICE_STACK_NEXT=y
+CONFIG_CDC_ACM_SERIAL_INITIALIZE_AT_BOOT=y
+```
+
+and `zephyr/app.overlay` re-points `zephyr,console` / `zephyr,shell-uart` to a `cdc_acm_uart0`
+node on `zephyr_udc0`.
+
+**Why:** the default console is UART0, exposed through the board's CH343 "USB UART" port, whose
+DTR/RTS lines drive an **auto-reset circuit**. A browser opening the port over Web Serial toggles
+DTR/RTS, which **resets the chip** → the board never answers. An app-provided CDC-ACM on the
+native "USB OTG" port has **no reset-on-DTR**, so the IDE can open it and get a stable
+PING/PONG (this mirrors the Arduino "USB CDC On Boot" behavior).
 
 ### Board-specific notes (the only things to tune)
 - **Pin numbers**: the bytecode bakes RAW pin numbers from `lib/boardProfile.ts`.
@@ -64,12 +113,17 @@ Then connect from the IDE (Real board) exactly as today — same protocol.
   (`CONFIG_REQUIRES_FULL_LIBC`, `CONFIG_COMMON_LIBC_MALLOC_ARENA_SIZE`).
 
 ## Status
-- ✅ Portable core + host build: **done and verified** (`make run` — semaforo + MISSION run on the PC).
+- ✅ Portable core + host build: **done and verified** (`make run` — semaforo + MISSION + mission
+  params run on the PC).
 - ✅ **Zephyr build for ESP32-S3: green** (`west build -b esp32s3_devkitc/esp32s3/procpu`,
-  FLASH ~154 KB) with upstream Zephyr + Zephyr SDK 1.0.1. Config baked into `prj.conf`:
-  `CONFIG_GLIBCXX_LIBCPP=y` (full C++ stdlib for `std::string`); needs `west packages pip --install`
-  (esptool ≥ 5.0.2) and the venv **activated** so esptool is on `PATH` at flash time.
-- ⏳ Flash to hardware: pending — free the serial port first (the browser IDE / Web Serial holds
-  it exclusively), then `west flash`.
+  FLASH ~221 KB) with upstream Zephyr + Zephyr SDK 1.0.1. Config baked into `prj.conf`:
+  `CONFIG_GLIBCXX_LIBCPP=y` (full C++ stdlib for `std::string`) plus the app-provided USB CDC-ACM
+  console (`CONFIG_USB_DEVICE_STACK_NEXT=y`, `CONFIG_CDC_ACM_SERIAL_INITIALIZE_AT_BOOT=y`); needs
+  `west packages pip --install` (esptool ≥ 5.0.2) and the venv **activated** so esptool is on
+  `PATH` at flash time.
+- ✅ **Runs on real ESP32-S3 hardware**: flashed via the CH343 "USB UART" port, then driven from
+  the IDE over Web Serial on the native-USB CDC-ACM port — PING/PONG, load/run, and the native
+  MISSION **with parameters** all verified end-to-end. (See "Two USB ports, two roles" and "USB
+  CDC-ACM console" above.)
 - ⏳ Next: the **nRF54LM20 DK** (`-b nrf54lm20dk/...`) when the kits arrive, then BLE OVERRIDE as
   the Nordic-specific demo, and edge-AI missions on the Axon NPU.

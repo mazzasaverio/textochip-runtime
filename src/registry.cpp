@@ -1,7 +1,7 @@
 #include "mission.h"
 #include "semaforo.h"
 
-// string id -> native mission (mirrors the Arduino missions/registry.h).
+// string id -> native mission (CALL <name> dispatch).
 Mission* missionFor(const std::string& id, const int* args, int argc,
                     const std::string& params) {
   if (id == "SEMAFORO") {

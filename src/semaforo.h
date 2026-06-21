@@ -6,9 +6,9 @@
 #include "hal.h"
 #include "mission.h"
 
-// Pedestrian-crossing traffic light — ported verbatim from the Arduino firmware's
-// missions/Semaforo.h. The STATE MACHINE is unchanged; only the hardware calls now
-// go through hal:: (pinMode/digitalWrite/digitalRead/tone/millis -> hal::*).
+// Pedestrian-crossing traffic light (brief §8). All hardware access goes through
+// hal:: (pinMode/digitalWrite/digitalRead/tone/millis -> hal::*), so the same
+// state machine runs on the host build and on any board.
 //
 // `MISSION "SEMAFORO" [WITH …]` -> `CALL SEMAFORO <green> <yellow> <red>
 // <buzzer> <button> [key=value …]`. The mission OWNS its guardrails: setParams()

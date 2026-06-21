@@ -6,18 +6,18 @@ functions). Each platform implements that HAL once — that is the *only* file t
 differs per board. The ISA and the serial protocol are identical everywhere, so the
 browser compiler and the same `.bas` → bytecode run unchanged on all three.
 
-> This is the Zephyr port of the working Arduino firmware in `../firmware/ichigo_runtime/`.
-> It now **runs on real ESP32-S3 hardware**: verified end-to-end over Web Serial from the IDE —
-> PING/PONG, load/run, and the native MISSION with parameters. The Arduino version remains as a
-> reference implementation, but the Zephyr port is the path forward (it also targets the nRF54L).
+> This is **the** Sakura Board firmware. It **runs on real ESP32-S3 hardware**: verified
+> end-to-end over Web Serial from the IDE — PING/PONG, load/run, and the native MISSION with
+> parameters. (It began as a port of an early Arduino prototype, since removed; Zephyr is now the
+> single runtime, and it also targets the nRF54L.)
 
 ## Layout
 
 ```
 src/      portable core (shared by ALL targets) — DO NOT put hardware calls here
   hal.h        the HAL interface (the only thing each board implements)
-  isa.{h,cpp}  opcode parsing (Arduino String -> std::string)
-  vm.{h,cpp}   the tick-based bytecode VM (logic identical to the Arduino vm.cpp)
+  isa.{h,cpp}  opcode parsing (std::string)
+  vm.{h,cpp}   the tick-based bytecode VM
   mission.h, semaforo.h, registry.cpp   native MISSION libraries (e.g. SEMAFORO)
   runtime.{h,cpp}  serial protocol (PING/LOAD/RUN/STOP/OVERRIDE) + VM driver
 host/     PC build (plain g++) — runs the VM with no board, for fast verification
@@ -38,7 +38,7 @@ make run
 Expected: the traffic-light cycle prints with timestamps (red 5s → yellow 1s →
 green 5s → loop), then the native `MISSION "SEMAFORO"` cycle with the walk-beep, and
 a Demo 3 that exercises mission **parameters** (see below). This proves the VM is
-off-Arduino and ready for the Zephyr HAL. ✓ (verified)
+fully platform-agnostic behind the Zephyr HAL. ✓ (verified)
 
 ### Mission parameters (honored in the firmware)
 

@@ -2,8 +2,8 @@
 #include <cstdint>
 #include <string>
 
-// Opcode set — mirrors lib/isa.ts and the brief §3, IDENTICAL to the Arduino
-// firmware's isa.h. The only change for portability: Arduino `String` -> std::string.
+// Opcode set — mirrors lib/isa.ts and the brief §3. Strings are std::string
+// (portable across the host g++ build and the Zephyr board build).
 enum OpCode {
   OP_NOP = 0,
   // Tier 1 — core

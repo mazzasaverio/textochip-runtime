@@ -4,8 +4,8 @@
 #include "isa.h"
 #include "mission.h"
 
-// Tick-based bytecode VM — brief §7. Identical logic to the Arduino vm.h; the only
-// change is that hardware access goes through hal:: (see vm.cpp). NO blocking delay.
+// Tick-based bytecode VM — brief §7. Hardware access goes through hal:: (see
+// vm.cpp), so the same logic runs on the host and on any board. NO blocking delay.
 
 #define MAX_PROGRAM 256
 #define STEPS_PER_TICK 64

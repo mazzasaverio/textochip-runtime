@@ -2,7 +2,7 @@
 #include <string>
 
 // A MISSION is a complete behavior, tick-based (non-blocking) — brief §8.
-// Identical interface to the Arduino firmware.
+// Common interface: begin()/tick()/done().
 class Mission {
  public:
   virtual void begin() = 0;  // setup / start

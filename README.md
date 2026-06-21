@@ -1,12 +1,12 @@
 # firmware-zephyr — portable bytecode VM (host · ESP32 · nRF54L)
 
-The **same** Sakura Board bytecode VM, one codebase, three targets. The VM / ISA /
+The **same** Text to Chip bytecode VM, one codebase, three targets. The VM / ISA /
 missions are platform-agnostic and only ever call a tiny **HAL** (`src/hal.h`, ~9
 functions). Each platform implements that HAL once — that is the *only* file that
 differs per board. The ISA and the serial protocol are identical everywhere, so the
 browser compiler and the same `.bas` → bytecode run unchanged on all three.
 
-> This is **the** Sakura Board firmware. It **runs on real ESP32-S3 hardware**: verified
+> This is **the** Text to Chip firmware. It **runs on real ESP32-S3 hardware**: verified
 > end-to-end over Web Serial from the IDE — PING/PONG, load/run, and the native MISSION with
 > parameters. (It began as a port of an early Arduino prototype, since removed; Zephyr is now the
 > single runtime, and it also targets the nRF54L.)

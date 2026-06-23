@@ -1,15 +1,32 @@
-# firmware-zephyr — portable bytecode VM (host · ESP32 · nRF54L)
+# textochip-runtime
 
-The **same** Text to Chip bytecode VM, one codebase, three targets. The VM / ISA /
-missions are platform-agnostic and only ever call a tiny **HAL** (`src/hal.h`, ~9
-functions). Each platform implements that HAL once — that is the *only* file that
-differs per board. The ISA and the serial protocol are identical everywhere, so the
-browser compiler and the same `.bas` → bytecode run unchanged on all three.
+**A tiny, portable bytecode VM and mission library for microcontrollers, built on Zephyr.**
+The open runtime behind [Text to Chip](https://textochip.com): it runs on **ESP32-S3** and
+**Nordic nRF54L** today, and ports to other boards through a small **HAL** (`src/hal.h`, ~9
+functions — the *only* file that differs per board).
 
-> This is **the** Text to Chip firmware. It **runs on real ESP32-S3 hardware**: verified
-> end-to-end over Web Serial from the IDE — PING/PONG, load/run, and the native MISSION with
-> parameters. (It began as a port of an early Arduino prototype, since removed; Zephyr is now the
-> single runtime, and it also targets the nRF54L.)
+A program is a flat list of **bytecode** (the ISA in [`SPEC.md`](SPEC.md)) that the browser
+compiler produces and this VM executes. The **same bytecode** runs identically in the in-browser
+simulator and on the board, so the IDE and the firmware evolve independently behind that contract.
+
+**Two kinds of mission** (see [`ARCHITECTURE.md`](ARCHITECTURE.md)):
+- **bytecode** — simple LED/buzzer/button behaviours the compiler *expands to bytecode* (e.g. the
+  traffic light). They need **no code here** and run on the VM directly, in the browser too.
+- **native C++** — richer behaviours kept here as a `MISSION` library invoked by `CALL` (e.g. the
+  playable keyboard `pianola.h`). A `registry.cpp` dispatches `CALL <NAME>` to them.
+
+A mission has a **beginning and an end** (it runs once, then control falls through); *a robot is a
+sequence of missions*, looped with `GOTO`.
+
+> **Open core.** This runtime is the open part of Text to Chip (Apache-2.0 when it goes public).
+> The product keeps the browser IDE + compiler + simulator, the curated mission catalog (the
+> manifest of tweakable guardrails), the AI assistant ([textochip-api](https://github.com/mazzasaverio/textochip-api)),
+> and the hardware kits. The bytecode ISA + serial protocol ([`SPEC.md`](SPEC.md)) is the stable
+> contract between the three repos.
+
+> **Verified on real ESP32-S3 hardware** over Web Serial from the IDE — PING/PONG, load/run, native
+> MISSION with parameters, buzzer via LEDC PWM, button. Zephyr is the single runtime; the nRF54L
+> port is next.
 
 ## Layout
 
@@ -31,7 +48,7 @@ zephyr/   Zephyr build (nRF Connect SDK for nRF54L, upstream Zephyr for ESP32)
 ## Build & run on the PC (works now — no toolchain needed)
 
 ```bash
-cd firmware-zephyr/host
+cd host
 make run
 ```
 

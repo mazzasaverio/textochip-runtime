@@ -1,5 +1,5 @@
 /*
- * Board overlay for the Sakura Board VM.
+ * Board overlay for the textochip runtime (Text to Chip).
  *
  * USB CDC-ACM console: redirect the Zephyr console to an app-provided CDC-ACM
  * UART on the USB-OTG controller (zephyr_udc0), instead of the ESP32-S3

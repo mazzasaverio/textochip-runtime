@@ -20,7 +20,7 @@ static void run(int seconds) {
 }
 
 int main() {
-  std::printf("=== Sakura Board VM — host build (native C++, no Arduino) ===\n");
+  std::printf("=== textochip runtime — host build (native C++, no board) ===\n");
   runtime::init();
 
   // ── Demo 1: low-level semaforo.bas bytecode (red=4, yellow=2, green=1) ──

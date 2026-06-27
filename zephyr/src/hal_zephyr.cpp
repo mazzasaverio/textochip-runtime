@@ -1,10 +1,8 @@
 // Zephyr implementation of the HAL — builds with the nRF Connect SDK (nRF54L) and
 // upstream Zephyr (ESP32-S3). LEDs / button / serial / time work from the board's
-// standard devicetree; the buzzer (PWM) needs a pwm node in app.overlay (see README).
-//
-// NOTE: this file is NOT compiled on the dev machine (no Zephyr toolchain present).
-// It is a correct-shaped starting point — expect to tune prj.conf / the overlay on
-// the first `west build`. It is the ONLY file that differs per board.
+// standard devicetree; the buzzer + servo (PWM) and analog (ADC) need nodes in
+// app.overlay (see README). This is the production firmware for the ESP32-S3
+// (built + flashed with `west`); it is the ONLY file that differs per board.
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/flash.h>

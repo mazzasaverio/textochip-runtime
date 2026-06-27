@@ -81,4 +81,7 @@ moat. Edit the firmware **only here** — the product no longer carries a copy.
 
 - **Nordic nRF54LM20 DK** port (per-board work is just the HAL + the board profile).
 - **Edge-AI missions** on the nRF54L's NPU (voice keyword, vision) — the long-term differentiator.
-- **Flash persistence + autorun** (`SAVE`, run-on-boot) for PC-unplugged autonomy.
+
+Done: **flash persistence + boot autorun** (`SAVE`/`CLEAR`, run-on-boot) for
+PC-unplugged autonomy — NVS on the board's `storage` partition (see `runtime.cpp`
++ `hal_zephyr.cpp`; `SPEC.md` documents the protocol).

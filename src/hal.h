@@ -13,10 +13,13 @@ namespace hal {
 
 void init();  // bring up the clock + serial link
 
-// GPIO
-void pinMode(int pin, bool output);  // output=true -> OUTPUT, false -> INPUT_PULLUP
-void pinWrite(int pin, int level);   // level 0/1
-int pinRead(int pin);                // returns 0/1
+// GPIO. mode: 0 = INPUT_PULLUP (active-low, e.g. a button), 1 = OUTPUT,
+// 2 = INPUT_PULLDOWN (active-high, e.g. a PIR — idles LOW when disconnected).
+void pinMode(int pin, int mode);
+void pinWrite(int pin, int level);  // level 0/1
+int pinRead(int pin);               // returns 0/1
+// Analog input (ADC) — returns a raw reading (e.g. 0..4095 on the ESP32-S3).
+int analogRead(int pin);
 
 // Buzzer (square wave)
 void tone(int pin, int hz);  // hz>0 start

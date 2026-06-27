@@ -5,3 +5,4 @@
 // and a simulated button so a whole program can be exercised instantly on the PC.
 void host_advance(uint32_t ms);
 void host_set_button(int pin, bool pressed);
+void host_set_analog(int pin, int value);  // simulated ADC reading for AREAD

@@ -46,6 +46,7 @@ const char* opcodeName(OpCode op) {
     case OP_TONE: return "TONE";
     case OP_RPIN: return "RPIN";
     case OP_SERVO: return "SERVO";
+    case OP_AREAD: return "AREAD";
     default: return "?";
   }
 }
@@ -62,6 +63,7 @@ OpCode opcodeFromName(const std::string& n) {
       {"LT", OP_LT},     {"EQ", OP_EQ},     {"AND", OP_AND},     {"NOT", OP_NOT},
       {"ABS", OP_ABS},   {"JZ", OP_JZ},     {"GOSUB", OP_GOSUB}, {"RET", OP_RET},
       {"TONE", OP_TONE}, {"RPIN", OP_RPIN}, {"SERVO", OP_SERVO},
+      {"AREAD", OP_AREAD},
   };
   for (auto& m : M)
     if (n == m.k) return m.v;
@@ -85,10 +87,13 @@ bool parseInstructionLine(const std::string& raw, Instruction& out) {
   std::string t2 = sp2 == std::string::npos ? "" : trim(rest.substr(sp2 + 1));
 
   switch (out.op) {
-    case OP_MODE:
+    case OP_MODE: {
       out.a = toLong(t1);
-      out.b = (upper(t2) == "OUT") ? 1 : 0;  // 1 = OUTPUT, 0 = INPUT_PULLUP
+      std::string dir = upper(t2);
+      // 1 = OUTPUT, 2 = INPUT_PULLDOWN (active-high sensors), 0 = INPUT_PULLUP.
+      out.b = (dir == "OUT") ? 1 : (dir == "INPD") ? 2 : 0;
       break;
+    }
     case OP_SET:
     case OP_TONE:   // TONE <pin> <freq>
     case OP_SERVO:  // SERVO <pin> <angle 0..180>
@@ -102,6 +107,7 @@ bool parseInstructionLine(const std::string& raw, Instruction& out) {
     case OP_PUSH:
     case OP_READ:
     case OP_RPIN:
+    case OP_AREAD:  // AREAD <pin> — push the analog reading
       out.a = toLong(t1);
       break;
     case OP_LOAD:

@@ -68,7 +68,7 @@ void VM::tick() {
 void VM::step(const Instruction& in) {
   switch (in.op) {
     case OP_MODE:
-      hal::pinMode((int)in.a, in.b == 1);
+      hal::pinMode((int)in.a, (int)in.b);  // 0=IN pull-up, 1=OUT, 2=IN pull-down
       break;
     case OP_SET:
       hal::pinWrite((int)in.a, in.b ? 1 : 0);
@@ -134,6 +134,9 @@ void VM::step(const Instruction& in) {
       break;
     case OP_SERVO:  // SERVO <pin> <angle 0..180> — position a hobby servo (50 Hz PWM)
       hal::servo((int)in.a, (int)in.b);
+      break;
+    case OP_AREAD:  // AREAD <pin> — push the analog (ADC) reading
+      push(hal::analogRead((int)in.a));
       break;
 
     default:

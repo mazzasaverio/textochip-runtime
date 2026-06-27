@@ -13,6 +13,12 @@
 #if DT_NODE_EXISTS(DT_NODELABEL(pwm0))
 #include <zephyr/drivers/pwm.h>
 #endif
+// Analog input: a `zephyr,user` node with an `io-channels` ADC ref (see overlay).
+#define ADC_NODE DT_PATH(zephyr_user)
+#if DT_NODE_HAS_PROP(ADC_NODE, io_channels)
+#include <zephyr/drivers/adc.h>
+#define HAS_ADC 1
+#endif
 
 #include "hal.h"
 
@@ -29,16 +35,45 @@ static const struct device* gpio_port(int pin) {
 }
 static inline gpio_pin_t gpio_index(int pin) { return (gpio_pin_t)(pin % 32); }
 
+#ifdef HAS_ADC
+static const struct adc_dt_spec g_adc = ADC_DT_SPEC_GET(ADC_NODE);
+static bool g_adc_ready = false;
+#endif
+
 namespace hal {
 
-void init() { /* console + gpio controllers are ready at boot */ }
+void init() {
+  // console + gpio controllers are ready at boot
+#ifdef HAS_ADC
+  if (adc_is_ready_dt(&g_adc) && adc_channel_setup_dt(&g_adc) == 0)
+    g_adc_ready = true;
+#endif
+}
 
-void pinMode(int pin, bool output) {
-  gpio_pin_configure(gpio_port(pin), gpio_index(pin),
-                     output ? GPIO_OUTPUT_INACTIVE : (GPIO_INPUT | GPIO_PULL_UP));
+void pinMode(int pin, int mode) {
+  gpio_flags_t flags = (mode == 1)   ? GPIO_OUTPUT_INACTIVE
+                       : (mode == 2) ? (GPIO_INPUT | GPIO_PULL_DOWN)   // active-high sensor
+                                     : (GPIO_INPUT | GPIO_PULL_UP);    // active-low button
+  gpio_pin_configure(gpio_port(pin), gpio_index(pin), flags);
 }
 void pinWrite(int pin, int level) { gpio_pin_set(gpio_port(pin), gpio_index(pin), level); }
 int pinRead(int pin) { return gpio_pin_get(gpio_port(pin), gpio_index(pin)); }
+
+// Analog read via the ADC channel in the overlay (the bytecode pin is ignored —
+// the channel/GPIO mapping lives in devicetree). Returns the raw reading.
+int analogRead(int /*pin*/) {
+#ifdef HAS_ADC
+  if (!g_adc_ready) return 0;
+  uint16_t buf = 0;
+  struct adc_sequence seq = {};
+  seq.buffer = &buf;
+  seq.buffer_size = sizeof(buf);
+  if (adc_sequence_init_dt(&g_adc, &seq) < 0) return 0;
+  return adc_read_dt(&g_adc, &seq) == 0 ? (int)buf : 0;
+#else
+  return 0;  // no ADC channel in the overlay yet
+#endif
+}
 
 #if DT_NODE_EXISTS(DT_NODELABEL(pwm0))
 static const struct device* const pwm_dev = DEVICE_DT_GET(DT_NODELABEL(pwm0));

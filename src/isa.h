@@ -13,14 +13,14 @@ enum OpCode {
   OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_GT, OP_LT, OP_EQ, OP_AND, OP_NOT, OP_ABS,
   OP_JZ, OP_GOSUB, OP_RET,
   // Extensions (real hardware)
-  OP_TONE, OP_RPIN, OP_SERVO,
+  OP_TONE, OP_RPIN, OP_SERVO, OP_AREAD,
   OP_UNKNOWN
 };
 
 struct Instruction {
   OpCode op = OP_NOP;
   long a = 0;             // pin / addr / value / ms / var-index
-  long b = 0;             // SET level, MODE direction (1=OUT, 0=IN)
+  long b = 0;             // SET level; MODE dir (1=OUT, 0=IN pull-up, 2=IN pull-down)
   std::string missionId;  // CALL target
   int callArgs[6] = {0, 0, 0, 0, 0, 0};
   int callArgc = 0;

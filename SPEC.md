@@ -65,6 +65,8 @@ struct; the simulator executes the same instructions directly.
 | `TONE <pin> <hz>`    | square-wave tone on a passive buzzer; `hz = 0` is off         |
 | `RPIN <pin>`         | debug: the board prints `PIN n = v`                           |
 | `SERVO <pin> <angle>`| position a hobby servo (e.g. SG90) to `angle` 0..180° (50 Hz PWM); the HAL maps 0..180° → 0.5..2.5 ms pulse |
+| `AREAD <pin>`        | push the analog (ADC) reading of `pin` (e.g. 0..4095) onto the value stack |
+| `MODE <pin> INPD`    | `pinMode(pin, INPUT_PULLDOWN)` — active-high sensors (e.g. a PIR) idle LOW when disconnected |
 
 A receiver MUST ignore blank lines and `;` / `#` comments, and MAY ignore unknown
 opcodes (forward-compatibility).
@@ -85,8 +87,15 @@ parsing.
 | `RUN`               | start the VM from `pc = 0`                      | streamed logs / `OK: done`  |
 | `STOP`              | stop the VM                                    | `OK: stopped`               |
 | `OVERRIDE <instr>`  | execute one instruction immediately            | `OK` / `ERROR`              |
-| `SAVE`              | persist bytecode to flash + set autorun        | `OK: saved`                 |
-| (boot)              | if a saved program exists, print `READY` then auto-`RUN` | `READY` …         |
+| `SAVE`              | persist the loaded bytecode to flash + arm autorun | `OK: saved` / `ERROR: …`    |
+| `CLEAR`             | forget the saved program (disable autorun)     | `OK: cleared`               |
+| (boot)              | if a saved program exists, load + run it (PC-unplugged autonomy) | `READY` then `OK: autorun N` |
+
+`SAVE` persists exactly the raw bytecode just received via `LOAD` (one slot — a
+new save overwrites it); on boot the firmware reloads + runs it, so the board is
+autonomous with no PC attached. The main loop keeps pumping serial during autorun,
+so an IDE can connect and `LOAD`/`STOP` to take over at any time. `CLEAR` returns
+the board to booting idle.
 
 ---
 

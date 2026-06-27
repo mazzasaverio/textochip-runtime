@@ -66,6 +66,33 @@ void servo(int pin, int angle) {
   std::printf("    [t=%6ums] servo pin%d -> %d deg\n", g_now, pin, angle);
 }
 
+// Non-volatile storage, host edition: a plain file in the working directory.
+// It persists across separate runs of the binary, so a test can SAVE in one
+// process and observe autorun in the next — a faithful stand-in for flash +
+// power-cycle (the Zephyr HAL uses NVS on the board's storage partition).
+static const char* kStorePath = ".textochip_store";
+
+bool storeSave(const std::string& program) {
+  std::FILE* f = std::fopen(kStorePath, "wb");
+  if (f == nullptr) return false;
+  size_t n = std::fwrite(program.data(), 1, program.size(), f);
+  std::fclose(f);
+  return n == program.size();
+}
+
+bool storeLoad(std::string& out) {
+  std::FILE* f = std::fopen(kStorePath, "rb");
+  if (f == nullptr) return false;  // nothing saved
+  out.clear();
+  char buf[512];
+  size_t n;
+  while ((n = std::fread(buf, 1, sizeof(buf), f)) > 0) out.append(buf, n);
+  std::fclose(f);
+  return !out.empty();
+}
+
+void storeClear() { std::remove(kStorePath); }
+
 uint32_t nowMs() { return g_now; }
 
 int serialReadChar() { return -1; }  // host demo injects lines via runtime::feedLine

@@ -7,9 +7,12 @@
 // the first `west build`. It is the ONLY file that differs per board.
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
+#include <zephyr/drivers/flash.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/uart.h>
+#include <zephyr/fs/nvs.h>
 #include <zephyr/kernel.h>
+#include <zephyr/storage/flash_map.h>
 #if DT_NODE_EXISTS(DT_NODELABEL(pwm0))
 #include <zephyr/drivers/pwm.h>
 #endif
@@ -40,6 +43,26 @@ static const struct adc_dt_spec g_adc = ADC_DT_SPEC_GET(ADC_NODE);
 static bool g_adc_ready = false;
 #endif
 
+// ── Non-volatile storage: NVS on the board's `storage` flash partition (192 KB
+// on the ESP32-S3, defined in its devicetree). One key holds the autorun program
+// text; SAVE writes it, boot reads it (see runtime::init). ──
+#define NVS_PARTITION storage_partition
+static struct nvs_fs g_nvs;
+static bool g_nvs_ready = false;
+static const uint16_t kProgramNvsId = 1;
+
+static void store_init() {
+  g_nvs.flash_device = FIXED_PARTITION_DEVICE(NVS_PARTITION);
+  if (!device_is_ready(g_nvs.flash_device)) return;
+  g_nvs.offset = FIXED_PARTITION_OFFSET(NVS_PARTITION);
+  struct flash_pages_info info;
+  if (flash_get_page_info_by_offs(g_nvs.flash_device, g_nvs.offset, &info) != 0)
+    return;
+  g_nvs.sector_size = info.size;  // one flash erase-block per NVS sector
+  g_nvs.sector_count = 4U;        // a few sectors for wear-levelling headroom
+  if (nvs_mount(&g_nvs) == 0) g_nvs_ready = true;
+}
+
 namespace hal {
 
 void init() {
@@ -48,6 +71,27 @@ void init() {
   if (adc_is_ready_dt(&g_adc) && adc_channel_setup_dt(&g_adc) == 0)
     g_adc_ready = true;
 #endif
+  store_init();
+}
+
+bool storeSave(const std::string& program) {
+  if (!g_nvs_ready) return false;
+  ssize_t rc = nvs_write(&g_nvs, kProgramNvsId, program.data(), program.size());
+  return rc >= 0;  // bytes written, or 0 if unchanged; <0 on error (e.g. too big)
+}
+
+bool storeLoad(std::string& out) {
+  if (!g_nvs_ready) return false;
+  static char buf[4096];  // one sector — bigger than any real program
+  ssize_t rc = nvs_read(&g_nvs, kProgramNvsId, buf, sizeof(buf));
+  if (rc <= 0) return false;  // no saved program
+  size_t n = (size_t)rc < sizeof(buf) ? (size_t)rc : sizeof(buf);
+  out.assign(buf, n);
+  return !out.empty();
+}
+
+void storeClear() {
+  if (g_nvs_ready) nvs_delete(&g_nvs, kProgramNvsId);
 }
 
 void pinMode(int pin, int mode) {

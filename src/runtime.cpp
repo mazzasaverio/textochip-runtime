@@ -11,6 +11,9 @@ namespace {
 VM vm;
 bool loading = false;
 std::string inbuf;
+// The raw bytecode text of the loaded program, kept so SAVE can persist exactly
+// what runs (and the boot autorun can re-feed it). Built up line-by-line on LOAD.
+std::string programText;
 
 std::string upper(std::string s) {
   for (char& c : s) c = (char)std::toupper((unsigned char)c);
@@ -36,7 +39,12 @@ void runtime::feedLine(const std::string& raw) {
     if (line.empty()) return;
     Instruction in;
     if (parseInstructionLine(line, in)) {
-      if (!vm.addInstruction(in)) hal::serialWriteLine("ERROR: program full");
+      if (vm.addInstruction(in)) {
+        programText += line;  // remember the raw text so SAVE persists it verbatim
+        programText += '\n';
+      } else {
+        hal::serialWriteLine("ERROR: program full");
+      }
     } else {
       hal::serialWriteLine("ERROR: bad instruction: " + line);
     }
@@ -48,7 +56,9 @@ void runtime::feedLine(const std::string& raw) {
   if (line == "PING") {
     hal::serialWriteLine("PONG");
   } else if (line == "LOAD") {
+    vm.stop();  // a boot-autorun program may be running — take over cleanly
     vm.clearProgram();
+    programText.clear();
     loading = true;
     hal::serialWriteLine("OK: send program, end '.'");
   } else if (line == "RUN") {
@@ -58,7 +68,19 @@ void runtime::feedLine(const std::string& raw) {
     vm.stop();
     hal::serialWriteLine("OK: stopped");
   } else if (line == "SAVE") {
-    hal::serialWriteLine("ERROR: SAVE + autorun arrive in firmware milestone 4");
+    // Persist the loaded program to flash + arm autorun (brief §7): after this,
+    // the board reruns it on every boot with no PC attached.
+    if (programText.empty()) {
+      hal::serialWriteLine("ERROR: nothing to save (LOAD a program first)");
+    } else if (hal::storeSave(programText)) {
+      hal::serialWriteLine("OK: saved");
+    } else {
+      hal::serialWriteLine("ERROR: save failed");
+    }
+  } else if (line == "CLEAR") {
+    // Forget the saved program — the board boots idle again (no autorun).
+    hal::storeClear();
+    hal::serialWriteLine("OK: cleared");
   } else if (line.rfind("OVERRIDE", 0) == 0) {
     std::string rest = trim(line.substr(8));
     if (rest.empty()) {
@@ -98,7 +120,39 @@ void runtime::pumpSerial() {
 
 void runtime::tick() { vm.tick(); }
 
+namespace {
+// Parse a multi-line bytecode blob into the VM (used by boot autorun). Returns
+// the number of instructions loaded. Mirrors the LOAD path, line by line.
+int loadProgramText(const std::string& text) {
+  vm.clearProgram();
+  programText.clear();
+  size_t start = 0;
+  while (start < text.size()) {
+    size_t nl = text.find('\n', start);
+    size_t end = (nl == std::string::npos) ? text.size() : nl;
+    std::string line = trim(text.substr(start, end - start));
+    start = (nl == std::string::npos) ? text.size() : nl + 1;
+    if (line.empty()) continue;
+    Instruction in;
+    if (parseInstructionLine(line, in) && vm.addInstruction(in)) {
+      programText += line;
+      programText += '\n';
+    }
+  }
+  return vm.programSize();
+}
+}  // namespace
+
 void runtime::init() {
   hal::init();
   hal::serialWriteLine("READY");
+
+  // Autonomy (brief §7): if a program was SAVEd to flash, run it on boot with no
+  // PC attached. The main loop still pumps serial, so an IDE can connect and
+  // LOAD/STOP to take over at any time (the VM is cooperative).
+  std::string saved;
+  if (hal::storeLoad(saved) && loadProgramText(saved) > 0) {
+    vm.start();
+    hal::serialWriteLine("OK: autorun " + std::to_string(vm.programSize()));
+  }
 }

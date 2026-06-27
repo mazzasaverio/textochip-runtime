@@ -28,6 +28,13 @@ void toneOff(int pin);
 // Hobby servo (e.g. SG90) — position to `angle` (0..180°) via a 50 Hz PWM frame.
 void servo(int pin, int angle);
 
+// Non-volatile storage for the autorun program (brief §7). SAVE persists the
+// raw bytecode text to flash; on boot, a saved program is loaded + run with no
+// PC attached (the board's autonomy). One slot — a new save overwrites it.
+bool storeSave(const std::string& program);  // persist; false on failure (e.g. too big)
+bool storeLoad(std::string& out);            // true if a program is stored (out = its text)
+void storeClear();                           // forget the saved program (disable autorun)
+
 // Time
 uint32_t nowMs();  // milliseconds since boot
 

@@ -36,6 +36,11 @@
 			pinmux = <LEDC_CH0_GPIO5>;
 			output-enable;
 		};
+		/* Servo (SG90) signal on GPIO8 — LEDC channel 1. */
+		group2 {
+			pinmux = <LEDC_CH1_GPIO8>;
+			output-enable;
+		};
 	};
 };
 
@@ -49,5 +54,11 @@ pwm0: &ledc0 {
 	channel0@0 {
 		reg = <0x0>;
 		timer = <0>;
+	};
+	/* Servo channel: its OWN timer (1) so its fixed 50 Hz frame is independent
+	 * of the buzzer's variable tone frequency on channel 0 / timer 0. */
+	channel1@1 {
+		reg = <0x1>;
+		timer = <1>;
 	};
 };

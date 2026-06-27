@@ -132,6 +132,9 @@ void VM::step(const Instruction& in) {
       hal::serialWriteLine("PIN " + std::to_string((int)in.a) + " = " +
                            std::to_string(hal::pinRead((int)in.a)));
       break;
+    case OP_SERVO:  // SERVO <pin> <angle 0..180> — position a hobby servo (50 Hz PWM)
+      hal::servo((int)in.a, (int)in.b);
+      break;
 
     default:
       hal::serialWriteLine(std::string("WARN: opcode not implemented: ") + opcodeName(in.op));

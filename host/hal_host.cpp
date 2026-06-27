@@ -12,6 +12,7 @@
 namespace {
 std::array<int, 128> g_level{};  // last written pin levels
 std::array<int, 128> g_mode{};   // 1 = OUTPUT, 0 = INPUT_PULLUP
+std::array<int, 128> g_servo{};  // last servo angle per pin
 uint32_t g_now = 0;
 int g_buttonPin = -1;
 bool g_buttonPressed = false;
@@ -50,6 +51,13 @@ int pinRead(int pin) {
 
 void tone(int pin, int hz) { std::printf("    [t=%6ums] buzzer pin%d -> %d Hz\n", g_now, pin, hz); }
 void toneOff(int pin) { std::printf("    [t=%6ums] buzzer pin%d off\n", g_now, pin); }
+
+void servo(int pin, int angle) {
+  if (angle < 0) angle = 0;
+  if (angle > 180) angle = 180;
+  if (pin >= 0 && pin < 128) g_servo[pin] = angle;
+  std::printf("    [t=%6ums] servo pin%d -> %d deg\n", g_now, pin, angle);
+}
 
 uint32_t nowMs() { return g_now; }
 

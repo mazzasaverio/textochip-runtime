@@ -11,7 +11,7 @@ As long as both sides honour this document, the compiler grammar and the firmwar
 can change without breaking each other. Treat changes here as **versioned and
 deliberate**.
 
-> **Contract version: 1** (Tier-1 + Tier-2 + the `TONE`/`RPIN` extensions).
+> **Contract version: 1** (Tier-1 + Tier-2 + the `TONE`/`RPIN`/`SERVO` extensions).
 
 ---
 
@@ -60,10 +60,11 @@ struct; the simulator executes the same instructions directly.
 
 ### Extensions (real-hardware)
 
-| Instruction        | Meaning                                               |
-|--------------------|-------------------------------------------------------|
-| `TONE <pin> <hz>`  | square-wave tone on a passive buzzer; `hz = 0` is off |
-| `RPIN <pin>`       | debug: the board prints `PIN n = v`                   |
+| Instruction          | Meaning                                                       |
+|----------------------|---------------------------------------------------------------|
+| `TONE <pin> <hz>`    | square-wave tone on a passive buzzer; `hz = 0` is off         |
+| `RPIN <pin>`         | debug: the board prints `PIN n = v`                           |
+| `SERVO <pin> <angle>`| position a hobby servo (e.g. SG90) to `angle` 0..180° (50 Hz PWM); the HAL maps 0..180° → 0.5..2.5 ms pulse |
 
 A receiver MUST ignore blank lines and `;` / `#` comments, and MAY ignore unknown
 opcodes (forward-compatibility).
@@ -104,5 +105,5 @@ parsing.
 ## 4. The HAL (per-board surface)
 
 Everything above is board-agnostic and only ever calls `hal::*` (`src/hal.h`).
-Porting to a new microcontroller means implementing **one file** (~9 functions:
-GPIO, buzzer tone, a millisecond clock, and a serial link). See `src/hal.h`.
+Porting to a new microcontroller means implementing **one file** (~10 functions:
+GPIO, buzzer tone, a servo, a millisecond clock, and a serial link). See `src/hal.h`.

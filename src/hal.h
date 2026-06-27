@@ -22,6 +22,9 @@ int pinRead(int pin);                // returns 0/1
 void tone(int pin, int hz);  // hz>0 start
 void toneOff(int pin);
 
+// Hobby servo (e.g. SG90) — position to `angle` (0..180°) via a 50 Hz PWM frame.
+void servo(int pin, int angle);
+
 // Time
 uint32_t nowMs();  // milliseconds since boot
 

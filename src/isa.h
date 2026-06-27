@@ -13,7 +13,7 @@ enum OpCode {
   OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_GT, OP_LT, OP_EQ, OP_AND, OP_NOT, OP_ABS,
   OP_JZ, OP_GOSUB, OP_RET,
   // Extensions (real hardware)
-  OP_TONE, OP_RPIN,
+  OP_TONE, OP_RPIN, OP_SERVO,
   OP_UNKNOWN
 };
 

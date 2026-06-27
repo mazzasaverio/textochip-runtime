@@ -52,10 +52,22 @@ void tone(int /*pin*/, int hz) {
 // is rejected by the LEDC driver, which would leave the channel running its
 // boot-default duty → a continuous tone. Keep a real period, drop the duty.
 void toneOff(int /*pin*/) { pwm_set(pwm_dev, 0, 1000000u, 0, 0); }
+
+// Servo on PWM channel 1 (overlay: LEDC_CH1 on a SEPARATE timer so the 50 Hz
+// servo frame is independent of the buzzer's variable tone frequency on ch0).
+// A standard hobby servo (SG90): 20 ms frame, 0.5 ms (0°) … 2.5 ms (180°) pulse.
+void servo(int /*pin*/, int angle) {
+  if (angle < 0) angle = 0;
+  if (angle > 180) angle = 180;
+  uint32_t pulse = 500000u + (uint32_t)angle * 2000000u / 180u;  // ns
+  pwm_set(pwm_dev, 1, 20000000u, pulse, 0);                       // 20 ms = 50 Hz
+}
 #else
-// No pwm node yet → buzzer is a no-op (LEDs/button still work). Add one in app.overlay.
+// No pwm node yet → buzzer + servo are no-ops (LEDs/button still work). Add a
+// pwm node in app.overlay.
 void tone(int, int) {}
 void toneOff(int) {}
+void servo(int, int) {}
 #endif
 
 uint32_t nowMs() { return (uint32_t)k_uptime_get(); }

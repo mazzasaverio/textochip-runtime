@@ -45,6 +45,7 @@ const char* opcodeName(OpCode op) {
     case OP_RET: return "RET";
     case OP_TONE: return "TONE";
     case OP_RPIN: return "RPIN";
+    case OP_SERVO: return "SERVO";
     default: return "?";
   }
 }
@@ -60,7 +61,7 @@ OpCode opcodeFromName(const std::string& n) {
       {"SUB", OP_SUB},   {"MUL", OP_MUL},   {"DIV", OP_DIV},     {"GT", OP_GT},
       {"LT", OP_LT},     {"EQ", OP_EQ},     {"AND", OP_AND},     {"NOT", OP_NOT},
       {"ABS", OP_ABS},   {"JZ", OP_JZ},     {"GOSUB", OP_GOSUB}, {"RET", OP_RET},
-      {"TONE", OP_TONE}, {"RPIN", OP_RPIN},
+      {"TONE", OP_TONE}, {"RPIN", OP_RPIN}, {"SERVO", OP_SERVO},
   };
   for (auto& m : M)
     if (n == m.k) return m.v;
@@ -89,7 +90,8 @@ bool parseInstructionLine(const std::string& raw, Instruction& out) {
       out.b = (upper(t2) == "OUT") ? 1 : 0;  // 1 = OUTPUT, 0 = INPUT_PULLUP
       break;
     case OP_SET:
-    case OP_TONE:  // TONE <pin> <freq>
+    case OP_TONE:   // TONE <pin> <freq>
+    case OP_SERVO:  // SERVO <pin> <angle 0..180>
       out.a = toLong(t1);
       out.b = toLong(t2);
       break;

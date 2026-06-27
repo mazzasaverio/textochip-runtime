@@ -111,9 +111,14 @@ bool parseInstructionLine(const std::string& raw, Instruction& out) {
       out.a = toLong(t1);
       break;
     case OP_LOAD:
-    case OP_STORE:
-      if (!t1.empty()) out.a = (long)(std::tolower((unsigned char)t1[0]) - 'a');
+    case OP_STORE: {
+      // Variables are single letters a..z. Reject anything else so a bad token
+      // can't become an out-of-range vars[] index in the VM.
+      char c = t1.empty() ? '\0' : (char)std::tolower((unsigned char)t1[0]);
+      if (c < 'a' || c > 'z') return false;
+      out.a = (long)(c - 'a');
       break;
+    }
     case OP_CALL: {
       out.missionId = t1;
       // After the id: integer pin tokens, then optional key=value param tokens

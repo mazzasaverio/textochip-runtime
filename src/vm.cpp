@@ -99,8 +99,15 @@ void VM::step(const Instruction& in) {
 
     // ── Tier 2 ──
     case OP_PUSH: push(in.a); break;
-    case OP_LOAD: push(vars[in.a]); break;
-    case OP_STORE: vars[in.a] = pop(); break;
+    // Variables are a..z (indices 0..25). Bounds-check before indexing vars[]:
+    // a corrupt saved program or a stray OVERRIDE must never read/write out of
+    // bounds on an MCU with no memory protection (the parser also rejects a
+    // non-a..z variable, so this is defense in depth).
+    case OP_LOAD: push((in.a >= 0 && in.a < 26) ? vars[in.a] : 0); break;
+    case OP_STORE: {
+      long v = pop();  // pop regardless, to keep the value stack balanced
+      if (in.a >= 0 && in.a < 26) vars[in.a] = v;
+    } break;
     case OP_READ: push(hal::pinRead((int)in.a)); break;
     case OP_ADD: { long b = pop(); push(pop() + b); } break;
     case OP_SUB: { long b = pop(); push(pop() - b); } break;
@@ -116,8 +123,16 @@ void VM::step(const Instruction& in) {
       if (pop() == 0) pc = (int)in.a;
       break;
     case OP_GOSUB:
-      if (csp < CALL_STACK_SIZE) callStack[csp++] = pc;
-      pc = (int)in.a;
+      // On a full call stack, do NOT jump without pushing — that would make a
+      // later RET pop a stale address and corrupt control flow silently. Stop
+      // with a clear error instead (deeply/infinitely nested GOSUB).
+      if (csp < CALL_STACK_SIZE) {
+        callStack[csp++] = pc;
+        pc = (int)in.a;
+      } else {
+        hal::serialWriteLine("ERROR: call stack overflow");
+        state = VM_STOPPED;
+      }
       break;
     case OP_RET:
       if (csp > 0) pc = callStack[--csp];

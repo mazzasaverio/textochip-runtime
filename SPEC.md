@@ -11,7 +11,8 @@ As long as both sides honour this document, the compiler grammar and the firmwar
 can change without breaking each other. Treat changes here as **versioned and
 deliberate**.
 
-> **Contract version: 1** (Tier-1 + Tier-2 + the `TONE`/`RPIN`/`SERVO` extensions).
+> **Contract version: 1** (Tier-1 + Tier-2 + the `TONE`/`RPIN`/`SERVO`/`AREAD`/`MOVE`
+> + `MODE … INPD` real-hardware extensions).
 
 ---
 
@@ -67,6 +68,7 @@ struct; the simulator executes the same instructions directly.
 | `SERVO <pin> <angle>`| position a hobby servo (e.g. SG90) to `angle` 0..180° (50 Hz PWM); the HAL maps 0..180° → 0.5..2.5 ms pulse |
 | `AREAD <pin>`        | push the analog (ADC) reading of `pin` (e.g. 0..4095) onto the value stack |
 | `MODE <pin> INPD`    | `pinMode(pin, INPUT_PULLDOWN)` — active-high sensors (e.g. a PIR) idle LOW when disconnected |
+| `MOVE <left> <right>`| differential drive: set the two wheel speeds, each `-255..255` (sign = direction, magnitude = PWM duty); `0 0` stops. Unlike the others, `MOVE` carries **no pin** — the two motors are a fixed board wiring owned by the HAL (an L298N: per wheel, 2 direction GPIOs + 1 PWM enable), so the bytecode stays board-generic. The browser sim drives a robot from these speeds. |
 
 A receiver MUST ignore blank lines and `;` / `#` comments, and MAY ignore unknown
 opcodes (forward-compatibility).

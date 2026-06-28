@@ -41,6 +41,17 @@
 			pinmux = <LEDC_CH1_GPIO8>;
 			output-enable;
 		};
+		/* Motor enables (L298N EN, MOVE opcode) — LEDC ch2 on GPIO12 (left wheel),
+		 * ch3 on GPIO21 (right wheel). PROVISIONAL pins: finalize against the
+		 * Freenove pinout when wiring the chassis. */
+		group3 {
+			pinmux = <LEDC_CH2_GPIO12>;
+			output-enable;
+		};
+		group4 {
+			pinmux = <LEDC_CH3_GPIO21>;
+			output-enable;
+		};
 	};
 };
 
@@ -60,6 +71,16 @@ pwm0: &ledc0 {
 	channel1@1 {
 		reg = <0x1>;
 		timer = <1>;
+	};
+	/* Motor PWM enables (MOVE / L298N) — both on timer 2 (~1 kHz, same freq for
+	 * the two wheels; the duty sets each wheel's speed). */
+	channel2@2 {
+		reg = <0x2>;
+		timer = <2>;
+	};
+	channel3@3 {
+		reg = <0x3>;
+		timer = <2>;
 	};
 };
 

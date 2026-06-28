@@ -62,6 +62,20 @@ int main() {
   runtime::feedLine("RUN");
   run(7);  // one faster cycle
 
+  // ── Demo 4: the MOVE opcode (differential drive — L298N on the board) ──
+  std::printf("\n--- Demo 4: MOVE (differential drive) — forward, turn, stop ---\n");
+  feedProgram({
+      "LOAD",
+      "MOVE 200 200",   // forward
+      "WAIT 1000",
+      "MOVE -150 150",  // pivot left
+      "WAIT 700",
+      "MOVE 0 0",  // stop
+      ".",
+  });
+  runtime::feedLine("RUN");
+  run(3);
+
   std::printf("\n=== done — same bytecode will run identically on ESP32 + nRF54L via Zephyr ===\n");
   return 0;
 }

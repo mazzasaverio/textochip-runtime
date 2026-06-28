@@ -153,6 +153,9 @@ void VM::step(const Instruction& in) {
     case OP_AREAD:  // AREAD <pin> — push the analog (ADC) reading
       push(hal::analogRead((int)in.a));
       break;
+    case OP_MOVE:  // MOVE <left> <right> — differential drive (L298N)
+      hal::move((int)in.a, (int)in.b);
+      break;
 
     default:
       hal::serialWriteLine(std::string("WARN: opcode not implemented: ") + opcodeName(in.op));

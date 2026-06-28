@@ -66,6 +66,15 @@ void servo(int pin, int angle) {
   std::printf("    [t=%6ums] servo pin%d -> %d deg\n", g_now, pin, angle);
 }
 
+// Differential-drive motors — host edition just prints the wheel speeds (no real
+// motors on a PC). The in-browser simulator drives a robot from MOVE; the board
+// build (hal_zephyr.cpp) drives the L298N.
+void move(int left, int right) {
+  auto clamp = [](int v) { return v < -255 ? -255 : v > 255 ? 255 : v; };
+  std::printf("    [t=%6ums] move  L=%-4d R=%-4d\n", g_now, clamp(left),
+              clamp(right));
+}
+
 // Non-volatile storage, host edition: a plain file in the working directory.
 // It persists across separate runs of the binary, so a test can SAVE in one
 // process and observe autorun in the next — a faithful stand-in for flash +

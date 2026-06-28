@@ -139,12 +139,33 @@ void servo(int /*pin*/, int angle) {
   uint32_t pulse = 500000u + (uint32_t)angle * 2000000u / 180u;  // ns
   pwm_set(pwm_dev, 1, 20000000u, pulse, 0);                       // 20 ms = 50 Hz
 }
+
+// Differential drive on an L298N. Motor pins are FIXED here (MOVE carries only
+// the speeds) — PROVISIONAL, match lib/boardProfile.ts and finalize against the
+// Freenove pinout when wiring: left IN1=GPIO10 IN2=GPIO11 EN=GPIO12 (PWM ch2);
+// right IN3=GPIO13 IN4=GPIO14 EN=GPIO21 (PWM ch3). Direction from the sign,
+// speed |v| 0..255 → PWM duty (~1 kHz) on the EN channel.
+static void drive_motor(int in1, int in2, int pwmCh, int v) {
+  if (v < -255) v = -255;
+  if (v > 255) v = 255;
+  pinMode(in1, 1);  // OUTPUT
+  pinMode(in2, 1);
+  pinWrite(in1, v >= 0 ? 1 : 0);
+  pinWrite(in2, v >= 0 ? 0 : 1);
+  uint32_t duty = (uint32_t)(v < 0 ? -v : v);
+  pwm_set(pwm_dev, pwmCh, 1000000u, 1000000u * duty / 255u, 0);  // ~1 kHz
+}
+void move(int left, int right) {
+  drive_motor(10, 11, 2, left);
+  drive_motor(13, 14, 3, right);
+}
 #else
-// No pwm node yet → buzzer + servo are no-ops (LEDs/button still work). Add a
-// pwm node in app.overlay.
+// No pwm node yet → buzzer + servo + motors are no-ops (LEDs/button still work).
+// Add a pwm node in app.overlay.
 void tone(int, int) {}
 void toneOff(int) {}
 void servo(int, int) {}
+void move(int, int) {}
 #endif
 
 uint32_t nowMs() { return (uint32_t)k_uptime_get(); }

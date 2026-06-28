@@ -47,6 +47,7 @@ const char* opcodeName(OpCode op) {
     case OP_RPIN: return "RPIN";
     case OP_SERVO: return "SERVO";
     case OP_AREAD: return "AREAD";
+    case OP_MOVE: return "MOVE";
     default: return "?";
   }
 }
@@ -63,7 +64,7 @@ OpCode opcodeFromName(const std::string& n) {
       {"LT", OP_LT},     {"EQ", OP_EQ},     {"AND", OP_AND},     {"NOT", OP_NOT},
       {"ABS", OP_ABS},   {"JZ", OP_JZ},     {"GOSUB", OP_GOSUB}, {"RET", OP_RET},
       {"TONE", OP_TONE}, {"RPIN", OP_RPIN}, {"SERVO", OP_SERVO},
-      {"AREAD", OP_AREAD},
+      {"AREAD", OP_AREAD}, {"MOVE", OP_MOVE},
   };
   for (auto& m : M)
     if (n == m.k) return m.v;
@@ -97,6 +98,7 @@ bool parseInstructionLine(const std::string& raw, Instruction& out) {
     case OP_SET:
     case OP_TONE:   // TONE <pin> <freq>
     case OP_SERVO:  // SERVO <pin> <angle 0..180>
+    case OP_MOVE:   // MOVE <left> <right> — wheel speeds (-255..255; toLong handles the sign)
       out.a = toLong(t1);
       out.b = toLong(t2);
       break;

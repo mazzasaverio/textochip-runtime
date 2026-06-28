@@ -14,6 +14,7 @@ enum OpCode {
   OP_JZ, OP_GOSUB, OP_RET,
   // Extensions (real hardware)
   OP_TONE, OP_RPIN, OP_SERVO, OP_AREAD,
+  OP_MOVE,  // MOVE <left> <right> — differential drive, wheel speeds -255..255
   OP_UNKNOWN
 };
 

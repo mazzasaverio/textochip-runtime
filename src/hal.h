@@ -28,6 +28,12 @@ void toneOff(int pin);
 // Hobby servo (e.g. SG90) — position to `angle` (0..180°) via a 50 Hz PWM frame.
 void servo(int pin, int angle);
 
+// Differential-drive motors (MOVE). left/right are signed wheel speeds, -255..255
+// (sign = direction, magnitude = PWM duty). Drives a 2-motor L298N: the motor
+// pins are a FIXED board wiring owned by the HAL (the MOVE opcode carries only
+// the speeds), so the bytecode stays board-generic. 0,0 = stop.
+void move(int left, int right);
+
 // Non-volatile storage for the autorun program (brief §7). SAVE persists the
 // raw bytecode text to flash; on boot, a saved program is loaded + run with no
 // PC attached (the board's autonomy). One slot — a new save overwrites it.

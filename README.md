@@ -21,8 +21,9 @@ sequence of missions*, looped with `GOTO`.
 > **Open core.** This runtime is the open part of Text to Chip (Apache-2.0 when it goes public).
 > The product keeps the browser IDE + compiler + simulator, the curated mission catalog (the
 > manifest of tweakable guardrails), the AI assistant ([textochip-api](https://github.com/mazzasaverio/textochip-api)),
-> and the hardware kits. The bytecode ISA + serial protocol ([`SPEC.md`](SPEC.md)) is the stable
-> contract between the three repos.
+> the edge-AI model lifecycle ([textochip-ml](https://github.com/mazzasaverio/textochip-ml) — trains the
+> on-device models this runtime executes), and the hardware kits. The bytecode ISA + serial protocol
+> ([`SPEC.md`](SPEC.md)) is the stable contract between the four repos.
 
 > **Verified on real ESP32-S3 hardware** over Web Serial from the IDE — PING/PONG, load/run, native
 > MISSION with parameters, buzzer via LEDC PWM, button. Zephyr is the single runtime; the nRF54L
@@ -151,4 +152,6 @@ PING/PONG (this mirrors the Arduino "USB CDC On Boot" behavior).
   green LED blinks to acknowledge the crossing request, then the light turns red once green has
   lasted at least `minGreen`.
 - ⏳ Next: the **nRF54LM20 DK** (`-b nrf54lm20dk/...`) when the kits arrive, then BLE OVERRIDE as
-  the Nordic-specific demo, and edge-AI missions on the Axon NPU.
+  the Nordic-specific demo, and **edge-AI missions** on the Axon NPU — design + the ISA/HAL contract
+  in [`docs/edge-ai.md`](docs/edge-ai.md) (the model lifecycle lives in
+  [textochip-ml](https://github.com/mazzasaverio/textochip-ml)).

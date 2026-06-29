@@ -1,5 +1,6 @@
 # host build artifact
 host/sakura_vm_host
+host/test_ai_features
 # Zephyr/west build output
 build/
 zephyr/build/

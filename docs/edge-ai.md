@@ -27,12 +27,22 @@ compiles it in and runs it behind one HAL function — on **two** chips from the
 The exported `model_int8.tflite` is consumed by both targets; only the backend behind
 `hal::aiInfer` differs (the same per-board HAL pattern the rest of the runtime uses):
 
-| Target | Backend | Model form |
-|--------|---------|-----------|
-| **ESP32-S3** | TFLite Micro + **ESP-NN** kernels (CPU/vector) | `model.h` C-array `#include`d |
-| **Nordic nRF54L** | **Axon NPU** via `nrf_edgeai_lib` (≈15× faster / ≈10× lower energy) | `model_int8.tflite` → Axon compiler → `.h` |
+| Target | Backend | License | Model form |
+|--------|---------|---------|-----------|
+| **ESP32-S3** | **TFLite Micro + ESP-NN** kernels (CPU/vector) | **Apache-2.0** (fully open) | `model.h` C-array `#include`d |
+| **Nordic nRF54L — open default** | **TFLite Micro + CMSIS-NN** on the Cortex-M33 (DSP/MVE) | **Apache-2.0** (fully open) | `model.h` C-array `#include`d |
+| **Nordic nRF54L — NPU (optional)** | **Axon NPU** via `nrf_edgeai_lib` (≈15× faster / ≈10× lower energy) | 🔴 **proprietary compiler** (Nordic, Docker binary) | `model_int8.tflite` → Axon compiler → `.h` |
 
-Keep models in the operator subset **both** accelerate: conv / depthwise / pooling /
+**Open-source by default; the NPU is an opt-in accelerator.** The fully-open, portable, efficient
+path is **TFLite Micro everywhere** — accelerated by **ESP-NN** on the ESP32 and **CMSIS-NN** on
+Nordic's Cortex-M33 (both Apache-2.0). Keyword spotting is the canonical TinyML benchmark and runs in
+a few ms on the M33 CPU — it does **not** need the NPU. The **Axon NPU** gives a big speed/energy win
+but its compiler is **proprietary** (a closed Docker binary), so we treat it as an **optional** third
+backend, most worthwhile for the heavier *vision* tier or extreme low-power. Because all three sit
+behind one `hal::aiInfer`, switching CPU↔NPU on Nordic is a **one-file** change — open by default,
+proprietary only if you opt in.
+
+Keep models in the operator subset **all** these kernels accelerate: conv / depthwise / pooling /
 fully-connected / ReLU / softmax (the model side enforces this in
 `textochip-ml/models/kws_cnn.py`).
 

@@ -8,6 +8,33 @@
 > [`SPEC.md`](../SPEC.md) stay backward-compatible; these are additive (a future
 > contract **version 2**).
 
+## Spike results — TFLM + the feature contract are host-proven (2026-06-29)
+
+The two integration risks are both **de-risked with running code on the host**:
+
+1. **The feature extractor matches training.** `src/ai/features.c` (a portable C MFCC)
+   reproduces textochip-ml's Python golden vectors **exactly** — `make test-ai` →
+   *"OK: C MFCC matches the Python golden vectors (frames=49, sum=-3402.9147, tol=0.010)"*.
+   The #1 TinyML footgun (train/inference feature drift) is now a build-time check on
+   both sides (Python `test_feature_parity.py` + firmware `make test-ai`, same
+   `mfcc_golden.json`).
+2. **TFLite Micro builds with our toolchain and our own code drives it.** The upstream
+   `tflite-micro` builds clean with **g++ 13.3** (it vendors flatbuffers / gemmlowp / ruy
+   / kissfft and produces `libtensorflow-microlite.a`); a minimal program *we* wrote
+   (`GetModel → MicroMutableOpResolver → MicroInterpreter(arena) → AllocateTensors →
+   Invoke → output`) ran a real int8 model — *"TFLM Invoke ran from our code, arena used
+   1184 bytes"*. So the firmware `ai_infer` is a known quantity, not a question mark.
+
+**Link recipe (host):** compile with `-DTF_LITE_STATIC_MEMORY` and
+`-I<tflite-micro> -I.../flatbuffers/include -I.../gemmlowp -I.../ruy -I.../kissfft`, link
+`libtensorflow-microlite.a`. **Vendoring:** add `tflite-micro` as a git **submodule** under
+`third_party/` (or use its source-tree generator); wire the lib into `host/Makefile` and the
+Zephyr `CMakeLists.txt` (ESP-NN on ESP32 / CMSIS-NN on the nRF54L M33 — both Apache-2.0).
+
+**What's left for a real `ai_infer`:** a model trained on *our* MFCC (textochip-ml exports
+`model.h` + `labels.json`) → `features.c → MicroInterpreter → argmax → the class register`
+`INFER` reads. The plumbing above is proven; this is Phase 1 (needs the trained model).
+
 ## The idea
 
 A trained model becomes a **native mission**: the board listens/looks on-device,

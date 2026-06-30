@@ -19,11 +19,21 @@ $(AI_BIN): test_ai_features.c ../src/ai/features.c ../src/ai/features.h
 test-ai: $(AI_BIN)
 	./$(AI_BIN)
 
+# Firmware VM AISTART/INFER opcode test (no TFLM — the AI class is injected).
+test-ai-vm: test_ai_vm.cpp ../src/isa.cpp ../src/vm.cpp ../src/registry.cpp hal_host.cpp
+	$(CXX) $(CXXFLAGS) -o test_ai_vm test_ai_vm.cpp ../src/isa.cpp ../src/vm.cpp ../src/registry.cpp hal_host.cpp
+	./test_ai_vm
+
 # Edge-AI end-to-end: audio -> features.c -> ai_infer (TFLite Micro) -> class.
-# Needs a built tflite-micro; point TFLM_DIR at it (a third_party/ submodule in
-# production). Build the lib once with its own Makefile, then:
-#   make ai-infer TFLM_DIR=/path/to/tflite-micro
+# TFLM is the `third_party/tflite-micro` submodule. One-time setup from the repo root:
+#   git submodule update --init --depth 1 third_party/tflite-micro
+#   make -C host tflm-lib        # builds libtensorflow-microlite.a (~minutes)
+# then `make ai-infer` works out of the box (TFLM_DIR can override the location).
 TFLM_DIR ?= ../third_party/tflite-micro
+
+# Build the TFLM static lib from the submodule (downloads its deps, ~minutes).
+tflm-lib:
+	$(MAKE) -C $(TFLM_DIR) -f tensorflow/lite/micro/tools/make/Makefile microlite
 TFLM_DL = $(TFLM_DIR)/tensorflow/lite/micro/tools/make/downloads
 TFLM_INC = -I$(TFLM_DIR) -I$(TFLM_DL)/flatbuffers/include -I$(TFLM_DL)/gemmlowp \
            -I$(TFLM_DL)/ruy -I$(TFLM_DL)/kissfft
@@ -37,6 +47,6 @@ ai-infer: test_ai_infer.c ../src/ai/ai_host.cpp ../src/ai/features.c ../src/ai/m
 	./test_ai_infer
 
 clean:
-	rm -f $(BIN) $(AI_BIN) test_ai_infer *.o
+	rm -f $(BIN) $(AI_BIN) test_ai_infer test_ai_vm *.o
 
-.PHONY: run test-ai ai-infer clean
+.PHONY: run test-ai test-ai-vm tflm-lib ai-infer clean

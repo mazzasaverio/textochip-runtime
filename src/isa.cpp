@@ -48,6 +48,8 @@ const char* opcodeName(OpCode op) {
     case OP_SERVO: return "SERVO";
     case OP_AREAD: return "AREAD";
     case OP_MOVE: return "MOVE";
+    case OP_AISTART: return "AISTART";
+    case OP_INFER: return "INFER";
     default: return "?";
   }
 }
@@ -65,6 +67,7 @@ OpCode opcodeFromName(const std::string& n) {
       {"ABS", OP_ABS},   {"JZ", OP_JZ},     {"GOSUB", OP_GOSUB}, {"RET", OP_RET},
       {"TONE", OP_TONE}, {"RPIN", OP_RPIN}, {"SERVO", OP_SERVO},
       {"AREAD", OP_AREAD}, {"MOVE", OP_MOVE},
+      {"AISTART", OP_AISTART}, {"INFER", OP_INFER},
   };
   for (auto& m : M)
     if (n == m.k) return m.v;
@@ -121,6 +124,12 @@ bool parseInstructionLine(const std::string& raw, Instruction& out) {
       out.a = (long)(c - 'a');
       break;
     }
+    case OP_AISTART:
+    case OP_INFER:
+      // The model id (e.g. "voice") is a string operand; the firmware has one
+      // baked-in model, so it's recorded but not otherwise used.
+      out.missionId = t1;
+      break;
     case OP_CALL: {
       out.missionId = t1;
       // After the id: integer pin tokens, then optional key=value param tokens

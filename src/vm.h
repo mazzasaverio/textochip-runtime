@@ -28,6 +28,13 @@ class VM {
 
   VmState getState() const { return state; }
 
+  // Edge-AI (Tier 4). `INFER` pushes `aiClass` (0 = none), `AISTART` flags that
+  // the program wants the model running. The background inference service (mic ->
+  // features.c -> ai_infer) updates aiClass via setAiClass(); on the host or a
+  // no-AI build it stays 0 unless injected (mirrors the simulator's "heard word").
+  void setAiClass(long c) { aiClass = c; }
+  bool aiRequested() const { return aiActive; }
+
  private:
   Instruction program[MAX_PROGRAM];
   int count = 0;
@@ -42,6 +49,9 @@ class VM {
   long vars[26] = {0};
 
   Mission* currentMission = nullptr;
+
+  long aiClass = 0;       // latest edge-AI class index (0 = none)
+  bool aiActive = false;  // an AISTART has run -> the model should be inferring
 
   void push(long v);
   long pop();

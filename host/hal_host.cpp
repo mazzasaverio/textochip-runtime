@@ -27,6 +27,7 @@ void host_set_button(int pin, bool pressed) {
 void host_set_analog(int pin, int value) {
   if (pin >= 0 && pin < 128) g_analog[pin] = value;
 }
+int host_get_level(int pin) { return (pin >= 0 && pin < 128) ? g_level[pin] : 0; }
 
 namespace hal {
 

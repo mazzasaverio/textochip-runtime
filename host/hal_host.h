@@ -6,3 +6,4 @@
 void host_advance(uint32_t ms);
 void host_set_button(int pin, bool pressed);
 void host_set_analog(int pin, int value);  // simulated ADC reading for AREAD
+int host_get_level(int pin);               // last written digital level (for tests)

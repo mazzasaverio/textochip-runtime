@@ -6,3 +6,4 @@ build/
 zephyr/build/
 host/test_ai_infer
 host/*.o
+host/test_ai_vm

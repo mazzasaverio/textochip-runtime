@@ -9,6 +9,7 @@ void VM::reset() {
   vsp = 0;
   csp = 0;
   for (int i = 0; i < 26; i++) vars[i] = 0;
+  aiClass = 0;
 }
 
 void VM::clearProgram() {
@@ -17,6 +18,7 @@ void VM::clearProgram() {
   state = VM_IDLE;
   resumeAt = 0;
   currentMission = nullptr;
+  aiActive = false;
 }
 
 bool VM::addInstruction(const Instruction& in) {
@@ -155,6 +157,19 @@ void VM::step(const Instruction& in) {
       break;
     case OP_MOVE:  // MOVE <left> <right> — differential drive (L298N)
       hal::move((int)in.a, (int)in.b);
+      break;
+
+    // ── Tier 4 — edge-AI ──
+    case OP_AISTART:
+      // Flag that the program wants the model running; the runtime's background
+      // inference service (mic -> features.c -> ai_infer -> setAiClass) does the
+      // work. Non-blocking — the VM never waits on inference.
+      aiActive = true;
+      break;
+    case OP_INFER:
+      // Push the latest detected class (0 = none). VOICE()="go" compiles to
+      // INFER ; PUSH <idx> ; EQ. The service updates aiClass between ticks.
+      push(aiClass);
       break;
 
     default:

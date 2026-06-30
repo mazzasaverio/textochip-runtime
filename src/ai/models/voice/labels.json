@@ -2,11 +2,15 @@
   "labels": [
     "background",
     "go",
+    "left",
+    "right",
     "stop"
   ],
   "index": {
     "0": "background",
     "1": "go",
-    "2": "stop"
+    "2": "left",
+    "3": "right",
+    "4": "stop"
   }
 }

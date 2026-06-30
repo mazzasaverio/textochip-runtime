@@ -58,6 +58,16 @@ green 5s → loop), then the native `MISSION "SEMAFORO"` cycle with the walk-bee
 a Demo 3 that exercises mission **parameters** (see below). This proves the VM is
 fully platform-agnostic behind the Zephyr HAL. ✓ (verified)
 
+### Edge-AI host tests (`docs/edge-ai.md`)
+
+```bash
+cd host
+make test-ai      # the C MFCC matches textochip-ml's Python golden vectors
+make test-ai-vm   # the firmware VM runs AISTART/INFER and branches on the AI class
+make tflm-lib     # one-time: build libtensorflow-microlite.a from the submodule
+make ai-infer     # end-to-end: TTS speech -> features.c -> TFLM -> the right word
+```
+
 ### Mission parameters (honored in the firmware)
 
 The native `Semaforo` mission now accepts the IDE's parameter form:
@@ -151,7 +161,12 @@ PING/PONG (this mirrors the Arduino "USB CDC On Boot" behavior).
   (GPIO 5) on real hardware, and a button press during green gives **immediate feedback** — the
   green LED blinks to acknowledge the crossing request, then the light turns red once green has
   lasted at least `minGreen`.
-- ⏳ Next: the **nRF54LM20 DK** (`-b nrf54lm20dk/...`) when the kits arrive, then BLE OVERRIDE as
-  the Nordic-specific demo, and **edge-AI missions** on the Axon NPU — design + the ISA/HAL contract
-  in [`docs/edge-ai.md`](docs/edge-ai.md) (the model lifecycle lives in
-  [textochip-ml](https://github.com/mazzasaverio/textochip-ml)).
+- ✅ **Edge-AI (voice keyword spotting) — implemented and host-proven through Phase 1.** The C
+  feature extractor matches training exactly (`make test-ai`), the firmware VM runs the
+  `AISTART`/`INFER` opcodes (`make test-ai-vm`), and `ai_infer` (TFLite Micro, a `third_party`
+  submodule) classifies a real synthetic-speech model — `go/left/right/stop`, trained from Piper
+  TTS with **zero recording** — end-to-end (`make ai-infer`). Only the on-board mic capture +
+  service remain. Design + contract: [`docs/edge-ai.md`](docs/edge-ai.md); model lifecycle:
+  [textochip-ml](https://github.com/mazzasaverio/textochip-ml).
+- ⏳ Next: the **nRF54LM20 DK** (`-b nrf54lm20dk/...`) when the kits arrive (CMSIS-NN on the M33,
+  the Axon NPU as the optional accelerator), then BLE OVERRIDE, and edge-AI on real hardware.

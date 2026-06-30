@@ -1,12 +1,14 @@
-# Edge-AI on the runtime — the firmware side (design, planned)
+# Edge-AI on the runtime — the firmware side
 
-> **Status: design / contract draft (not yet implemented).** This is the firmware half
-> of the edge-AI pipeline; the training half lives in
-> [`textochip-ml`](https://github.com/mazzasaverio/textochip-ml). It specifies the ISA
-> additions, the HAL extension, the on-device feature extractor, and the data forwarder
-> so the two repos agree before any C++ lands. The bytecode ISA + serial protocol in
-> [`SPEC.md`](../SPEC.md) stay backward-compatible; these are additive (a future
-> contract **version 2**).
+> **Status: implemented and host-proven through Phase 1; only the on-board mic capture +
+> hardware bring-up remain.** The firmware VM runs the `AISTART`/`INFER` opcodes, the C
+> feature extractor matches training exactly, TFLite Micro is wired (a `third_party`
+> submodule), and `ai_infer` classifies real synthetic-speech words end-to-end on the host
+> (`make ai-infer`). The training half lives in
+> [`textochip-ml`](https://github.com/mazzasaverio/textochip-ml). The bytecode ISA + serial
+> protocol in [`SPEC.md`](../SPEC.md) stay backward-compatible; these are additive
+> (contract **version 2**). What's still hardware-gated: the I2S mic capture HAL + the
+> background-inference service that feeds `ai_infer` → the VM's class register on the board.
 
 ## Spike results — TFLM + the feature contract are host-proven (2026-06-29)
 
@@ -36,30 +38,38 @@ Zephyr `CMakeLists.txt` (ESP-NN on ESP32 / CMSIS-NN on the nRF54L M33 — both A
 The full on-device path now **runs and classifies correctly** on the host:
 
 ```
-make ai-infer  →  classes=3  "go"->1 (want 1)  "stop"->2 (want 2)
+make ai-infer  →  classes=5  "go"->1  "left"->2  "right"->3  "stop"->4
                   OK: ai_infer end-to-end — TTS speech -> features.c -> TFLM -> correct word
 ```
 
 - **The model is a REAL keyword spotter — trained on synthetic TTS speech, no mic.**
-  textochip-ml's `make_voice_model.py` speaks go/stop in 9 Piper voices (+ noise/filler
-  "background"), augments, trains a small int8 CNN on OUR MFCC → **96.7% test acc**
-  (`models/voice-v1`, labels [background, go, stop] = 0/1/2). `model.h` is vendored here; the
-  test feeds held-out TTS "go"/"stop" (`voice_test_samples.h`). The microWakeWord/openWakeWord
-  approach: custom keywords with zero recording. (A tone-burst `make_demo_model.py` first proved
-  the plumbing.)
+  textochip-ml's `make_voice_model.py` speaks **go/left/right/stop** in 9 Piper voices (+
+  noise/filler "background"), augments, trains a small int8 CNN on OUR MFCC → **95.5% test
+  acc** (`models/voice-v1`, labels [background, go, left, right, stop] = 0..4 = the
+  `VOICE_LABELS` convention). `model.h` is vendored here; the test feeds held-out TTS of each
+  word (`voice_test_samples.h`) over a representative noise floor. The
+  microWakeWord/openWakeWord approach: custom keywords with **zero recording**. (A tone-burst
+  `make_demo_model.py` first proved the plumbing.)
 - **`src/ai/ai_host.cpp`** is the TFLite-Micro backend of `ai_infer` (`src/ai/ai.h`): it
   loads the int8 `model.h`, quantizes the float MFCC to the model's input scale, runs the
   `MicroInterpreter`, returns the argmax (with `ai_infer_conf` collapsing low-confidence windows
   to 0 = none). One op resolver covers this model *and* the production `kws_cnn`: Conv2D /
   DepthwiseConv2D / pool / MEAN / **REDUCE_MAX** (GlobalMaxPooling) / FullyConnected / Softmax +
   the SUB/MUL/ADD a baked-in input Normalization lowers to.
-- **Build:** `make ai-infer TFLM_DIR=<a built tflite-micro>`. Productionize by adding
-  `tflite-micro` as a `third_party/` **submodule** and wiring its lib into `host/Makefile`
-  (done) + the Zephyr `CMakeLists.txt` (ESP-NN on ESP32 / CMSIS-NN on the nRF54L M33).
+- **The firmware VM runs the opcodes.** `AISTART`/`INFER` are in `src/isa.*` + `src/vm.cpp`:
+  `INFER` pushes the VM's `aiClass` register, `AISTART` flags the model should run.
+  `make test-ai-vm` proves a bytecode program with `AISTART`/`INFER` branches on the class —
+  the firmware twin of the product's simVm test. (No TFLM needed there; the VM just reads the
+  register.)
+- **Build:** TFLM is the `third_party/tflite-micro` **submodule**; `make ai-infer` works out of
+  the box (`make tflm-lib` builds the lib first). Per-board accel: ESP-NN on ESP32, CMSIS-NN on
+  the nRF54L M33, both wired in the Zephyr build.
 
-**What's left:** wire `ai_infer` to the `AISTART`/`INFER` opcodes (the VM `INFER` reads the
-class register) + the I2S mic capture, then on **real hardware** (`IF VOICE()="go"` reading the
-live model). The inference itself — the part that was a question mark — is now proven.
+**What's left (hardware-gated):** the I2S **mic capture** HAL + the **background-inference
+service** that runs `capture → features.c → ai_infer` and writes the result to the VM's class
+register (`vm.setAiClass`), then on **real hardware** (`IF VOICE()="go"` reading the live mic).
+Everything upstream of the microphone — the opcodes, the features, the model, the inference — is
+proven on the host.
 
 ## The idea
 
@@ -99,43 +109,42 @@ Keep models in the operator subset **all** these kernels accelerate: conv / dept
 fully-connected / ReLU / softmax (the model side enforces this in
 `textochip-ml/models/kws_cnn.py`).
 
-## ISA additions (Tier 4 — edge-AI, planned)
+## ISA additions (Tier 4 — edge-AI) — implemented in the VM
 
 | Instruction        | Meaning                                                            |
 |--------------------|-------------------------------------------------------------------|
-| `AISTART <model>`  | start the background inference service for `<model>` (compiler **prologue**, like `MODE`): the mission captures windows and runs the model continuously, updating a "last class" register. |
-| `INFER <model>`    | push the **latest** class index for `<model>` (or `0`/none) onto the value stack — **non-blocking**, like `AREAD`. |
+| `AISTART <model>`  | flag that the program wants `<model>` running; the board's background inference service then keeps the class register fresh. ✅ in `vm.cpp` |
+| `INFER <model>`    | push the **latest** class index for `<model>` (`0` = none) onto the value stack — **non-blocking**, like `AREAD`. ✅ in `vm.cpp` |
 
-The browser compiler maps the readable function `VOICE()` → emits `AISTART voice` in
-the prologue and `INFER voice` at the use site; word-values (`="stop"`) resolve to the
-class index from the model's `labels.json`. Inference must never block the tick loop,
-so it is a *background service the mission drives* and `INFER` only reads the freshest
-result.
+The browser compiler maps the readable function `VOICE()` → emits `INFER voice` at the use
+site; word-values (`="stop"`) resolve to the class index from the model's `labels.json` (the
+product's `VOICE_LABELS` mirrors it). `AISTART` is in the ISA for the firmware-managed start of
+the listening service. Inference never blocks the tick loop: the service runs between ticks and
+`INFER` only reads the freshest `aiClass`. The host `make test-ai-vm` exercises this end of the
+contract.
 
-## HAL extension (one new capability per board)
-
-Add to `src/hal.h` (planned), implemented once per board exactly like the existing ~10
-functions:
-
-```cpp
-// Edge-AI inference (planned, Tier-4). The model is compiled into the firmware
-// (ESP32: TFLM+ESP-NN C-array; nRF54L: Axon-compiled model on the NPU).
-namespace hal {
-  void aiStart(const std::string& modelId);            // begin background capture+inference
-  int  aiInfer(const std::string& modelId);            // latest class index, or -1 if none yet
-  int  aiCapture(const std::string& modelId, int16_t* buf, int n);  // raw mic/sensor window
-}
-```
-
-The portable, board-agnostic pieces live in `src/ai/`:
+## What lives where (`src/ai/`)
 
 ```
 src/ai/
-  ai.h            the mission base for AI missions (capture → features → aiInfer → register)
-  features.c/.h   the on-device feature extractor — MUST match the training MFCC
-  missions/voce.cpp   the VOCE native mission
-models/<name>-v<n>/   the artifact vendored from textochip-ml (model.h, labels.json, …)
+  ai.h            the ai_infer interface (int ai_infer(features, n) -> class index)        ✅
+  ai_host.cpp     the TFLite-Micro backend (host + ESP32; CMSIS-NN build for the M33)      ✅
+  features.c/.h   the on-device MFCC — matches the training contract (golden vectors)      ✅
+  models/voice/   the vendored artifact from textochip-ml (model.h, labels.json)           ✅
+third_party/tflite-micro   the TFLM submodule (built into libtensorflow-microlite.a)       ✅
 ```
+
+**Still to add for hardware** — one HAL capability + a small service:
+
+```cpp
+// src/hal.h (planned): the only new per-board function — read a mic window.
+namespace hal { int aiCapture(int16_t* buf, int n); }  // I2S mic (INMP441) -> n samples
+```
+
+The **background inference service** (planned) ties it together on the board: between VM ticks,
+when `vm.aiRequested()`, it does `hal::aiCapture → features.c → ai_infer → vm.setAiClass(class)`.
+On the host/no-mic build there's no capture, so a test injects the class instead (what
+`test_ai_vm` does). Everything except `aiCapture` + this loop is already built and proven.
 
 ## The feature-extraction contract (the #1 footgun)
 
@@ -161,13 +170,13 @@ no cloud, no phone app. A simple addition to the serial protocol (planned):
 
 ## Phases (mirrors `textochip-ml`)
 
-- **Phase 0 — plumbing, zero training.** Wire `AISTART`/`INFER` + the VOCE mission +
-  `hal::aiInfer`, deploy an existing `micro_speech` (yes/no) model. Prove the BASIC
-  branch on the **host** build, then on the **ESP32**, then run the **same `.tflite`**
-  through the Axon compiler on the **nRF54L** — portability proven before training ours.
-- **Phase 1 — our words.** Italian vocabulary (`rosso`/`verde`/`avanti`/`stop`),
-  trained in `textochip-ml`, redeployed to both boards.
-- **Phase 2 — vision.** MobileNet transfer learning (ESP32-CAM), same contract.
+- **Phase 0 — plumbing.** ✅ The feature contract (C MFCC = golden vectors), the TFLM build,
+  and `ai_infer` driving a real model — all host-proven.
+- **Phase 1 — our words.** ✅ `go/left/right/stop` trained from synthetic TTS (`voice-v1`,
+  95.5%), run through the firmware `ai_infer` on the host; the VM `AISTART`/`INFER` opcodes
+  branch on the result. *Remaining:* the mic capture + service on **real hardware**, then the
+  nRF54L (CMSIS-NN on the M33; the Axon NPU as the optional accelerator).
+- **Phase 2 — vision.** ⏳ MobileNet transfer learning (ESP32-CAM), same contract.
 
 See [`textochip-ml/docs/pipeline.md`](https://github.com/mazzasaverio/textochip-ml/blob/main/docs/pipeline.md)
 for the training side.

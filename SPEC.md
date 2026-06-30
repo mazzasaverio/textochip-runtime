@@ -11,8 +11,8 @@ As long as both sides honour this document, the compiler grammar and the firmwar
 can change without breaking each other. Treat changes here as **versioned and
 deliberate**.
 
-> **Contract version: 1** (Tier-1 + Tier-2 + the `TONE`/`RPIN`/`SERVO`/`AREAD`/`MOVE`
-> + `MODE … INPD` real-hardware extensions).
+> **Contract version: 2** (Tier-1 + Tier-2 + the `TONE`/`RPIN`/`SERVO`/`AREAD`/`MOVE`
+> + `MODE … INPD` real-hardware extensions + the Tier-4 edge-AI `AISTART`/`INFER`).
 
 ---
 
@@ -70,23 +70,24 @@ struct; the simulator executes the same instructions directly.
 | `MODE <pin> INPD`    | `pinMode(pin, INPUT_PULLDOWN)` — active-high sensors (e.g. a PIR) idle LOW when disconnected |
 | `MOVE <left> <right>`| differential drive: set the two wheel speeds, each `-255..255` (sign = direction, magnitude = PWM duty); `0 0` stops. Unlike the others, `MOVE` carries **no pin** — the two motors are a fixed board wiring owned by the HAL (an L298N: per wheel, 2 direction GPIOs + 1 PWM enable), so the bytecode stays board-generic. The browser sim drives a robot from these speeds. |
 
-### Tier 4 — edge-AI (planned, contract **v2 draft** — see [`docs/edge-ai.md`](docs/edge-ai.md))
+### Tier 4 — edge-AI (contract **v2**, implemented in the VM — see [`docs/edge-ai.md`](docs/edge-ai.md))
 
-> Not yet implemented. Additive and backward-compatible: a receiver that ignores
-> unknown opcodes (below) keeps running today's programs unchanged. A trained model
-> ([`textochip-ml`](https://github.com/mazzasaverio/textochip-ml)) becomes a native
-> mission the VM can read inline.
+> Additive and backward-compatible: a receiver that ignores unknown opcodes keeps running
+> today's programs unchanged. A trained model
+> ([`textochip-ml`](https://github.com/mazzasaverio/textochip-ml)) becomes a value the VM reads
+> inline. The opcodes are **in the firmware VM** (`src/vm.cpp`); the on-board mic capture that
+> feeds them is the one remaining hardware piece.
 
 | Instruction        | Meaning                                                            |
 |--------------------|-------------------------------------------------------------------|
-| `AISTART <model>`  | start the background inference service for `<model>` (compiler prologue, like `MODE`); the mission captures windows and runs the model continuously, updating a "last class" register |
+| `AISTART <model>`  | flag that the program wants `<model>` running; the board's background inference service keeps the class register fresh |
 | `INFER <model>`    | push the latest class index for `<model>` (`0` = none) onto the value stack — **non-blocking**, like `AREAD` |
 
-The compiler maps `VOICE()` → `AISTART voice` (prologue) + `INFER voice` (use site);
-`VOICE()="stop"` resolves `"stop"` to the model's class index (from its `labels.json`).
-The same model runs on the ESP32-S3 (TFLM + ESP-NN) and the Nordic nRF54L Axon NPU from
-one int8 `.tflite`; the on-device feature extractor matches the training MFCC via a
-shared golden-vector contract. Full design: [`docs/edge-ai.md`](docs/edge-ai.md).
+The compiler maps `VOICE()` → `INFER voice`; `VOICE()="stop"` resolves `"stop"` to the model's
+class index (from its `labels.json`, mirrored by the product's `VOICE_LABELS`). The same int8
+`.tflite` runs on the ESP32-S3 (TFLM + ESP-NN) and the Nordic nRF54L (TFLM + CMSIS-NN on the M33,
+or the Axon NPU); the on-device feature extractor matches the training MFCC via a shared
+golden-vector contract. Full design + status: [`docs/edge-ai.md`](docs/edge-ai.md).
 
 A receiver MUST ignore blank lines and `;` / `#` comments, and MAY ignore unknown
 opcodes (forward-compatibility).

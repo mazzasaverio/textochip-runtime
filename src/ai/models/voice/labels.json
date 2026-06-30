@@ -1,0 +1,12 @@
+{
+  "labels": [
+    "background",
+    "go",
+    "stop"
+  ],
+  "index": {
+    "0": "background",
+    "1": "go",
+    "2": "stop"
+  }
+}

@@ -4,3 +4,5 @@ host/test_ai_features
 # Zephyr/west build output
 build/
 zephyr/build/
+host/test_ai_infer
+host/*.o

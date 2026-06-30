@@ -31,9 +31,32 @@ The two integration risks are both **de-risked with running code on the host**:
 `third_party/` (or use its source-tree generator); wire the lib into `host/Makefile` and the
 Zephyr `CMakeLists.txt` (ESP-NN on ESP32 / CMSIS-NN on the nRF54L M33 — both Apache-2.0).
 
-**What's left for a real `ai_infer`:** a model trained on *our* MFCC (textochip-ml exports
-`model.h` + `labels.json`) → `features.c → MicroInterpreter → argmax → the class register`
-`INFER` reads. The plumbing above is proven; this is Phase 1 (needs the trained model).
+## Phase 1 — `ai_infer` runs a real model end-to-end (2026-06-30, host-proven)
+
+The full on-device path now **runs and classifies correctly** on the host:
+
+```
+make ai-infer  →  classes=3  500Hz->1 (want 1=go)  1500Hz->2 (want 2=stop)
+                  OK: ai_infer end-to-end — audio -> features.c -> TFLM -> correct class
+```
+
+- **`src/ai/ai_host.cpp`** is the TFLite-Micro backend of `ai_infer` (`src/ai/ai.h`): it
+  loads the int8 model baked in at `src/ai/models/voice/model.h`, quantizes the float MFCC
+  to the model's input scale, runs the `MicroInterpreter`, and returns the argmax class
+  (with `ai_infer_conf` collapsing low-confidence windows to 0 = none). One op resolver
+  covers the demo *and* the production `kws_cnn` (Conv2D/DepthwiseConv2D/pool/MEAN/FC/Softmax
+  + the SUB/MUL/ADD a baked-in input Normalization lowers to).
+- **The model is real and trained on *our* MFCC.** textochip-ml's `make_demo_model.py` trains a
+  small int8 model (tone-burst demo: go/stop/background, 100% test acc) and exports the 4-file
+  artifact; `model.h` is vendored here. A real keyword model (microWakeWord / synthetic TTS)
+  swaps in identically — same `features.c`, same `ai_infer`, just new weights + labels.
+- **Build:** `make ai-infer TFLM_DIR=<a built tflite-micro>`. Productionize by adding
+  `tflite-micro` as a `third_party/` **submodule** and wiring its lib into `host/Makefile`
+  (done) + the Zephyr `CMakeLists.txt` (ESP-NN on ESP32 / CMSIS-NN on the nRF54L M33).
+
+**What's left:** wire `ai_infer` to the `AISTART`/`INFER` opcodes (the VM `INFER` reads the
+class register) + the I2S mic capture, then on **real hardware** (`IF VOICE()="go"` reading the
+live model). The inference itself — the part that was a question mark — is now proven.
 
 ## The idea
 

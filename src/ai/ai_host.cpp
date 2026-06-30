@@ -46,6 +46,7 @@ bool ensure_init() {
   resolver.AddMaxPool2D();
   resolver.AddAveragePool2D();
   resolver.AddMean();
+  resolver.AddReduceMax();  // GlobalMaxPooling
   resolver.AddFullyConnected();
   resolver.AddSoftmax();
   resolver.AddReshape();

@@ -36,20 +36,23 @@ Zephyr `CMakeLists.txt` (ESP-NN on ESP32 / CMSIS-NN on the nRF54L M33 — both A
 The full on-device path now **runs and classifies correctly** on the host:
 
 ```
-make ai-infer  →  classes=3  500Hz->1 (want 1=go)  1500Hz->2 (want 2=stop)
-                  OK: ai_infer end-to-end — audio -> features.c -> TFLM -> correct class
+make ai-infer  →  classes=3  "go"->1 (want 1)  "stop"->2 (want 2)
+                  OK: ai_infer end-to-end — TTS speech -> features.c -> TFLM -> correct word
 ```
 
+- **The model is a REAL keyword spotter — trained on synthetic TTS speech, no mic.**
+  textochip-ml's `make_voice_model.py` speaks go/stop in 9 Piper voices (+ noise/filler
+  "background"), augments, trains a small int8 CNN on OUR MFCC → **96.7% test acc**
+  (`models/voice-v1`, labels [background, go, stop] = 0/1/2). `model.h` is vendored here; the
+  test feeds held-out TTS "go"/"stop" (`voice_test_samples.h`). The microWakeWord/openWakeWord
+  approach: custom keywords with zero recording. (A tone-burst `make_demo_model.py` first proved
+  the plumbing.)
 - **`src/ai/ai_host.cpp`** is the TFLite-Micro backend of `ai_infer` (`src/ai/ai.h`): it
-  loads the int8 model baked in at `src/ai/models/voice/model.h`, quantizes the float MFCC
-  to the model's input scale, runs the `MicroInterpreter`, and returns the argmax class
-  (with `ai_infer_conf` collapsing low-confidence windows to 0 = none). One op resolver
-  covers the demo *and* the production `kws_cnn` (Conv2D/DepthwiseConv2D/pool/MEAN/FC/Softmax
-  + the SUB/MUL/ADD a baked-in input Normalization lowers to).
-- **The model is real and trained on *our* MFCC.** textochip-ml's `make_demo_model.py` trains a
-  small int8 model (tone-burst demo: go/stop/background, 100% test acc) and exports the 4-file
-  artifact; `model.h` is vendored here. A real keyword model (microWakeWord / synthetic TTS)
-  swaps in identically — same `features.c`, same `ai_infer`, just new weights + labels.
+  loads the int8 `model.h`, quantizes the float MFCC to the model's input scale, runs the
+  `MicroInterpreter`, returns the argmax (with `ai_infer_conf` collapsing low-confidence windows
+  to 0 = none). One op resolver covers this model *and* the production `kws_cnn`: Conv2D /
+  DepthwiseConv2D / pool / MEAN / **REDUCE_MAX** (GlobalMaxPooling) / FullyConnected / Softmax +
+  the SUB/MUL/ADD a baked-in input Normalization lowers to.
 - **Build:** `make ai-infer TFLM_DIR=<a built tflite-micro>`. Productionize by adding
   `tflite-micro` as a `third_party/` **submodule** and wiring its lib into `host/Makefile`
   (done) + the Zephyr `CMakeLists.txt` (ESP-NN on ESP32 / CMSIS-NN on the nRF54L M33).

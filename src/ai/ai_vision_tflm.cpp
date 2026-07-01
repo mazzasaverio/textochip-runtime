@@ -21,7 +21,7 @@ alignas(16) uint8_t g_arena[kArenaSize];
 tflite::MicroInterpreter* g_interp = nullptr;
 
 // The 5 ops person_detect uses (see the example's person_detection_test.cc).
-using OpResolver = tflite::MicroMutableOpResolver<5>;
+using OpResolver = tflite::MicroMutableOpResolver<14>;
 
 bool ensure_init() {
   static bool done = false;
@@ -33,11 +33,22 @@ bool ensure_init() {
   if (model->version() != TFLITE_SCHEMA_VERSION) return false;
 
   static OpResolver resolver;
+  // person-detection (the Phase-0 stand-in) ops:
   resolver.AddAveragePool2D();
   resolver.AddConv2D();
   resolver.AddDepthwiseConv2D();
   resolver.AddReshape();
   resolver.AddSoftmax();
+  // + the vision-v1 net's ops (textochip-ml models/vision_cnn: plain convs, MaxPool,
+  // GlobalMax -> ReduceMax, Dense -> FullyConnected, a baked Normalization -> Sub/Mul/Add),
+  // so a trained vision model drops into ai_infer_vision with NO resolver change.
+  resolver.AddMaxPool2D();
+  resolver.AddReduceMax();
+  resolver.AddFullyConnected();
+  resolver.AddRelu();
+  resolver.AddMul();
+  resolver.AddSub();
+  resolver.AddAdd();
 
   static tflite::MicroInterpreter interp(model, resolver, g_arena, kArenaSize);
   if (interp.AllocateTensors() != kTfLiteOk) return false;

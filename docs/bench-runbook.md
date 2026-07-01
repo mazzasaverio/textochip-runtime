@@ -131,10 +131,12 @@ With the mic wired (§1) and the firmware flashed:
 2. **Upload & Run.** Say **"go"** → the robot drives; **"stop"** → it halts. (No `AISTART` needed —
    executing `INFER`/`VOICE()` starts the listening service on its own.)
 
-**Validating the mic itself** (before / independent of recognition): the clean check is a small
-`REC <ms>` debug command (drains `hal::aiCapture` and dumps int16 samples over serial — sketched in
-[`edge-ai.md`](edge-ai.md) "Data forwarder"); until it exists, scope **BCK on GPIO15** / **WS on
-GPIO16** to confirm the ESP is clocking the mic, and check `SD` (GPIO17) wiggles when you speak.
+**Validating the mic itself** (independent of recognition): open a plain serial terminal on the OTG
+port (e.g. `screen /dev/ttyACM0 115200`, or `west build -t monitor`) and send **`MIC`** with no
+program running — it replies `OK: mic n=… peak=… level=…`. **Speak:** `peak`/`level` jump from
+near-zero (silence) to clearly higher; if they stay 0, the mic isn't captured — recheck the I2S
+wiring (BCK/WS/SD, L/R→GND). Send `MIC` **raw over serial**, not through the IDE's `OVERRIDE` box
+(which wraps it as an instruction). As a hardware fallback, scope BCK (GPIO15) / WS (GPIO16).
 
 ---
 

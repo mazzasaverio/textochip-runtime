@@ -86,6 +86,28 @@ void runtime::feedLine(const std::string& raw) {
     // Forget the saved program — the board boots idle again (no autorun).
     hal::storeClear();
     hal::serialWriteLine("OK: cleared");
+  } else if (line == "MIC") {
+    // Bench aid: sample the microphone and report its level, so you can confirm the
+    // I2S mic is wired + clocking (speak -> the numbers rise) BEFORE trusting the
+    // model. Drains what hal::aiCapture has buffered; run it with no program active.
+    // Mean-abs level (no sqrt/libm) — 0 = silence/not wired, rises with sound.
+    int16_t buf[512];
+    long peak = 0;
+    long sumabs = 0;
+    int total = 0;
+    for (int i = 0; i < 16; i++) {
+      int n = hal::aiCapture(buf, 512);
+      for (int j = 0; j < n; j++) {
+        int v = buf[j] < 0 ? -buf[j] : buf[j];
+        if (v > peak) peak = v;
+        sumabs += v;
+      }
+      total += n;
+    }
+    long level = total > 0 ? sumabs / total : 0;
+    hal::serialWriteLine("OK: mic n=" + std::to_string(total) +
+                         " peak=" + std::to_string(peak) +
+                         " level=" + std::to_string(level));
   } else if (line.rfind("OVERRIDE", 0) == 0) {
     std::string rest = trim(line.substr(8));
     if (rest.empty()) {

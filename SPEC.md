@@ -113,6 +113,7 @@ parsing.
 | `OVERRIDE <instr>`  | execute one instruction immediately            | `OK` / `ERROR`              |
 | `SAVE`              | persist the loaded bytecode to flash + arm autorun | `OK: saved` / `ERROR: …`    |
 | `CLEAR`             | forget the saved program (disable autorun)     | `OK: cleared`               |
+| `MIC` (debug)       | sample the mic + report its level — bench aid to confirm the I2S mic is alive | `OK: mic n=N peak=P level=L` |
 | (boot)              | if a saved program exists, load + run it (PC-unplugged autonomy) | `READY` then `OK: autorun N` |
 
 `SAVE` persists exactly the raw bytecode just received via `LOAD` (one slot — a

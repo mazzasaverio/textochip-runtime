@@ -169,6 +169,11 @@ void VM::step(const Instruction& in) {
     case OP_INFER:
       // Push the latest detected class (0 = none). VOICE()="go" compiles to
       // INFER ; PUSH <idx> ; EQ. The service updates aiClass between ticks.
+      // Executing INFER also flags the model as wanted, so a program that uses
+      // VOICE() starts the listening service on its own — the compiler emits NO
+      // explicit AISTART (the product lowers VOICE() to a bare INFER), so without
+      // this the board would never begin capturing and VOICE() would stay 0.
+      aiActive = true;
       push(aiClass);
       break;
 

@@ -34,6 +34,17 @@ void servo(int pin, int angle);
 // the speeds), so the bytecode stays board-generic. 0,0 = stop.
 void move(int left, int right);
 
+// Microphone capture for the edge-AI voice tier. Reads up to `n` new mono samples
+// (signed 16-bit PCM at the model's sample rate, ~16 kHz) from the board's I2S
+// digital mic (e.g. INMP441) into `out`, and returns how many it wrote (0 if none
+// ready). NON-BLOCKING — it drains only what the driver has already buffered, so it
+// fits the cooperative tick loop; lazily starts capture on the first call. On a
+// build with no mic (the host, or a board without one wired) it returns 0, so
+// VOICE() stays 0 (none). The ONE per-board function the edge-AI tier adds — the
+// background inference service (src/ai/ai_service.cpp) turns its samples into the
+// class VOICE() reads (docs/edge-ai.md).
+int aiCapture(int16_t* out, int n);
+
 // Non-volatile storage for the autorun program (brief §7). SAVE persists the
 // raw bytecode text to flash; on boot, a saved program is loaded + run with no
 // PC attached (the board's autonomy). One slot — a new save overwrites it.

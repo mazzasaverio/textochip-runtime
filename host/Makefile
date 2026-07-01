@@ -24,6 +24,13 @@ test-ai-vm: test_ai_vm.cpp ../src/isa.cpp ../src/vm.cpp ../src/registry.cpp hal_
 	$(CXX) $(CXXFLAGS) -o test_ai_vm test_ai_vm.cpp ../src/isa.cpp ../src/vm.cpp ../src/registry.cpp hal_host.cpp
 	./test_ai_vm
 
+# The configurator's VOICE() program drives the motors on the firmware VM (no TFLM —
+# the class is injected, the way the inference service will). Proves the same .bas
+# the browser sim runs drives the L298N via MOVE, per keyword.
+test-ai-move: test_ai_move.cpp ../src/isa.cpp ../src/vm.cpp ../src/registry.cpp hal_host.cpp
+	$(CXX) $(CXXFLAGS) -o test_ai_move test_ai_move.cpp ../src/isa.cpp ../src/vm.cpp ../src/registry.cpp hal_host.cpp
+	./test_ai_move
+
 # Edge-AI end-to-end: audio -> features.c -> ai_infer (TFLite Micro) -> class.
 # TFLM is the `third_party/tflite-micro` submodule. One-time setup from the repo root:
 #   git submodule update --init --depth 1 third_party/tflite-micro
@@ -46,7 +53,17 @@ ai-infer: test_ai_infer.c ../src/ai/ai_host.cpp ../src/ai/features.c ../src/ai/m
 	$(CXX) -o test_ai_infer test_ai_infer.o ai_host.o features_ai.o $(TFLM_LIB) -lm
 	./test_ai_infer
 
-clean:
-	rm -f $(BIN) $(AI_BIN) test_ai_infer test_ai_vm *.o
+# Full edge-AI SERVICE end-to-end: TTS speech -> hal mic stub -> ai_service
+# (features.c -> ai_infer/TFLM) -> class, then the runtime driving the service so the
+# configurator's VOICE() program moves the motors. The real model, no hardware.
+# TEXTOCHIP_AI turns on the runtime's service drive (off in the plain host demo).
+test-ai-service: test_ai_service.cpp ../src/ai/ai_service.cpp ../src/ai/ai_host.cpp ../src/ai/features.c ../src/runtime.cpp ../src/isa.cpp ../src/vm.cpp ../src/registry.cpp hal_host.cpp ../src/ai/models/voice/model.h
+	$(CC) $(CFLAGS) -c ../src/ai/features.c -o features_ai.o
+	$(CXX) $(CXXFLAGS) -DTF_LITE_STATIC_MEMORY $(TFLM_INC) -c ../src/ai/ai_host.cpp -o ai_host.o
+	$(CXX) $(CXXFLAGS) -DTEXTOCHIP_AI -o test_ai_service test_ai_service.cpp ../src/ai/ai_service.cpp ../src/runtime.cpp ../src/isa.cpp ../src/vm.cpp ../src/registry.cpp hal_host.cpp ai_host.o features_ai.o $(TFLM_LIB) -lm
+	./test_ai_service
 
-.PHONY: run test-ai test-ai-vm tflm-lib ai-infer clean
+clean:
+	rm -f $(BIN) $(AI_BIN) test_ai_infer test_ai_vm test_ai_move test_ai_service *.o
+
+.PHONY: run test-ai test-ai-vm test-ai-move tflm-lib ai-infer test-ai-service clean

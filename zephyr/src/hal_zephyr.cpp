@@ -20,6 +20,12 @@
 #include <zephyr/drivers/adc.h>
 #define HAS_ADC 1
 #endif
+// Digital microphone (I2S) for the edge-AI voice tier — active when the overlay
+// marks i2s0 "okay" (the INMP441 wiring). Absent -> hal::aiCapture returns 0.
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(i2s0), okay)
+#include <zephyr/drivers/i2s.h>
+#define HAS_MIC 1
+#endif
 
 #include "hal.h"
 
@@ -60,6 +66,32 @@ static void store_init() {
   g_nvs.sector_count = 4U;        // a few sectors for wear-levelling headroom
   if (nvs_mount(&g_nvs) == 0) g_nvs_ready = true;
 }
+
+#ifdef HAS_MIC
+// INMP441 I2S mic on i2s0 (RX; the ESP32-S3 is master). 16 kHz mono = the model's
+// sample rate. The DMA fills a pool of 32-bit stereo blocks; aiCapture drains one
+// per call and keeps the left channel. PROVISIONAL pins in app.overlay.
+static const struct device* const i2s_mic = DEVICE_DT_GET(DT_NODELABEL(i2s0));
+#define MIC_FRAMES 256                                           // frames / DMA block
+#define MIC_BLOCK_BYTES (MIC_FRAMES * 2 * (int)sizeof(int32_t))  // stereo, 32-bit
+K_MEM_SLAB_DEFINE_STATIC(mic_slab, MIC_BLOCK_BYTES, 4, 4);
+static bool mic_started = false;
+
+static bool mic_start() {
+  if (!device_is_ready(i2s_mic)) return false;
+  struct i2s_config cfg = {};
+  cfg.word_size = 32;   // INMP441 sends a 24-bit sample left-justified in 32 bits
+  cfg.channels = 2;     // stereo frame; the mic drives one channel (L/R -> GND)
+  cfg.format = I2S_FMT_DATA_FORMAT_I2S;
+  cfg.options = I2S_OPT_FRAME_CLK_MASTER | I2S_OPT_BIT_CLK_MASTER;  // ESP is master
+  cfg.frame_clk_freq = 16000;
+  cfg.mem_slab = &mic_slab;
+  cfg.block_size = MIC_BLOCK_BYTES;
+  cfg.timeout = 0;      // non-blocking: i2s_read returns -EAGAIN if no block is ready
+  if (i2s_configure(i2s_mic, I2S_DIR_RX, &cfg) != 0) return false;
+  return i2s_trigger(i2s_mic, I2S_DIR_RX, I2S_TRIGGER_START) == 0;
+}
+#endif
 
 namespace hal {
 
@@ -167,6 +199,34 @@ void toneOff(int) {}
 void servo(int, int) {}
 void move(int, int) {}
 #endif
+
+// Edge-AI mic capture (INMP441 over I2S). Drains one DMA block if ready, extracts
+// the left channel as int16, and returns the sample count (0 if none ready, or no
+// mic node). Non-blocking. The service (src/ai/ai_service.cpp) turns these samples
+// into the class VOICE() reads.
+int aiCapture(int16_t* out, int n) {
+#ifdef HAS_MIC
+  if (!mic_started) {
+    mic_started = mic_start();
+    if (!mic_started) return 0;
+  }
+  void* block = nullptr;
+  size_t size = 0;
+  if (i2s_read(i2s_mic, &block, &size) != 0) return 0;  // nothing captured yet
+  const int32_t* s = (const int32_t*)block;
+  int frames = (int)(size / (2 * sizeof(int32_t)));
+  int k = 0;
+  for (int i = 0; i < frames && k < n; i++) {
+    out[k++] = (int16_t)(s[i * 2] >> 16);  // left channel, top 16 of the 24-bit word
+  }
+  k_mem_slab_free(&mic_slab, block);
+  return k;
+#else
+  (void)out;
+  (void)n;
+  return 0;  // no mic node in the overlay -> the edge-AI service reads silence
+#endif
+}
 
 uint32_t nowMs() { return (uint32_t)k_uptime_get(); }
 

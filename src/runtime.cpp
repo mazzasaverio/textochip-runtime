@@ -3,6 +3,7 @@
 #include <cctype>
 #include <string>
 
+#include "ai/ai_service.h"
 #include "hal.h"
 #include "isa.h"
 #include "vm.h"
@@ -10,6 +11,10 @@
 namespace {
 VM vm;
 bool loading = false;
+#ifdef TEXTOCHIP_AI
+// True while the edge-AI listening service is running (a program has used VOICE()).
+bool aiRunning = false;
+#endif
 std::string inbuf;
 // The raw bytecode text of the loaded program, kept so SAVE can persist exactly
 // what runs (and the boot autorun can re-feed it). Built up line-by-line on LOAD.
@@ -118,7 +123,29 @@ void runtime::pumpSerial() {
   }
 }
 
-void runtime::tick() { vm.tick(); }
+void runtime::tick() {
+#ifdef TEXTOCHIP_AI
+  // Edge-AI: while a running program wants the model (it executed AISTART or any
+  // INFER / VOICE()), drive the background inference service between VM ticks and
+  // keep the VM's class register fresh — what INFER / VOICE() reads. The service
+  // drains a bounded chunk of mic audio per call, so this never blocks; on a build
+  // with no mic (or before a full window has been captured) poll() returns -1 and
+  // the class is left untouched. Gated by TEXTOCHIP_AI so the plain host demo (and
+  // any no-AI build) stays free of the model/feature deps; the board + the voice
+  // tests define it. See src/ai/ai_service.cpp.
+  if (vm.aiRequested()) {
+    if (!aiRunning) {
+      ai_service::reset();
+      aiRunning = true;
+    }
+    int cls = ai_service::poll();
+    if (cls >= 0) vm.setAiClass(cls);
+  } else if (aiRunning) {
+    aiRunning = false;  // program stopped / took a non-AI path — pause the service
+  }
+#endif
+  vm.tick();
+}
 
 namespace {
 // Parse a multi-line bytecode blob into the VM (used by boot autorun). Returns

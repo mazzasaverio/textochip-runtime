@@ -7,3 +7,9 @@ void host_advance(uint32_t ms);
 void host_set_button(int pin, bool pressed);
 void host_set_analog(int pin, int value);  // simulated ADC reading for AREAD
 int host_get_level(int pin);               // last written digital level (for tests)
+
+// Edge-AI mic stub (for the voice tests): queue PCM samples that hal::aiCapture
+// will drain, clear the queue, and read back the program's last MOVE wheel speeds.
+void host_feed_audio(const int16_t* samples, int n);
+void host_reset_audio();
+bool host_get_move(int* left, int* right);  // false if the program never MOVEd

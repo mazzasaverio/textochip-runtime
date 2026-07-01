@@ -3,8 +3,10 @@
 // This is the spirit of Zephyr's native_sim, but with the plain host compiler so
 // it builds & runs without installing the Zephyr toolchain.
 #include <array>
+#include <cstddef>
 #include <cstdio>
 #include <string>
+#include <vector>
 
 #include "hal.h"
 #include "hal_host.h"
@@ -17,6 +19,14 @@ std::array<int, 128> g_analog{};  // simulated ADC reading per pin
 uint32_t g_now = 0;
 int g_buttonPin = -1;
 bool g_buttonPressed = false;
+
+// Edge-AI mic stub: a queue of PCM samples a test feeds via host_feed_audio();
+// hal::aiCapture drains it (stand-in for the board's I2S mic). Plus the last MOVE
+// wheel speeds, so a test can assert the robot drove/stopped.
+std::vector<int16_t> g_audio;
+size_t g_audioPos = 0;
+int g_moveL = 0, g_moveR = 0;
+bool g_moved = false;
 }  // namespace
 
 void host_advance(uint32_t ms) { g_now += ms; }
@@ -28,6 +38,21 @@ void host_set_analog(int pin, int value) {
   if (pin >= 0 && pin < 128) g_analog[pin] = value;
 }
 int host_get_level(int pin) { return (pin >= 0 && pin < 128) ? g_level[pin] : 0; }
+
+// Edge-AI mic stub controls (tests): queue PCM for hal::aiCapture, clear it, and
+// read back the last MOVE the program issued.
+void host_feed_audio(const int16_t* samples, int n) {
+  g_audio.insert(g_audio.end(), samples, samples + n);
+}
+void host_reset_audio() {
+  g_audio.clear();
+  g_audioPos = 0;
+}
+bool host_get_move(int* left, int* right) {
+  if (left != nullptr) *left = g_moveL;
+  if (right != nullptr) *right = g_moveR;
+  return g_moved;
+}
 
 namespace hal {
 
@@ -72,8 +97,23 @@ void servo(int pin, int angle) {
 // build (hal_zephyr.cpp) drives the L298N.
 void move(int left, int right) {
   auto clamp = [](int v) { return v < -255 ? -255 : v > 255 ? 255 : v; };
-  std::printf("    [t=%6ums] move  L=%-4d R=%-4d\n", g_now, clamp(left),
-              clamp(right));
+  int l = clamp(left), r = clamp(right);
+  if (!g_moved || l != g_moveL || r != g_moveR) {  // print transitions only
+    std::printf("    [t=%6ums] move  L=%-4d R=%-4d\n", g_now, l, r);
+  }
+  g_moveL = l;
+  g_moveR = r;
+  g_moved = true;
+}
+
+// Edge-AI mic stub: drain up to `n` queued PCM samples (host_feed_audio) into
+// `out`. Stands in for the board's I2S mic (hal_zephyr.cpp) so the whole
+// capture -> features -> ai_infer service runs on the PC with no hardware.
+int aiCapture(int16_t* out, int n) {
+  int avail = (int)(g_audio.size() - g_audioPos);
+  int k = avail < n ? avail : n;
+  for (int i = 0; i < k; i++) out[i] = g_audio[g_audioPos++];
+  return k;
 }
 
 // Non-volatile storage, host edition: a plain file in the working directory.

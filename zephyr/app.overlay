@@ -53,6 +53,37 @@
 			output-enable;
 		};
 	};
+
+	/* I2S digital microphone (INMP441) for the edge-AI voice tier. The ESP32-S3 is
+	 * the I2S master: it drives the bit clock (BCK) + word select (WS) and reads the
+	 * mic's serial data (SD). PROVISIONAL pins — BCK=GPIO15, WS=GPIO16, SD=GPIO17,
+	 * with the mic's L/R tied to GND (left channel) — finalize against the Freenove
+	 * pinout when wiring. */
+	i2s0_default: i2s0_default {
+		group1 {
+			pinmux = <I2S0_I_BCK_GPIO15>, <I2S0_I_WS_GPIO16>;
+			output-enable;
+		};
+		group2 {
+			pinmux = <I2S0_I_SD_GPIO17>;
+			input-enable;
+		};
+	};
+};
+
+/* The ESP32-S3 I2S peripheral streams through GDMA — the i2s0 node references
+ * &dma, so the DMA controller must be enabled too (with CONFIG_DMA). */
+&dma {
+	status = "okay";
+};
+
+/* Enable the I2S controller for the mic (hal::aiCapture reads DT_NODELABEL(i2s0)).
+ * Absent/disabled -> aiCapture returns 0 and VOICE() stays "none", so the build is
+ * green with or without the mic wired. */
+&i2s0 {
+	pinctrl-0 = <&i2s0_default>;
+	pinctrl-names = "default";
+	status = "okay";
 };
 
 pwm0: &ledc0 {

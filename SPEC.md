@@ -75,8 +75,10 @@ struct; the simulator executes the same instructions directly.
 > Additive and backward-compatible: a receiver that ignores unknown opcodes keeps running
 > today's programs unchanged. A trained model
 > ([`textochip-ml`](https://github.com/mazzasaverio/textochip-ml)) becomes a value the VM reads
-> inline. The opcodes are **in the firmware VM** (`src/vm.cpp`); the on-board mic capture that
-> feeds them is the one remaining hardware piece.
+> inline. The opcodes are **in the firmware VM** (`src/vm.cpp`), the mic capture (`hal::aiCapture`,
+> I2S) + the background inference service (`src/ai/ai_service.cpp`) are implemented and the whole
+> board firmware compiles for the ESP32-S3; swapping the placeholder `ai_infer` for the on-device
+> TFLM backend + the bench mic bring-up are what remain.
 
 | Instruction        | Meaning                                                            |
 |--------------------|-------------------------------------------------------------------|
@@ -84,7 +86,8 @@ struct; the simulator executes the same instructions directly.
 | `INFER <model>`    | push the latest class index for `<model>` (`0` = none) onto the value stack — **non-blocking**, like `AREAD` |
 
 The compiler maps `VOICE()` → `INFER voice`; `VOICE()="stop"` resolves `"stop"` to the model's
-class index (from its `labels.json`, mirrored by the product's `VOICE_LABELS`). The same int8
+class index (from its `labels.json`, mirrored by the product's `VOICE_LABELS`). Executing `INFER`
+also starts the listening service, so `AISTART` is optional — the compiler emits none. The same int8
 `.tflite` runs on the ESP32-S3 (TFLM + ESP-NN) and the Nordic nRF54L (TFLM + CMSIS-NN on the M33,
 or the Axon NPU); the on-device feature extractor matches the training MFCC via a shared
 golden-vector contract. Full design + status: [`docs/edge-ai.md`](docs/edge-ai.md).
@@ -135,5 +138,6 @@ the board to booting idle.
 ## 4. The HAL (per-board surface)
 
 Everything above is board-agnostic and only ever calls `hal::*` (`src/hal.h`).
-Porting to a new microcontroller means implementing **one file** (~10 functions:
-GPIO, buzzer tone, a servo, a millisecond clock, and a serial link). See `src/hal.h`.
+Porting to a new microcontroller means implementing **one file** (~12 functions:
+GPIO, buzzer tone, a servo, differential-drive motors, a millisecond clock, a serial link, and —
+for the edge-AI voice tier — an I2S mic read `aiCapture`). See `src/hal.h`.

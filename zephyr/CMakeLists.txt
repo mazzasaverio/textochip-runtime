@@ -11,4 +11,11 @@ target_sources(app PRIVATE
   ../src/vm.cpp
   ../src/runtime.cpp
   ../src/registry.cpp
+  # Edge-AI voice tier: the background inference service (mic -> features -> class).
+  ../src/ai/ai_service.cpp
+  ../src/ai/features.c
+  ../src/ai/ai_stub.cpp      # placeholder ai_infer; the TFLM + ESP-NN backend is
+                             # the one remaining board swap (docs/edge-ai.md).
 )
+# Turn on the runtime's background inference service (see runtime::tick).
+target_compile_definitions(app PRIVATE TEXTOCHIP_AI)

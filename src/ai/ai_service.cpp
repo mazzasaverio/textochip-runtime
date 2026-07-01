@@ -15,6 +15,12 @@ namespace {
 constexpr int kMaxSamples = 16000;  // 1 s @ 16 kHz (tcml_default_params)
 constexpr int kMaxFeat = 49 * 13;   // n_frames * n_mfcc at the defaults
 constexpr int kChunk = 256;         // samples drained per poll (~one I2S DMA block)
+// Detection confidence gate: a window whose top class scores below this reports 0
+// (none), so ambient noise / silence / half-words don't fire a command — the robot
+// only reacts to a clearly-spoken word. (The model also has a trained "background"
+// class 0; this is the second guard.) Tune up if it reacts to noise, down if clear
+// words are missed.
+constexpr float kMinConfidence = 0.6f;
 
 TcmlFeatureParams g_params;
 int g_win = 0;   // analysis window length (samples)
@@ -55,9 +61,10 @@ int ai_service::poll() {
   // 2. Not a full window yet -> nothing new to report.
   if (g_have < g_win) return -1;
 
-  // 3. Full window: extract MFCC and classify.
+  // 3. Full window: extract MFCC and classify (confidence-gated — see kMinConfidence).
   int nf = tcml_mfcc(g_signal, g_win, &g_params, g_feat);
-  int cls = (nf > 0) ? ai_infer(g_feat, nf * g_params.n_mfcc) : 0;
+  int cls =
+      (nf > 0) ? ai_infer_conf(g_feat, nf * g_params.n_mfcc, kMinConfidence) : 0;
 
   // 4. Slide the window forward by one hop (keep the newest g_win - g_hop samples),
   //    so the next inference overlaps this one — a keyword that lands across a

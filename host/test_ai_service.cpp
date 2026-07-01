@@ -73,6 +73,13 @@ int main(void) {
            ok ? "" : "   <-- MISMATCH");
     if (!ok) fail = 1;
   }
+  // Silence / noise must NOT fire a command — the confidence gate reports 0 (none),
+  // so the robot doesn't twitch on ambient sound at the bench.
+  {
+    int got = classify_via_service(go_pcm, 0);  // 0 word samples = just the noise floor
+    printf("  (noise) -> %d (want 0 = none)%s\n", got, got == 0 ? "" : "   <-- MISMATCH");
+    if (got != 0) fail = 1;
+  }
 
   // 2) TRUE end-to-end: "go" audio -> the runtime drives the service -> the
   //    configurator's voice program reads VOICE() and drives the motors. Proves the

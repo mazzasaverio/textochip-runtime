@@ -148,6 +148,7 @@ GPIO16** to confirm the ESP is clocking the mic, and check `SD` (GPIO17) wiggles
 | Wheel spins backwards | Swap that motor's **IN1/IN2** (or negate the speed in the program). |
 | Buzzer/servo silent | A `MODE` stole the PWM pad → press **RST** (boot re-applies the pinctrl). |
 | `VOICE()` always "none" | The model is in the firmware — check the I2S mic wiring (BCK/WS/SD, L/R→GND) and that you're speaking a **trained** word (go/left/right/stop). |
+| Robot reacts to **background noise** | The confidence gate is too low: raise `kMinConfidence` in `src/ai/ai_service.cpp` (default 0.6) and rebuild. Too twitchy → ↑, misses clear words → ↓. |
 | `west flash` fails | Hold **BOOT**, tap **RST**, release **BOOT**, retry; flash via the **"USB UART"** port. |
 
 ---

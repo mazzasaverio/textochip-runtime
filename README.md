@@ -166,12 +166,15 @@ PING/PONG (this mirrors the Arduino "USB CDC On Boot" behavior).
   (GPIO 5) on real hardware, and a button press during green gives **immediate feedback** — the
   green LED blinks to acknowledge the crossing request, then the light turns red once green has
   lasted at least `minGreen`.
-- ✅ **Edge-AI (voice keyword spotting) — implemented and host-proven through Phase 1.** The C
-  feature extractor matches training exactly (`make test-ai`), the firmware VM runs the
-  `AISTART`/`INFER` opcodes (`make test-ai-vm`), and `ai_infer` (TFLite Micro, a `third_party`
-  submodule) classifies a real synthetic-speech model — `go/left/right/stop`, trained from Piper
-  TTS with **zero recording** — end-to-end (`make ai-infer`). Only the on-board mic capture +
-  service remain. Design + contract: [`docs/edge-ai.md`](docs/edge-ai.md); model lifecycle:
+- ✅ **Edge-AI — voice AND vision, host-proven; the ESP32-S3 links real on-device inference.**
+  *Voice* (`VOICE()`): the C MFCC matches training (`make test-ai`), the mic-capture HAL + the
+  background service run the model end-to-end (`make test-ai-service`: TTS speech → the word →
+  `MOVE`), and the board build links **TFLite Micro** (`west build` green — the model in the ELF).
+  *Vision* (`SEE()`): scaffolded the same way — a camera service + a per-model VM register,
+  host-proven with TFLM **person-detection** (`make test-vision`: a real image → the class →
+  `SEE()` branches). Remaining (board-only): the I2S mic + DVP camera bring-up on real hardware,
+  and a trained vision-v1. Design: [`docs/edge-ai.md`](docs/edge-ai.md) · bench:
+  [`docs/bench-runbook.md`](docs/bench-runbook.md); model lifecycle:
   [textochip-ml](https://github.com/mazzasaverio/textochip-ml).
 - ⏳ Next: the **nRF54LM20 DK** (`-b nrf54lm20dk/...`) when the kits arrive (CMSIS-NN on the M33,
   the Axon NPU as the optional accelerator), then BLE OVERRIDE, and edge-AI on real hardware.

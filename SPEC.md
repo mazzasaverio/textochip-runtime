@@ -76,9 +76,9 @@ struct; the simulator executes the same instructions directly.
 > today's programs unchanged. A trained model
 > ([`textochip-ml`](https://github.com/mazzasaverio/textochip-ml)) becomes a value the VM reads
 > inline. The opcodes are **in the firmware VM** (`src/vm.cpp`), the mic capture (`hal::aiCapture`,
-> I2S) + the background inference service (`src/ai/ai_service.cpp`) are implemented and the whole
-> board firmware compiles for the ESP32-S3; swapping the placeholder `ai_infer` for the on-device
-> TFLM backend + the bench mic bring-up are what remain.
+> I2S) + the background inference service (`src/ai/ai_service.cpp`) + on-device **TFLite Micro**
+> inference all build for the ESP32-S3 (`west build` green — the model + interpreter in the ELF);
+> the bench mic bring-up + on-chip validation are what remain.
 
 | Instruction        | Meaning                                                            |
 |--------------------|-------------------------------------------------------------------|

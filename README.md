@@ -83,7 +83,8 @@ Demo 3 drives this path end-to-end.
 
 > 🔧 **Bringing up the voice robot at the bench?** Follow **[`docs/bench-runbook.md`](docs/bench-runbook.md)** —
 > a top-to-bottom checklist: mic + L298N wiring (the actual firmware pins), the two-port flash flow,
-> and the stage-by-stage demo (robot `MOVE` works today; live voice after the on-device model swap).
+> and the stage-by-stage demo (robot `MOVE` works today; the firmware now links real on-device TFLM,
+> so live voice just needs the mic validated on the bench).
 
 For the **ESP32-S3** (works today): an **upstream Zephyr** workspace + the Zephyr SDK toolchain.
 For the **nRF54L** (incoming): the **nRF Connect SDK** (Nordic's Zephyr + BLE + the nRF54L board) —

@@ -4,9 +4,9 @@
 > (plus "left"/"right" to steer). It runs the *same* bytecode the browser simulator runs —
 > compiled once in the IDE, executed by the on-board VM.
 >
-> **Status legend:** ✅ works after flashing today · 🔧 needs the on-device model backend
-> (`ai_esp32.cpp` = TFLM + ESP-NN, replacing `ai_stub.cpp`) — the one remaining firmware swap;
-> the host already proves the model, the features, and the voice→`MOVE` program.
+> **Status legend:** ✅ works after flashing today · 🎤 built into the firmware — the ESP32-S3 build
+> now **links real TFLite Micro inference** (`west build` green, the model in the ELF); only the
+> physical INMP441 wiring + the on-chip run remain to validate on the bench.
 
 Follow it top to bottom. Each stage is a checkpoint — don't move on until it passes.
 
@@ -113,13 +113,13 @@ Use **Runtime → OVERRIDE** to poke the motors directly (no program needed):
 > This is the proof that the whole `MOVE` path works on real hardware — the same opcode the voice
 > program drives. Get this solid first; the voice stage only changes *what decides* the `MOVE`.
 
-### Stage 3 — voice → robot (the hero) 🔧
-**Prerequisite:** the on-device model backend. Today's firmware links `ai_stub.cpp` (a placeholder
-that always returns "none"), so `VOICE()` won't react until **`ai_esp32.cpp` (TFLM + ESP-NN)**
-replaces it. The host build (`make test-ai-service`) already proves the model + features + program
-are correct end-to-end, so this is a **bounded swap**, not new design.
+### Stage 3 — voice → robot (the hero) 🎤
+The firmware **already links real TFLite Micro inference** on the ESP32-S3 (our vendored TFLM,
+reference kernels — `west build` green, the model in the ELF), and the host proves the identical
+code + model classify correctly (`make test-ai-service`). So the voice path is built; the bench just
+validates the physical mic + the on-chip run.
 
-Once the real backend is flashed:
+With the mic wired (§1) and the firmware flashed:
 1. In the IDE, load the voice program (or open the configurator's — it generates exactly this):
    ```basic
    10 IF VOICE()="go" THEN MOVE 160 160
@@ -147,7 +147,7 @@ GPIO16** to confirm the ESP is clocking the mic, and check `SD` (GPIO17) wiggles
 | Robot doesn't move | Motor battery flat? **Common ground** missing? ENA/ENB not on GPIO12/21? |
 | Wheel spins backwards | Swap that motor's **IN1/IN2** (or negate the speed in the program). |
 | Buzzer/servo silent | A `MODE` stole the PWM pad → press **RST** (boot re-applies the pinctrl). |
-| `VOICE()` always "none" | **Expected** until `ai_esp32.cpp` (TFLM) replaces `ai_stub.cpp` (Stage 3 prereq). |
+| `VOICE()` always "none" | The model is in the firmware — check the I2S mic wiring (BCK/WS/SD, L/R→GND) and that you're speaking a **trained** word (go/left/right/stop). |
 | `west flash` fails | Hold **BOOT**, tap **RST**, release **BOOT**, retry; flash via the **"USB UART"** port. |
 
 ---
@@ -169,6 +169,6 @@ GPIO16** to confirm the ESP is clocking the mic, and check `SD` (GPIO17) wiggles
 |----------------------------------|---------------------|
 | The model — `go/left/right/stop`, 95.5% (`make ai-infer`) | The **physical INMP441** wiring + the 24-bit/32-bit I2S slot format |
 | MFCC parity with training (`make test-ai`) | The **L298N chassis** (Stage 2, works today) |
-| The service: audio → class (`make test-ai-service`) | Live **voice → robot** after the TFLM-on-ESP32 swap |
+| The service: audio → class (`make test-ai-service`) | Live **voice → robot** — the physical mic + the on-chip TFLM run |
 | The voice program → `MOVE` per keyword (`make test-ai-move`) | Timing/latency of the rolling window on the real CPU |
-| The whole board firmware **compiles** (`west build`) | |
+| The whole board firmware **+ on-device TFLM** build (`west build` green) | |

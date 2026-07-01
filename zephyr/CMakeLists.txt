@@ -15,6 +15,10 @@ target_sources(app PRIVATE
   ../src/ai/ai_service.cpp
   ../src/ai/features.c
   ../src/ai/ai_host.cpp      # the TFLM backend of ai_infer (host + ESP32 — same code)
+  # Edge-AI vision tier: the camera service + a placeholder vision backend. The camera
+  # (DVP) + a trained vision model are the bench step; SEE() reads "nothing" until then.
+  ../src/ai/vision_service.cpp
+  ../src/ai/ai_vision_stub.cpp
 )
 # Turn on the runtime's background inference service (see runtime::tick), and the
 # TFLite Micro static-memory mode ai_host.cpp + the TFLM lib compile against.

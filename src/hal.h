@@ -45,6 +45,16 @@ void move(int left, int right);
 // class VOICE() reads (docs/edge-ai.md).
 int aiCapture(int16_t* out, int n);
 
+// Camera capture for the edge-AI VISION tier. Fills `out` with up to `max` bytes of a
+// GRAYSCALE frame at the model's input size (e.g. 96x96 = 9216 px for person
+// detection), one byte per pixel (0..255), and returns how many it wrote (0 if no
+// frame ready). NON-BLOCKING. Board: an ESP32-S3-CAM over the DVP camera interface
+// (Zephyr video subsystem). On a build with no camera (the host, or none wired) it
+// returns 0, so SEE() stays 0 (nothing). The one per-board function the vision tier
+// adds — the background vision service (src/ai/vision_service.cpp) turns its frame
+// into the class SEE() reads. Mirrors aiCapture (mic), one sense apart.
+int camCapture(uint8_t* out, int max);
+
 // Non-volatile storage for the autorun program (brief §7). SAVE persists the
 // raw bytecode text to flash; on boot, a saved program is loaded + run with no
 // PC attached (the board's autonomy). One slot — a new save overwrites it.

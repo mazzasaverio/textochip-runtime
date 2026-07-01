@@ -10,6 +10,7 @@ void VM::reset() {
   csp = 0;
   for (int i = 0; i < 26; i++) vars[i] = 0;
   aiClass = 0;
+  visionClass = 0;
 }
 
 void VM::clearProgram() {
@@ -19,6 +20,7 @@ void VM::clearProgram() {
   resumeAt = 0;
   currentMission = nullptr;
   aiActive = false;
+  visionActive = false;
 }
 
 bool VM::addInstruction(const Instruction& in) {
@@ -161,20 +163,28 @@ void VM::step(const Instruction& in) {
 
     // ── Tier 4 — edge-AI ──
     case OP_AISTART:
-      // Flag that the program wants the model running; the runtime's background
-      // inference service (mic -> features.c -> ai_infer -> setAiClass) does the
-      // work. Non-blocking — the VM never waits on inference.
-      aiActive = true;
+      // Flag that the program wants a model running; the runtime's background
+      // service (capture -> model -> setAiClass/setVisionClass) does the work.
+      // Non-blocking. The <model> operand (in.missionId) picks voice vs vision.
+      if (in.missionId == "vision") {
+        visionActive = true;
+      } else {
+        aiActive = true;
+      }
       break;
     case OP_INFER:
-      // Push the latest detected class (0 = none). VOICE()="go" compiles to
-      // INFER ; PUSH <idx> ; EQ. The service updates aiClass between ticks.
-      // Executing INFER also flags the model as wanted, so a program that uses
-      // VOICE() starts the listening service on its own — the compiler emits NO
-      // explicit AISTART (the product lowers VOICE() to a bare INFER), so without
-      // this the board would never begin capturing and VOICE() would stay 0.
-      aiActive = true;
-      push(aiClass);
+      // Push the latest class for <model> (0 = none). VOICE()="go" / SEE()="person"
+      // compile to INFER <model> ; PUSH <idx> ; EQ. Executing INFER also flags the
+      // model as wanted, so a program that uses VOICE()/SEE() starts its service on
+      // its own — the compiler emits NO explicit AISTART. voice -> aiClass (mic),
+      // vision -> visionClass (camera); each service fills its own register.
+      if (in.missionId == "vision") {
+        visionActive = true;
+        push(visionClass);
+      } else {
+        aiActive = true;
+        push(aiClass);
+      }
       break;
 
     default:

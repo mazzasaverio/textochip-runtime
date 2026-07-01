@@ -34,6 +34,11 @@ class VM {
   // no-AI build it stays 0 unless injected (mirrors the simulator's "heard word").
   void setAiClass(long c) { aiClass = c; }
   bool aiRequested() const { return aiActive; }
+  // Vision (SEE()) — a SEPARATE class register + wanted-flag, so a program can both
+  // hear (voice) and see. INFER vision reads visionClass; the camera vision service
+  // (src/ai/vision_service.cpp) fills it. Mirrors the voice register, one apart.
+  void setVisionClass(long c) { visionClass = c; }
+  bool visionRequested() const { return visionActive; }
 
  private:
   Instruction program[MAX_PROGRAM];
@@ -50,8 +55,10 @@ class VM {
 
   Mission* currentMission = nullptr;
 
-  long aiClass = 0;       // latest edge-AI class index (0 = none)
-  bool aiActive = false;  // an AISTART has run -> the model should be inferring
+  long aiClass = 0;       // latest edge-AI (voice) class index (0 = none)
+  bool aiActive = false;  // a voice AISTART/INFER has run -> run the mic model
+  long visionClass = 0;       // latest vision class index (0 = nothing seen)
+  bool visionActive = false;  // a vision AISTART/INFER has run -> run the camera model
 
   void push(long v);
   long pop();

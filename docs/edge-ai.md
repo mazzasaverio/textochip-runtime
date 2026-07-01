@@ -153,6 +153,11 @@ src/ai/
   ai_stub.cpp     no-model fallback ai_infer (0=none) — for a build without a real backend   ▶
   features.c/.h   the on-device MFCC — matches the training contract (golden vectors)      ✅
   models/voice/   the vendored artifact from textochip-ml (model.h, labels.json)           ✅
+  ── vision (SEE()) — the same shape, one sense apart ──
+  ai_vision.h        the vision interface (int ai_infer_vision(image, n) -> class)         ✅
+  vision_service.cpp the camera service: hal::camCapture -> ai_infer_vision -> class        ✅
+  ai_vision_tflm.cpp TFLM person-detection backend (Phase-0 vision stand-in; host proof)    ✅
+  ai_vision_stub.cpp no-model vision fallback (0=nothing) — the board build's backend        ▶
 third_party/tflite-micro   the TFLM submodule (built into libtensorflow-microlite.a)       ✅
 ```
 
@@ -206,7 +211,11 @@ no cloud, no phone app. A simple addition to the serial protocol (planned):
   real TFLM inference** (`west build` green — the model + interpreter in the ELF). *Remaining:* the
   mic bring-up + on-chip validation on **real hardware**, then the nRF54L (CMSIS-NN on the M33; the
   Axon NPU as the optional accelerator).
-- **Phase 2 — vision.** ⏳ MobileNet transfer learning (ESP32-CAM), same contract.
+- **Phase 2 — vision.** 🚧 Scaffolded + host-proven: `SEE()` (→ `INFER vision`), the camera
+  service (`vision_service.cpp`) + a per-model VM register (`visionClass`), and a real Phase-0
+  model — TFLM **person-detection** (`make test-vision`: a real image → the class → `SEE()`
+  branches, no camera). Next: the ESP32-S3-CAM capture over the DVP camera interface + a trained
+  vision-v1 (person/ball/hand) via MobileNet transfer learning — same contract as voice.
 
 See [`textochip-ml/docs/pipeline.md`](https://github.com/mazzasaverio/textochip-ml/blob/main/docs/pipeline.md)
 for the training side.

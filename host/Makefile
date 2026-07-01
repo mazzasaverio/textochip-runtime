@@ -46,6 +46,13 @@ TFLM_INC = -I$(TFLM_DIR) -I$(TFLM_DL)/flatbuffers/include -I$(TFLM_DL)/gemmlowp 
            -I$(TFLM_DL)/ruy -I$(TFLM_DL)/kissfft
 TFLM_LIB = $(shell find $(TFLM_DIR)/gen -name libtensorflow-microlite.a 2>/dev/null | head -1)
 
+# Person-detection model + test images (vendored in the TFLM submodule's gen tree) —
+# the Phase-0 vision stand-in used by `make test-vision`.
+TFLM_GEN = $(TFLM_DIR)/gen/linux_x86_64_default_gcc/genfiles
+PERSON_DATA = $(TFLM_GEN)/tensorflow/lite/micro/models/person_detect_model_data.cc \
+              $(TFLM_GEN)/tensorflow/lite/micro/examples/person_detection/testdata/person_image_data.cc \
+              $(TFLM_GEN)/tensorflow/lite/micro/examples/person_detection/testdata/no_person_image_data.cc
+
 ai-infer: test_ai_infer.c ../src/ai/ai_host.cpp ../src/ai/features.c ../src/ai/models/voice/model.h
 	$(CC) $(CFLAGS) -c ../src/ai/features.c -o features_ai.o
 	$(CC) $(CFLAGS) -c test_ai_infer.c -o test_ai_infer.o
@@ -60,10 +67,18 @@ ai-infer: test_ai_infer.c ../src/ai/ai_host.cpp ../src/ai/features.c ../src/ai/m
 test-ai-service: test_ai_service.cpp ../src/ai/ai_service.cpp ../src/ai/ai_host.cpp ../src/ai/features.c ../src/runtime.cpp ../src/isa.cpp ../src/vm.cpp ../src/registry.cpp hal_host.cpp ../src/ai/models/voice/model.h
 	$(CC) $(CFLAGS) -c ../src/ai/features.c -o features_ai.o
 	$(CXX) $(CXXFLAGS) -DTF_LITE_STATIC_MEMORY $(TFLM_INC) -c ../src/ai/ai_host.cpp -o ai_host.o
-	$(CXX) $(CXXFLAGS) -DTEXTOCHIP_AI -o test_ai_service test_ai_service.cpp ../src/ai/ai_service.cpp ../src/runtime.cpp ../src/isa.cpp ../src/vm.cpp ../src/registry.cpp hal_host.cpp ai_host.o features_ai.o $(TFLM_LIB) -lm
+	$(CXX) $(CXXFLAGS) -DTEXTOCHIP_AI -o test_ai_service test_ai_service.cpp ../src/ai/ai_service.cpp ../src/ai/vision_service.cpp ../src/ai/ai_vision_stub.cpp ../src/runtime.cpp ../src/isa.cpp ../src/vm.cpp ../src/registry.cpp hal_host.cpp ai_host.o features_ai.o $(TFLM_LIB) -lm
 	./test_ai_service
 
-clean:
-	rm -f $(BIN) $(AI_BIN) test_ai_infer test_ai_vm test_ai_move test_ai_service *.o
+# Full VISION end-to-end: a real person-detection image -> hal camera stub ->
+# vision_service -> ai_infer_vision (TFLM person-detection) -> class -> SEE() branches.
+# A Phase-0 vision stand-in (the bundled person model + test images), no camera.
+test-vision: test_vision.cpp ../src/ai/ai_vision_tflm.cpp ../src/ai/vision_service.cpp ../src/isa.cpp ../src/vm.cpp ../src/registry.cpp hal_host.cpp
+	$(CXX) $(CXXFLAGS) -DTF_LITE_STATIC_MEMORY $(TFLM_INC) -I$(TFLM_GEN) -c ../src/ai/ai_vision_tflm.cpp -o ai_vision_tflm.o
+	$(CXX) $(CXXFLAGS) $(TFLM_INC) -I$(TFLM_GEN) -o test_vision test_vision.cpp ../src/ai/vision_service.cpp ../src/isa.cpp ../src/vm.cpp ../src/registry.cpp hal_host.cpp ai_vision_tflm.o $(PERSON_DATA) $(TFLM_LIB) -lm
+	./test_vision
 
-.PHONY: run test-ai test-ai-vm test-ai-move tflm-lib ai-infer test-ai-service clean
+clean:
+	rm -f $(BIN) $(AI_BIN) test_ai_infer test_ai_vm test_ai_move test_ai_service test_vision *.o
+
+.PHONY: run test-ai test-ai-vm test-ai-move tflm-lib ai-infer test-ai-service test-vision clean

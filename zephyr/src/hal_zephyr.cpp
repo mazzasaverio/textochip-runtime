@@ -228,6 +228,13 @@ int aiCapture(int16_t* out, int n) {
 #endif
 }
 
+// Camera capture (edge-AI VISION). STUB for now: returns 0 (no frame), so SEE() reads
+// "nothing" on the board. The ESP32-S3-CAM brings this up over the DVP camera interface
+// — Zephyr has the driver (drivers/video/video_esp32_dvp.c) + the video subsystem
+// (video_dequeue/enqueue); wiring it (an overlay DVP + sensor node) and downscaling to
+// the model's 96x96 grayscale is the bench step, like the mic's I2S.
+int camCapture(uint8_t* /*out*/, int /*max*/) { return 0; }
+
 uint32_t nowMs() { return (uint32_t)k_uptime_get(); }
 
 int serialReadChar() {

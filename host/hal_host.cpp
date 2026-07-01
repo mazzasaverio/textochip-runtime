@@ -25,6 +25,8 @@ bool g_buttonPressed = false;
 // wheel speeds, so a test can assert the robot drove/stopped.
 std::vector<int16_t> g_audio;
 size_t g_audioPos = 0;
+std::vector<unsigned char> g_image;  // camera frame stub (host_feed_image)
+size_t g_imagePos = 0;
 int g_moveL = 0, g_moveR = 0;
 bool g_moved = false;
 }  // namespace
@@ -47,6 +49,13 @@ void host_feed_audio(const int16_t* samples, int n) {
 void host_reset_audio() {
   g_audio.clear();
   g_audioPos = 0;
+}
+void host_feed_image(const unsigned char* pixels, int n) {
+  g_image.insert(g_image.end(), pixels, pixels + n);
+}
+void host_reset_image() {
+  g_image.clear();
+  g_imagePos = 0;
 }
 bool host_get_move(int* left, int* right) {
   if (left != nullptr) *left = g_moveL;
@@ -113,6 +122,16 @@ int aiCapture(int16_t* out, int n) {
   int avail = (int)(g_audio.size() - g_audioPos);
   int k = avail < n ? avail : n;
   for (int i = 0; i < k; i++) out[i] = g_audio[g_audioPos++];
+  return k;
+}
+
+// Edge-AI camera stub: drain up to `max` queued grayscale bytes (host_feed_image)
+// into `out`. Stands in for the board's DVP camera (hal_zephyr.cpp) so the whole
+// capture -> vision_service -> ai_infer_vision path runs on the PC with no hardware.
+int camCapture(unsigned char* out, int max) {
+  int avail = (int)(g_image.size() - g_imagePos);
+  int k = avail < max ? avail : max;
+  for (int i = 0; i < k; i++) out[i] = g_image[g_imagePos++];
   return k;
 }
 

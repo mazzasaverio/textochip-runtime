@@ -4,6 +4,7 @@
 #include <string>
 
 #include "ai/ai_service.h"
+#include "ai/vision_service.h"
 #include "hal.h"
 #include "isa.h"
 #include "vm.h"
@@ -14,6 +15,8 @@ bool loading = false;
 #ifdef TEXTOCHIP_AI
 // True while the edge-AI listening service is running (a program has used VOICE()).
 bool aiRunning = false;
+// True while the camera vision service is running (a program has used SEE()).
+bool visionRunning = false;
 #endif
 std::string inbuf;
 // The raw bytecode text of the loaded program, kept so SAVE can persist exactly
@@ -164,6 +167,18 @@ void runtime::tick() {
     if (cls >= 0) vm.setAiClass(cls);
   } else if (aiRunning) {
     aiRunning = false;  // program stopped / took a non-AI path — pause the service
+  }
+  // Same for SEE() — the camera vision service fills the vision register (visionClass),
+  // independent of the voice one, so a program can both hear and see.
+  if (vm.visionRequested()) {
+    if (!visionRunning) {
+      vision_service::reset();
+      visionRunning = true;
+    }
+    int vcls = vision_service::poll();
+    if (vcls >= 0) vm.setVisionClass(vcls);
+  } else if (visionRunning) {
+    visionRunning = false;
   }
 #endif
   vm.tick();

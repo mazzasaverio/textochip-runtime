@@ -90,7 +90,9 @@ class index (from its `labels.json`, mirrored by the product's `VOICE_LABELS`). 
 also starts the listening service, so `AISTART` is optional — the compiler emits none. The same int8
 `.tflite` runs on the ESP32-S3 (TFLM + ESP-NN) and the Nordic nRF54L (TFLM + CMSIS-NN on the M33,
 or the Axon NPU); the on-device feature extractor matches the training MFCC via a shared
-golden-vector contract. Full design + status: [`docs/edge-ai.md`](docs/edge-ai.md).
+golden-vector contract. **Vision is the same shape, one sense apart:** `SEE()` → `INFER vision`,
+a separate `visionClass` register, and a camera vision service (`src/ai/vision_service.cpp`,
+person-detection today). Full design + status: [`docs/edge-ai.md`](docs/edge-ai.md).
 
 A receiver MUST ignore blank lines and `;` / `#` comments, and MAY ignore unknown
 opcodes (forward-compatibility).

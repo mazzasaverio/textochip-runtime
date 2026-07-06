@@ -14,12 +14,20 @@ Follow it top to bottom. Each stage is a checkpoint — don't move on until it p
 
 ## 0. Parts checklist
 
-- [ ] **Freenove ESP32-S3** (WROOM, N8R8) — it has **two USB-C ports** ("USB UART" + "USB OTG")
+- [ ] **Freenove ESP32-S3 *without* a camera** (WROOM N8R8 or **Lite**) — see the box below
 - [ ] **INMP441** I2S digital microphone
-- [ ] **Robot chassis** + **L298N** motor driver + a **motor battery pack** (e.g. 2S Li-ion / 6×AA)
-- [ ] **2× USB-C cables** (one is fine if you re-plug; two is smoother — one per port)
-- [ ] Jumper wires + a small breadboard
+- [ ] **Robot chassis** + **L298N** motor driver + a **motor battery pack** (e.g. 2S Li-ion / 6×AA;
+      a 4×AA box works for bench tests — the L298N drops ~2 V, so use fresh cells)
+- [ ] **USB-C DATA cable** (many USB-C cables are charge-only — if the PC sees nothing, swap the cable first)
+- [ ] Jumper wires: **female-female dupont** for the pin headers + **bare-ended wires** for the screw
+      terminals (a dupont female does NOT fit a screw terminal; strip ~2 cm if the bare end is short)
 - [ ] (optional) breadboard LEDs / passive buzzer for the other missions
+
+> ### ⚠️ Which board? NOT the camera one.
+> On ESP32-S3 CAM boards the camera's parallel bus **owns most of GPIO 4–18** — exactly the
+> motor (10/11/12/13/14) and mic (15/16/17) pins. So: **robot + voice = a camera-less board**
+> (e.g. the Freenove **Lite**); the **CAM board is for the vision tier only**. Verified at the
+> bench 2026-07: same firmware runs on both, only the free pins differ.
 
 ---
 
@@ -52,6 +60,16 @@ Follow it top to bottom. Each stage is a checkpoint — don't move on until it p
 | +12V / VIN | **motor battery +** | motor supply — **not** the ESP 3V3 |
 | GND | **battery −  AND  ESP GND** | ⚠️ **common ground is mandatory** |
 | +5V | (leave / or → ESP 5V if your L298N needs logic 5V) | some boards jumper this |
+
+> ### ⚠️ REMOVE the ENA/ENB jumper caps (bench lesson, 2026-07)
+> L298N modules ship with black jumper caps on ENA/ENB that tie the enables to 5 V =
+> **throttle always floored**. Our firmware controls speed **and stop** through PWM on those
+> very pins — with the caps on, `MOVE 0 0` couldn't stop the motor (only cutting the battery
+> did) and `MOVE 80` vs `MOVE 255` made no difference. **Pull both caps off** and wire
+> ENA→GPIO12, ENB→GPIO21. Each EN position has **two** pins (one behind the other): use the
+> **front** one, in line with the IN1…IN4 row — the pin behind it is 5 V, don't connect a GPIO
+> there. (The firmware now also coasts the direction pins on speed 0, so a stop is a stop even
+> on a mis-jumpered board — but you still need the EN wires for speed control.)
 
 ### Reference — the rest of the board profile (other missions, not needed for voice)
 
@@ -87,6 +105,17 @@ west flash        # cable in the "USB UART" port
 - [ ] Then **move the cable to the "USB OTG" port** for the IDE.
 - [ ] Linux: your user must be in the `dialout` group (`sudo usermod -a -G dialout $USER`, then re-login).
 
+**Single-port boards (e.g. the Freenove Lite):** one USB-C does both jobs, but there's no
+auto-reset chip — the BOOT/RST dance is **always** needed to flash: hold **BOOT**, tap **RST**,
+release **BOOT** (the port re-enumerates as `Espressif USB JTAG/serial`, VID `303a`), then
+`west flash`; esptool can find it itself, or point it: `esptool --port /dev/ttyACM0 --before
+no-reset --after hard-reset write-flash … build/zephyr/zephyr.bin`. After flashing press **RST**
+once — the port comes back as `Zephyr … CDC_ACM` (VID `2fe3`): that's the firmware running, and
+the same port is the IDE console. **How to tell a blank board:** its USB port shows *nothing* on
+the native port (no CDC console) — if the IDE gets no PONG and the OS lists no Zephyr device,
+the board needs flashing, not more clicking. (On two-port boards note the CH343 "USB UART" can
+enumerate as `ttyACM0` too, not just `ttyUSB0` — go by the device *name*, not the number.)
+
 ---
 
 ## 3. Bring-up — stage by stage
@@ -108,7 +137,18 @@ Use **Runtime → OVERRIDE** to poke the motors directly (no program needed):
 | `OVERRIDE MOVE 40 160` | curve left |
 
 - [ ] A wheel spins the **wrong way** → swap that motor's **IN1/IN2** wires (or negate its speed).
-- [ ] **Nothing moves** → check the **motor battery**, the **common ground**, and that ENA/ENB are on GPIO12/21.
+- [ ] **Nothing moves** → work the chain in this order (each step halves the search):
+  1. **Are you talking to the real board?** The OUTPUT toggle must say **Real board**, the log
+     `backend: real board`, and the header dot green. If the backend is the **Simulator**, every
+     OVERRIDE happily answers `OK` — from the robot in the browser. (Classic bench trap.)
+  2. **Power:** L298N red LED on? Battery switch, cell orientation, fresh cells.
+  3. **Ask the board itself:** with `OVERRIDE MOVE 160 160` active, `OVERRIDE RPIN 10` /
+     `OVERRIDE RPIN 11` print the live pin levels (expect `10 = 1`, `11 = 0`). Correct levels =
+     the ESP32 is driving; the fault is downstream (contacts, EN jumpers, motor wires).
+  4. **Wiggle test:** with the command still active, gently press each connection one at a time
+     (duponts both ends, the GND link, screw terminals, motor tabs) — a twitch names the culprit.
+  5. **Motors actually connected?** OUT1/OUT2 (and OUT3/OUT4) must hold the motor wires — bare
+     copper clamped under the screw (not insulation), wire twisted through the motor tab eyelets.
 
 > This is the proof that the whole `MOVE` path works on real hardware — the same opcode the voice
 > program drives. Get this solid first; the voice stage only changes *what decides* the `MOVE`.
@@ -144,9 +184,12 @@ wiring (BCK/WS/SD, L/R→GND). Send `MIC` **raw over serial**, not through the I
 
 | Symptom | Likely cause / fix |
 |---------|--------------------|
-| No `PONG` on connect | Connect-time reset dropped it → **RST**, wait 3 s, retry. |
+| No `PONG` on connect | Connect-time reset dropped it → **RST**, wait 3 s, retry. **Still nothing + no Zephyr CDC device on the OS?** The board is blank — flash it (§2). |
+| PC sees no board at all | **Charge-only USB cable** (swap for a data cable) — or you're on the port of a blank board. |
+| Commands answer `OK` but nothing happens on the desk | You're talking to the **browser Simulator** — switch OUTPUT to **Real board** and Connect (check for `backend: real board` in the log). |
 | IDE won't open the port | Connected to the **"USB UART"** port by mistake — use **"USB OTG"**; check `dialout`. |
-| Robot doesn't move | Motor battery flat? **Common ground** missing? ENA/ENB not on GPIO12/21? |
+| Robot doesn't move | Follow the Stage-2 chain: real backend → power LED → `RPIN` → wiggle → motor wires. |
+| `MOVE 0 0` doesn't stop / speed values ignored | **ENA/ENB jumper caps still on** — remove them and wire ENA→GPIO12, ENB→GPIO21 (§1). |
 | Wheel spins backwards | Swap that motor's **IN1/IN2** (or negate the speed in the program). |
 | Buzzer/servo silent | A `MODE` stole the PWM pad → press **RST** (boot re-applies the pinctrl). |
 | `VOICE()` always "none" | The model is in the firmware — check the I2S mic wiring (BCK/WS/SD, L/R→GND) and that you're speaking a **trained** word (go/left/right/stop). |

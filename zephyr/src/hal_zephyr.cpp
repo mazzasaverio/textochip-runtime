@@ -182,8 +182,11 @@ static void drive_motor(int in1, int in2, int pwmCh, int v) {
   if (v > 255) v = 255;
   pinMode(in1, 1);  // OUTPUT
   pinMode(in2, 1);
-  pinWrite(in1, v >= 0 ? 1 : 0);
-  pinWrite(in2, v >= 0 ? 0 : 1);
+  // v == 0 coasts BOTH direction pins low, not just duty 0: if the L298N's EN
+  // jumper cap was left on (EN tied to 5V), duty alone can't stop the motor —
+  // a "stop" must be a stop regardless of how the driver is jumpered.
+  pinWrite(in1, v > 0 ? 1 : 0);
+  pinWrite(in2, v < 0 ? 1 : 0);
   uint32_t duty = (uint32_t)(v < 0 ? -v : v);
   pwm_set(pwm_dev, pwmCh, 1000000u, 1000000u * duty / 255u, 0);  // ~1 kHz
 }

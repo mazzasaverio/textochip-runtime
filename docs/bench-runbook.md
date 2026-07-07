@@ -105,6 +105,12 @@ west flash        # cable in the "USB UART" port
 - [ ] Then **move the cable to the "USB OTG" port** for the IDE.
 - [ ] Linux: your user must be in the `dialout` group (`sudo usermod -a -G dialout $USER`, then re-login).
 
+> **Planned — browser flashing (no toolchain):** this whole section is developer-grade; a
+> teacher will never run `west`. The plan (product strategy §10) is a **`/flash` page** on
+> textochip.com using [ESP Web Tools](https://esphome.github.io/esp-web-tools/) (ESPHome-proven,
+> ESP32-S3 supported): one **Install** button in the browser, the manifest + `zephyr.bin` hosted
+> by the site. Until that ships, `west` below is the way.
+
 **Single-port boards (e.g. the Freenove Lite):** one USB-C does both jobs, but there's no
 auto-reset chip — the BOOT/RST dance is **always** needed to flash: hold **BOOT**, tap **RST**,
 release **BOOT** (the port re-enumerates as `Espressif USB JTAG/serial`, VID `303a`), then

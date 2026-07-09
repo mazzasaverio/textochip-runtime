@@ -81,6 +81,10 @@ Demo 3 drives this path end-to-end.
 
 ## Build for hardware with Zephyr
 
+> 📓 **Learning the Nordic side?** [`docs/nordic-nrf-connect-sdk.md`](docs/nordic-nrf-connect-sdk.md)
+> is a living notes doc on the **nRF Connect SDK** for the nRF54LM20 DK — incl. why NCS is the *same
+> Zephyr* we already build the ESP32-S3 against (so per-board work stays just HAL + board profile).
+
 > 🔧 **Bringing up the voice robot at the bench?** Follow **[`docs/bench-runbook.md`](docs/bench-runbook.md)** —
 > a top-to-bottom checklist: mic + L298N wiring (the actual firmware pins), the two-port flash flow,
 > and the stage-by-stage demo (robot `MOVE` works today; the firmware now links real on-device TFLM,

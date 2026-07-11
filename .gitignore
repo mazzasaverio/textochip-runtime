@@ -1,9 +1,12 @@
-# host build artifact
+# host build artifacts (compiled binaries — the sources are *.c / *.cpp)
 host/sakura_vm_host
 host/test_ai_features
+host/test_ai_infer
+host/test_ai_vm
+host/test_ai_move
+host/test_ai_service
+host/test_vision
+host/*.o
 # Zephyr/west build output
 build/
 zephyr/build/
-host/test_ai_infer
-host/*.o
-host/test_ai_vm

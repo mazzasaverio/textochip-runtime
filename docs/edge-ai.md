@@ -150,7 +150,6 @@ src/ai/
   ai.h            the ai_infer interface (int ai_infer(features, n) -> class index)        ✅
   ai_service.cpp  the background service: hal::aiCapture -> features -> ai_infer -> class   ✅
   ai_host.cpp     the TFLite-Micro backend of ai_infer — host tests AND the ESP32-S3 board  ✅
-  ai_stub.cpp     no-model fallback ai_infer (0=none) — for a build without a real backend   ▶
   features.c/.h   the on-device MFCC — matches the training contract (golden vectors)      ✅
   models/voice/   the vendored artifact from textochip-ml (model.h, labels.json)           ✅
   ── vision (SEE()) — the same shape, one sense apart ──
@@ -175,8 +174,8 @@ demo stays dep-free). The host feeds PCM to the same path (`make test-ai-service
 class directly (`make test-ai-vm` / `test-ai-move`); on the board `hal::aiCapture` reads the I2S
 mic (`zephyr/src/hal_zephyr.cpp`). Exactly one `ai_*` backend links per build: the **ESP32-S3 board
 build links `ai_host` with real TFLM** (Zephyr's tflite-micro glue over our submodule — see
-`zephyr/CMakeLists.txt`), the host voice tests link `ai_host` too, and `ai_stub` stays as the
-no-model fallback. ESP-NN is an optional kernel-level speedup behind the same `ai_infer`.
+`zephyr/CMakeLists.txt`), and the host voice tests link `ai_host` too. ESP-NN is an optional
+kernel-level speedup behind the same `ai_infer`.
 
 ## The feature-extraction contract (the #1 footgun)
 

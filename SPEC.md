@@ -38,9 +38,16 @@ struct; the simulator executes the same instructions directly.
 | `SET <pin> 1\|0`   | `digitalWrite(pin, HIGH\|LOW)`                                 |
 | `WAIT <ms>`        | non-blocking delay (VM records a resume time and yields)      |
 | `JMP <addr>`       | `pc = addr`                                                   |
-| `CALL <missionId> …` | start a native MISSION; operands carry pins then `k=v` params |
+| `CALL <missionId> …` | *(legacy)* start a native MISSION; operands carry pins then `k=v` params |
 | `HALT`             | stop the program                                              |
 | `NOP`              | no-op                                                        |
+
+> **`CALL` is LEGACY / firmware-retained.** The composable `MISSION "X"` block that compiled to
+> `CALL <missionId>` (dispatched to a native C++ mission by `registry.cpp`) is **retired in the
+> product** (2026-07): the IDE now generates **standalone reactive** Chip BASIC — a poll loop over
+> `READ`/`AREAD`/`INFER` driving `SET`/`TONE`/`SERVO`/`MOVE` — and emits **no new `CALL`**. The
+> opcode and the native mission registry stay in this firmware so previously-saved bytecode that
+> still contains `CALL` keeps running unchanged.
 
 ### Tier 2 — expressions & branching
 
@@ -69,6 +76,24 @@ struct; the simulator executes the same instructions directly.
 | `AREAD <pin>`        | push the analog (ADC) reading of `pin` (e.g. 0..4095) onto the value stack |
 | `MODE <pin> INPD`    | `pinMode(pin, INPUT_PULLDOWN)` — active-high sensors (e.g. a PIR) idle LOW when disconnected |
 | `MOVE <left> <right>`| differential drive: set the two wheel speeds, each `-255..255` (sign = direction, magnitude = PWM duty); `0 0` stops. Unlike the others, `MOVE` carries **no pin** — the two motors are a fixed board wiring owned by the HAL (an L298N: per wheel, 2 direction GPIOs + 1 PWM enable), so the bytecode stays board-generic. The browser sim drives a robot from these speeds. |
+
+#### Pin operands: what is baked vs. HAL-owned
+
+- **Digital / analog reads carry a baked pin.** The product's higher-level reads compile to the
+  plain ISA with a **concrete GPIO** resolved from the board profile — there is no `SENSOR` opcode.
+  `SENSOR("obstacle")` → `READ <obstacle-pin>`, `SENSOR("motion")` → `READ <pir-pin>` (an
+  `INPD` pull-down input), `SENSOR("line-left"|"line-center"|"line-right")` → `READ <line-pin>`,
+  and analog sensors → `AREAD <pin>`. On the ESP32-S3 the profile currently bakes
+  `obstacle=41`, `motion(pir)=7`, `line-left/center/right=38/39/40`, `analog=9`
+  (`lib/boardProfile.ts`) — **provisional pins**, to finalize against the Freenove pinout.
+- **`MOVE` carries no pin.** The two-motor L298N is a **fixed board wiring owned by the HAL**
+  (provisionally GPIO `10/11/12/13/14/21` = leftDir1/leftDir2/leftPwm/rightDir1/rightDir2/rightPwm on
+  the ESP32-S3 profile — also provisional). The bytecode only carries the two wheel speeds.
+- **On Zephyr a `<pin>` operand is advisory for PWM peripherals.** For `TONE`/`SERVO` the raw GPIO
+  in the bytecode names the intent, but the actual channel is **fixed in the board overlay/pinctrl**
+  (`zephyr/app.overlay`: LEDC PWM ch0 on GPIO 5 for the buzzer, ch1 for the servo). Repoint the
+  pinctrl group to change the physical pad. Plain-GPIO ops (`SET`/`READ`/`AREAD`/`MODE`) use the
+  baked pin directly via `hal_zephyr.cpp` (`raw = port*32 + pin`).
 
 ### Tier 4 — edge-AI (contract **v2**, implemented in the VM — see [`docs/edge-ai.md`](docs/edge-ai.md))
 
@@ -141,6 +166,7 @@ the board to booting idle.
 ## 4. The HAL (per-board surface)
 
 Everything above is board-agnostic and only ever calls `hal::*` (`src/hal.h`).
-Porting to a new microcontroller means implementing **one file** (~12 functions:
-GPIO, buzzer tone, a servo, differential-drive motors, a millisecond clock, a serial link, and —
-for the edge-AI voice tier — an I2S mic read `aiCapture`). See `src/hal.h`.
+Porting to a new microcontroller means implementing **one file** (18 functions:
+GPIO + ADC, buzzer tone, a servo, differential-drive motors, an I2S mic + camera capture for the
+edge-AI tier, flash persistence for autorun, a millisecond clock, and a serial link). See
+`src/hal.h`.

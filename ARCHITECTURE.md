@@ -9,7 +9,7 @@ alternatives we weighed.
 The browser **compiles** BASIC to a flat bytecode list **once**; the MCU only **executes** it.
 
 - **Performance / memory.** Parsing is the expensive part — do it on the PC, not on every run on
-  the microcontroller. A dispatcher over ~25 opcodes is small and hard to get wrong; an extended
+  the microcontroller. A dispatcher over 31 opcodes is small and hard to get wrong; an extended
   text tokenizer on a system with no memory protection is a bug source.
 - **Decoupling.** The grammar evolves in the browser without reflashing; the firmware evolves
   without touching the language. The **ISA + serial protocol** ([`SPEC.md`](SPEC.md)) is the only
@@ -19,13 +19,21 @@ The browser **compiles** BASIC to a flat bytecode list **once**; the MCU only **
 
 ## 2. The HAL is the only per-board file
 
-The VM / ISA / missions are platform-agnostic and only ever call `hal::*` (`src/hal.h`, ~9
-functions: GPIO, a buzzer tone, a millisecond clock, a serial link). Porting to a new
-microcontroller = implement **one file**. `host/hal_host.cpp` runs the whole thing on a PC (g++)
+The VM / ISA / missions are platform-agnostic and only ever call `hal::*` (`src/hal.h`, 18
+functions: GPIO + ADC, a buzzer tone, a servo, differential-drive motors, an I2S mic + camera
+capture for the edge-AI tier, flash persistence for autorun, a millisecond clock, and a serial
+link). Porting to a new microcontroller = implement **one file**. `host/hal_host.cpp` runs the whole thing on a PC (g++)
 for fast verification; `zephyr/src/hal_zephyr.cpp` is the on-board implementation. This is what
 makes "runs on any microcontroller" true rather than aspirational.
 
 ## 3. Two kinds of mission — and why most are bytecode
+
+> **Product direction (2026-07): composable `MISSION` is legacy.** In the product a "mission" is now
+> a **standalone reactive Chip BASIC program** (typically an always-listening poll loop over
+> `READ`/`AREAD`/`INFER` driving `SET`/`TONE`/`SERVO`/`MOVE`), not a block that calls another
+> mission. The compiler emits **no new `CALL`**. The `CALL` opcode + the native mission registry
+> (`registry.cpp`, `pianola.h`) are **retained in this firmware** so previously-saved bytecode that
+> contains `CALL` still runs; the two-kinds design below is kept for that backward compatibility.
 
 A "mission" is a complete, one-line behaviour (`MISSION "SEMAFORO" WITH …`). Under the hood it is
 implemented one of two ways:

@@ -2,7 +2,7 @@
 
 **A tiny, portable bytecode VM and mission library for microcontrollers, built on Zephyr.**
 The open runtime behind [Text to Chip](https://textochip.com): it runs on **ESP32-S3** and
-**Nordic nRF54L** today, and ports to other boards through a small **HAL** (`src/hal.h`, ~9
+**Nordic nRF54L** today, and ports to other boards through a small **HAL** (`src/hal.h`, 18
 functions — the *only* file that differs per board).
 
 A program is a flat list of **bytecode** (the ISA in [`SPEC.md`](SPEC.md)) that the browser
@@ -17,6 +17,13 @@ simulator and on the board, so the IDE and the firmware evolve independently beh
 
 A mission has a **beginning and an end** (it runs once, then control falls through); *a robot is a
 sequence of missions*, looped with `GOTO`.
+
+> **Product direction (2026-07): composable `MISSION` is legacy.** In the product a "mission" is now
+> a **standalone reactive Chip BASIC program** — typically an always-listening poll loop over
+> `READ`/`AREAD`/`INFER` driving `SET`/`TONE`/`SERVO`/`MOVE` — never a block that calls another
+> mission. The compiler emits **no new `CALL`**. The `CALL` opcode + the native mission registry
+> (`registry.cpp`, `pianola.h`) are **retained in this firmware** so previously-saved bytecode that
+> still contains `CALL` keeps running; the native-C++ path above is kept for that reason.
 
 > **Open core.** This runtime is the open part of Text to Chip (Apache-2.0 when it goes public).
 > The product keeps the browser IDE + compiler + simulator, the curated mission catalog (the
@@ -68,9 +75,10 @@ make tflm-lib     # one-time: build libtensorflow-microlite.a from the submodule
 make ai-infer     # end-to-end: TTS speech -> features.c -> TFLM -> the right word
 ```
 
-### Mission parameters (honored in the firmware)
+### Mission parameters (honored in the firmware) — legacy `CALL` path
 
-The native `Semaforo` mission now accepts the IDE's parameter form:
+*(Legacy / firmware-retained — see the note above; the product no longer emits `MISSION`/`CALL`.)*
+The native `Semaforo` mission accepts the IDE's former parameter form:
 
 ```
 MISSION "SEMAFORO" WITH green=.. yellow=.. red=.. beep=off|slow|fast button=on|off minGreen=..

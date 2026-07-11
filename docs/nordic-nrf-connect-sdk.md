@@ -116,6 +116,15 @@ exercise, or `textochip-runtime`) is just a folder you `west build` against it. 
 Nordic bring-up we can build the runtime as a freestanding app against the *same* NCS install if
 the versions line up, or a dedicated one if they diverge.
 
+**Version to install (decided 2026-07-11, from Lesson 1 Exercise 1).** Target the **latest LTS in
+the v3.4.x series** (the first NCS LTS; use the highest minor shown, e.g. `v3.4.2`, not `v3.4.0` —
+LTS is a branch of tags, always take the newest). Install via *Install SDK* (the bundled
+SDK + toolchain + nrfutil, not *Install Toolchain*), SDK type *nRF Connect SDK* (the full
+Zephyr-based one, NOT *Bare Metal*). **When we build `textochip-runtime` for the nRF54LM20 DK, pin
+the SAME v3.4.x LTS** the course installed — so the runtime and the learning workspace never fight
+over versions. Linux prerequisites the course installs first: SEGGER **J-Link** + **nrf-udev**
+(the udev rules need a re-login or a board re-plug to take effect).
+
 <!-- Append the next lesson's notes below this line, same shape:
 ## Lesson N — <title>
 ### … (the material)

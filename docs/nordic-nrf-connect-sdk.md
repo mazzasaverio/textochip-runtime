@@ -91,6 +91,31 @@ open-source / dark-blue layers; Nordic's applications and stacks are the light-b
 
 ---
 
+## Workspace strategy (decided 2026-07-11)
+
+Two questions came up starting the NCS course; the answers are project policy now.
+
+**Do we use NCS for the ESP32-S3 too, to unify?** **No.** NCS is Nordic-curated: the ESP32-S3
+lives on **Espressif's HAL in *upstream* Zephyr**, which Espressif develops/tests there, not
+against Nordic's downstream fork. Building the ESP32 under NCS puts you off *both* vendors'
+supported paths and into version-skew (NCS pins its own Zephyr). And it buys nothing: our VM code
+doesn't care whether the RTOS under it is "upstream Zephyr" or "NCS Zephyr" — it's Zephyr either
+way, and our code is already portable across both (board string + one HAL file). **Policy:
+ESP32-S3 → upstream Zephyr; nRF54L → NCS.** They share the same **Zephyr SDK toolchain** (installed
+once), so the only extra cost is two `west` source trees. Reconsider only if the ESP32 is ever
+dropped as a target.
+
+**Separate west workspace for the course?** **Yes — and let Nordic's tooling create it.** Install
+NCS via the **nRF Connect for VS Code extension + Toolchain Manager** (what the Nordic Developer
+Academy assumes); it puts a managed NCS install (e.g. `~/ncs/v<version>/`) in its own directory,
+which *is* a west workspace, physically separate from our upstream-Zephyr workspace. Reasons:
+version isolation (the course targets a specific NCS version; when we do the textochip nRF54L
+bring-up we'll pin our own — separate workspaces = no `west update` fights), and freedom to break
+things while learning. **Workspace ≠ app:** the NCS install is the workspace; an app (a course
+exercise, or `textochip-runtime`) is just a folder you `west build` against it. When we reach the
+Nordic bring-up we can build the runtime as a freestanding app against the *same* NCS install if
+the versions line up, or a dedicated one if they diverge.
+
 <!-- Append the next lesson's notes below this line, same shape:
 ## Lesson N — <title>
 ### … (the material)

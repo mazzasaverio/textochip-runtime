@@ -203,3 +203,26 @@ debugger's VCOM ports).
 - Lesson 4 (printk/logger) is light for us: the protocol replies are plain console lines.
   PWM (TONE/SERVO), SAADC (AREAD) and NVS (SAVE) live in the *Intermediate* course — inject that
   theory ad hoc while writing the overlay instead of taking the whole second course.
+
+## Lesson 4 — printk + the logger module (theory digest)
+
+`printk()` is printf-lite (subset of specifiers, no float by default) and **synchronous/blocking**:
+it does not return until every byte is on the wire — simple, ordered, no buffering. The **logger
+module** (`CONFIG_LOG=y`, `LOG_MODULE_REGISTER(name, level)`, `LOG_INF/DBG/WRN/ERR`,
+`LOG_HEXDUMP_*`) is **deferred**: a low-priority thread drains queued messages to the backend, each
+prefixed with `[uptime] <level> module:`. Backends include UART and **RTT** (SEGGER J-Link
+bidirectional channel — console over the debugger, no UART needed). Compile-time + run-time
+filtering per module/severity. ISR rule of thumb: never do heavy work in a callback — defer to a
+thread.
+
+### How this maps to textochip
+
+- **The IDE protocol MUST stay on plain printk/console — NOT the logger.** The IDE parses raw
+  `OK:`/`ERROR:`/`PONG` lines; the logger's `[00:00:06.900] <inf> module:` prefixes would break the
+  framing, and deferred output could reorder replies relative to protocol state. Synchronous +
+  unprefixed is a feature here, and our replies are short (blocking cost ≈ nil).
+- **RTT is the bench-debug win:** on the DK we get a SECOND channel through J-Link for debug logs,
+  leaving `&uart20` clean for the IDE protocol. (On the ESP32 we had to share one serial.) If we
+  ever enable `CONFIG_LOG` for debugging, point it at the RTT backend only.
+- The "don't do heavy work in ISRs" rule is moot for us by design: the VM is a cooperative poll
+  loop, no ISRs in the runtime path.

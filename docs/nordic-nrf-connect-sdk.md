@@ -514,3 +514,45 @@ pwm21 ch1); dir pins GPIO left IN1/IN2→P3.02/03 (D10/D11), right IN3/IN4→P3.
 P1.05 (D0/D14). tc-pwm-motor alias→pwm21; HAS_MOTORS gates it. NORDIC_PINS +
 map_pin synced. Lesson for SERVO (slice, later): also pwm21-family, same-port,
 NOT pwm22.
+
+
+## Flash reliability + boot-crash forensics (2026-07-13, bench night)
+
+A full night of "zombie connections" turned out to be THREE stacked problems,
+each isolated on hardware. Write-up so nobody re-lives it:
+
+1. **probe-rs flashing the nRF54LM20A is SILENTLY INCOMPLETE** (upstream bug
+   [probe-rs#3775](https://github.com/probe-rs/probe-rs/issues/3775), open,
+   ~50/50 per attempt on probe-rs 0.31.0). The failure mode is vicious: the
+   corrupt image *boots*, prints READY, may even answer PING — then hard-faults
+   on the first real work (our LOAD burst), with a garbled fault dump (literal
+   `%x` — corrupted rodata). `probe-rs verify` catches it (`contents do not
+   match`). The SAME hex flashed via `west flash -r jlink` works every time.
+   - **Bench policy: flash the DK with `west flash -d <builddir> -r jlink`.**
+   - **User installer (`install-nordic.sh` on textochip.com): kept on probe-rs
+     but now does download → VERIFY → retry (×4), so a bad write can never be
+     silent again.** Fallback message points at nRF Connect Programmer.
+
+2. **ERASEALL bricked boot via the crypto stack.** `probe-rs erase` wipes the
+   KMU/IKG seed; the DK devicetree enables a `psa_rng` (zephyr,psa-crypto-rng)
+   node that drags the whole nrf_security/CRACEN PSA stack into every image,
+   and its SYS_INIT (`psa_crypto_init`, CRACEN_IKG_SEED_LOAD) hard-faults at
+   boot when the seed is gone. We use no crypto → **`&psa_rng { status =
+   "disabled"; }` in the DK overlay** (leaner image, boots regardless of KMU
+   state). `CONFIG_NRF_SECURITY=n` can NOT be set (it's `select`ed); dropping
+   the DT node is what works. If crypto is ever needed (BLE), re-provision the
+   IKG seed instead.
+
+3. **VCOM names shuffle across a replug** (ttyACM1 → ttyACM2 seen live): never
+   hardcode "the second port" in guidance. The IDE's serial backend now PINGs
+   and, on silence, automatically tries the OTHER granted ports.
+
+Also hardened: `uart_err_check()` in the RX ISR (a host open/close glitch can
+wedge UARTE reception on an unhandled line error), and the VM now zeroes the
+motors + buzzer on EVERY stop path (STOP / HALT / ran-off-end / fatal error) —
+a robot must not keep rolling after STOP.
+
+Debug recipe that cracked it (keep): symbolicate fault PCs with
+`arm-zephyr-eabi-addr2line -f -C -e build/zephyr/zephyr.elf <addr>`; capture
+the boot banner on the FREE VCOM with a Python reader across a `probe-rs
+reset`; `probe-rs verify` after any suspicious flash.

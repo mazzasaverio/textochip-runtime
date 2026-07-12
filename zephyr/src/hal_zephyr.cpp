@@ -57,6 +57,9 @@ static volatile uint16_t rx_head, rx_tail;
 static void uart_rx_isr(const struct device* dev, void* /*user*/) {
   // uart_irq_update() returns void on newer Zephyr — call it, then drain.
   uart_irq_update(dev);
+  // Clear any line error (framing/overrun/break) — a host opening/closing the
+  // VCOM can glitch the line, and an unhandled error can wedge UARTE reception.
+  uart_err_check(dev);
   if (!uart_irq_rx_ready(dev)) return;
   uint8_t b;
   while (uart_fifo_read(dev, &b, 1) == 1) {

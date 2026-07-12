@@ -45,6 +45,17 @@
 	};
 };
 
+/* No crypto. The DK devicetree enables a `zephyr,psa-crypto-rng` entropy node,
+ * which drags the whole nrf_security/CRACEN PSA stack into the image — and its
+ * boot-time init (CRACEN_IKG_SEED_LOAD) HARD-FAULTS if the KMU seed is absent,
+ * e.g. after a `probe-rs erase` / ERASEALL (bench-verified: boot fault in
+ * psa_crypto_init, board mute). We use no crypto, so drop the node: leaner
+ * image, and the boot no longer depends on KMU provisioning state. If crypto
+ * is ever needed (e.g. BLE), re-provision the IKG seed instead. */
+&psa_rng {
+	status = "disabled";
+};
+
 &pwm20 {
 	status = "okay";
 	pinctrl-0 = <&tc_pwm20_default>;

@@ -424,3 +424,14 @@ LEDs. Bench facts learned:
   13-instruction LOAD counts 13/13.
 - Junk bytes can sit in the line buffer at port open — senders should write a
   bare `\n` before the first command (the IDE backend now does).
+
+**probe-rs — the one-command flasher (2026-07-12, bench-verified).** Saverio pushed on "how does
+a NEW user get the firmware with the least friction" and the re-canvass found what the first
+pass under-weighted: **probe-rs** (MIT/Apache) implements the J-Link USB protocol NATIVELY —
+no SEGGER software, no nRF Connect for Desktop — and its target DB includes **nRF54LM20A**.
+Verified on the real DK: probe detected (`1366:1068`), `probe-rs download --chip nRF54LM20A
+--binary-format hex <file>` flashes in ~6.4 s, reset, PONG. The product now serves
+`textochip.com/install-nordic.sh` (installs probe-rs if missing → fetches the hosted hex →
+flash + reset), surfaced in the IDE's flash modal as the primary Linux/macOS route (Windows
+keeps the Programmer app). First-flash UX ladder: one command today → MCUboot browser updates
+next → pre-flashed kits at scale.

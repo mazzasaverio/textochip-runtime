@@ -11,7 +11,15 @@
 #include <zephyr/fs/nvs.h>
 #include <zephyr/kernel.h>
 #include <zephyr/storage/flash_map.h>
-#if DT_NODE_EXISTS(DT_NODELABEL(pwm0))
+// The buzzer/servo/motor PWM device: our `tc-pwm-buzzer` alias (Nordic DK —
+// a `pwm0` LABEL is illegal there, the SoC validation ties pwmN labels to
+// NRF_PWMN peripherals), else the `pwm0` nodelabel (ESP32-S3 LEDC overlay).
+#if DT_NODE_EXISTS(DT_ALIAS(tc_pwm_buzzer))
+#define TC_PWM_NODE DT_ALIAS(tc_pwm_buzzer)
+#elif DT_NODE_EXISTS(DT_NODELABEL(pwm0))
+#define TC_PWM_NODE DT_NODELABEL(pwm0)
+#endif
+#ifdef TC_PWM_NODE
 #include <zephyr/drivers/pwm.h>
 #endif
 // Analog input: a `zephyr,user` node with an `io-channels` ADC ref (see overlay).
@@ -230,8 +238,8 @@ int analogRead(int /*pin*/) {
 #endif
 }
 
-#if DT_NODE_EXISTS(DT_NODELABEL(pwm0))
-static const struct device* const pwm_dev = DEVICE_DT_GET(DT_NODELABEL(pwm0));
+#ifdef TC_PWM_NODE
+static const struct device* const pwm_dev = DEVICE_DT_GET(TC_PWM_NODE);
 void tone(int /*pin*/, int hz) {
   if (hz <= 0) return;
   uint32_t period = 1000000000u / (uint32_t)hz;  // ns

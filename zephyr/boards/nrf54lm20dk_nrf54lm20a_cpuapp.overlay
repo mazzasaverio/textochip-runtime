@@ -1,14 +1,48 @@
 /*
- * Nordic nRF54LM20 DK overlay — phase 1 bring-up.
+ * Nordic nRF54LM20 DK overlay.
  *
- * Nothing to override yet: the DK's devicetree already chooses &uart20 as the
- * console (the HAL's serial link), defines the on-board LEDs/buttons the HAL
- * maps the logical pins to (hal_zephyr.cpp map_pin), and provides a
- * storage_partition for NVS (SAVE/autorun).
+ * Phase 1 (LEDs / button / serial / NVS) needs NO overrides: the DK's
+ * devicetree already chooses &uart20 as the console, defines the on-board
+ * LEDs/buttons that map_pin() targets, and provides storage_partition.
  *
- * Phase 2 (real components on the headers) adds here:
- *  - &pwm20 channels for the buzzer (TONE), servo (SERVO) and L298N motor
- *    enables (MOVE) — pinctrl on P1/P3 (the PWM-capable domain);
- *  - a SAADC channel + zephyr,user io-channels for AREAD (P0.03);
- *  - an I2S node for the INMP441 microphone (VOICE()).
+ * Phase 2 slice 1 — BUZZER (TONE/SOUND/PLAY): route PWM20 channel 0 to
+ * P1.13 (header pin D5, the board profile's buzzer) and label the instance
+ * `pwm0` so hal_zephyr's tone() works unchanged (it drives
+ * DT_NODELABEL(pwm0) channel 0).
+ *
+ * NOTE (nRF54 PWM design, see docs/nordic-nrf-connect-sdk.md): one PERIOD per
+ * PWM instance — channels share the frequency. So SERVO (fixed 50 Hz) and the
+ * MOVE motor enables (~1 kHz) must NOT join this instance: slice 2 gives them
+ * pwm21/pwm22 with per-function specs in the HAL. Until then a program mixing
+ * TONE and SERVO on this board would fight over the period.
  */
+
+&pinctrl {
+	tc_pwm20_default: tc_pwm20_default {
+		group1 {
+			psels = <NRF_PSEL(PWM_OUT0, 1, 13)>;	/* buzzer -> P1.13 (D5) */
+		};
+	};
+	tc_pwm20_sleep: tc_pwm20_sleep {
+		group1 {
+			psels = <NRF_PSEL(PWM_OUT0, 1, 13)>;
+			low-power-enable;
+		};
+	};
+};
+
+/ {
+	aliases {
+		/* Our OWN alias — hal_zephyr's tone() resolves it first. Labelling
+		 * the node `pwm0` instead trips Nordic's base-address validation
+		 * (CHECK_DT_REG insists a pwm0 label means an NRF_PWM0 peripheral). */
+		tc-pwm-buzzer = &pwm20;
+	};
+};
+
+&pwm20 {
+	status = "okay";
+	pinctrl-0 = <&tc_pwm20_default>;
+	pinctrl-1 = <&tc_pwm20_sleep>;
+	pinctrl-names = "default", "sleep";
+};

@@ -1,0 +1,12 @@
+# Application Kconfig — sources the full Zephyr tree, plus our own options.
+source "Kconfig.zephyr"
+
+config TEXTOCHIP_AI
+	bool "Edge-AI inference service (TFLite Micro)"
+	default y
+	help
+	  Build the background edge-AI service (mic capture -> MFCC features ->
+	  int8 TFLM inference -> the class index VOICE() reads) and link the
+	  TFLite Micro library. Disable on boards that don't wire a microphone
+	  yet (e.g. the Nordic DK phase-1 bring-up) to keep the image small —
+	  AISTART/INFER still execute, VOICE() just reads "none".

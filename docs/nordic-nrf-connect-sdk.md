@@ -359,3 +359,40 @@ printing/using them outside it.
 **Fundamentals course: DONE (theory).** Everything actionable is consolidated in the digests
 above; the next Nordic work item is the port (overlay split + DK overlay + build + flash +
 PING/PONG), tracked in the "Course progress" section.
+
+## Port phase 1 — BUILDS GREEN for the DK (2026-07-12)
+
+The runtime now builds for BOTH chips from one app tree:
+
+- `zephyr/boards/esp32s3_devkitc_esp32s3_procpu.{overlay,conf}` — the former
+  app.overlay + the ESP32-specific config (USB CDC-ACM console, PWM/ADC/I2S/DMA).
+  ESP32 build re-verified green after the split.
+- `zephyr/boards/nrf54lm20dk_nrf54lm20a_cpuapp.{overlay,conf}` — phase 1 needs NO
+  devicetree overrides (console = &uart20 via debugger VCOM, storage_partition for
+  NVS already in the board tree); conf sets `CONFIG_TEXTOCHIP_AI=n` (no mic wired).
+- `zephyr/Kconfig` gains **CONFIG_TEXTOCHIP_AI** (default y): gates the AI service
+  sources + TFLite Micro in CMake — the DK phase-1 image skips TFLM entirely.
+- `hal_zephyr.cpp` gains **map_pin()**: bytecode pins are LOGICAL (shared board
+  profile); the DK maps them to port*32+pin — phase 1 sends the three LED pins to
+  the ON-BOARD LEDs (red→P1.22/LED0, yellow→P1.25/LED1, green→P1.27/LED2) and
+  button A to Button 0 (P1.26), so the semaforo runs with zero wiring. gpio_port()
+  now handles P2/P3 too. Mirrored in the product's NORDIC_PINS + docs/hardware.md.
+
+Build (CLI, NCS v3.4.0 managed install):
+
+```
+# env from ~/ncs/toolchains/fbf7391cab/environment.json (PATH/PYTHONHOME/etc.)
+export ZEPHYR_BASE=~/ncs/v3.4.0/zephyr ZEPHYR_TOOLCHAIN_VARIANT=zephyr \
+       ZEPHYR_SDK_INSTALL_DIR=~/ncs/toolchains/fbf7391cab/opt/zephyr-sdk
+cd ~/ncs/v3.4.0 && west build -b nrf54lm20dk/nrf54lm20a/cpuapp \
+  -d <builddir> ~/projects/textochip-runtime/zephyr -p always
+```
+
+Result: FLASH 84 KB (4%), RAM 57 KB (11%). Or simply open `zephyr/` as an
+application in nRF Connect for VS Code and add a build configuration for
+`nrf54lm20dk/nrf54lm20a/cpuapp` (the course flow).
+
+**Bench next:** flash the DK, open the nRF Terminal on the VCOM @115200 → expect
+`READY`; type `PING` → `PONG`; then LOAD/RUN the semaforo → the three on-board
+LEDs cycle; Button 0 answers `BUTTON("A")`. Then flip the IDE's DK entry to Web
+Serial connect. Phase 2: PWM (TONE/SERVO/MOVE) + SAADC + I2S mic in the DK overlay.

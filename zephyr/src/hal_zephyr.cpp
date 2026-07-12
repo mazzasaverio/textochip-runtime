@@ -32,9 +32,51 @@
 // ── Serial: the chosen console UART is the link to the IDE (Web Serial) ──
 static const struct device* const uart_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
 
-// ── GPIO: the bytecode carries RAW pin numbers (baked from lib/boardProfile.ts).
-// Convention: raw = port*32 + pin  → gpio0 for 0..31, gpio1 for 32.. (e.g. nRF P1).
+// ── GPIO: the bytecode carries LOGICAL pin numbers (baked from the browser's
+// shared board profile — ESP32-S3 GPIO numbers). Each board's HAL maps them to
+// its physical pins (lib/boards.ts + docs/hardware.md state this contract).
+// On the ESP32-S3 the mapping is identity. On the Nordic DK, map_pin()
+// translates to raw = port*32 + pin.
+#if defined(CONFIG_BOARD_NRF54LM20DK)
+// Nordic nRF54LM20 DK map (PROVISIONAL — finalize at the bench; keep in sync
+// with lib/boards.ts NORDIC_PINS + docs/hardware.md). Phase 1: the three LED
+// pins go to the ON-BOARD LEDs (all green — no wiring needed to see the
+// semaforo cycle) and button A to the on-board Button 0. Colored external
+// LEDs on the header come with phase 2.
+static int map_pin(int logical) {
+  switch (logical) {
+    case 4:  return 1 * 32 + 22;  // red LED    -> LED0 (P1.22, on-board)
+    case 2:  return 1 * 32 + 25;  // yellow LED -> LED1 (P1.25, on-board)
+    case 1:  return 1 * 32 + 27;  // green LED  -> LED2 (P1.27, on-board)
+    case 5:  return 1 * 32 + 13;  // buzzer     -> P1.13 (D5; PWM in phase 2)
+    case 6:  return 1 * 32 + 26;  // button A   -> Button 0 (P1.26, on-board)
+    case 7:  return 3 * 32 + 0;   // PIR        -> P3.00 (D6)
+    case 8:  return 3 * 32 + 1;   // servo      -> P3.01 (D7; PWM in phase 2)
+    case 9:  return 0 * 32 + 3;   // analog in  -> P0.03 (D8; ADC in phase 2)
+    case 10: return 3 * 32 + 2;   // motor L dir1 -> P3.02 (D10)
+    case 11: return 3 * 32 + 3;   // motor L dir2 -> P3.03 (D11)
+    case 12: return 1 * 32 + 7;   // motor L pwm  -> P1.07 (D12)
+    case 13: return 1 * 32 + 6;   // motor R dir1 -> P1.06 (D13)
+    case 14: return 1 * 32 + 5;   // motor R dir2 -> P1.05 (D14)
+    case 21: return 2 * 32 + 5;   // motor R pwm  -> P2.05 (D21)
+    case 38: return 2 * 32 + 0;   // line left    -> P2.00 (D16)
+    case 39: return 2 * 32 + 1;   // line center  -> P2.01 (D17)
+    case 40: return 2 * 32 + 2;   // line right   -> P2.02 (D18)
+    case 41: return 2 * 32 + 3;   // obstacle     -> P2.03 (D19)
+    default: return logical;      // unmapped: raw port*32+pin passthrough
+  }
+}
+#else
+static inline int map_pin(int logical) { return logical; }
+#endif
+
 static const struct device* gpio_port(int pin) {
+#if DT_NODE_EXISTS(DT_NODELABEL(gpio3))
+  if (pin >= 96) return DEVICE_DT_GET(DT_NODELABEL(gpio3));
+#endif
+#if DT_NODE_EXISTS(DT_NODELABEL(gpio2))
+  if (pin >= 64) return DEVICE_DT_GET(DT_NODELABEL(gpio2));
+#endif
 #if DT_NODE_EXISTS(DT_NODELABEL(gpio1))
   if (pin >= 32) return DEVICE_DT_GET(DT_NODELABEL(gpio1));
 #endif
@@ -128,10 +170,17 @@ void pinMode(int pin, int mode) {
   gpio_flags_t flags = (mode == 1)   ? GPIO_OUTPUT_INACTIVE
                        : (mode == 2) ? (GPIO_INPUT | GPIO_PULL_DOWN)   // active-high sensor
                                      : (GPIO_INPUT | GPIO_PULL_UP);    // active-low button
-  gpio_pin_configure(gpio_port(pin), gpio_index(pin), flags);
+  int p = map_pin(pin);
+  gpio_pin_configure(gpio_port(p), gpio_index(p), flags);
 }
-void pinWrite(int pin, int level) { gpio_pin_set(gpio_port(pin), gpio_index(pin), level); }
-int pinRead(int pin) { return gpio_pin_get(gpio_port(pin), gpio_index(pin)); }
+void pinWrite(int pin, int level) {
+  int p = map_pin(pin);
+  gpio_pin_set(gpio_port(p), gpio_index(p), level);
+}
+int pinRead(int pin) {
+  int p = map_pin(pin);
+  return gpio_pin_get(gpio_port(p), gpio_index(p));
+}
 
 // Analog read via the ADC channel in the overlay (the bytecode pin is ignored —
 // the channel/GPIO mapping lives in devicetree). Returns the raw reading.

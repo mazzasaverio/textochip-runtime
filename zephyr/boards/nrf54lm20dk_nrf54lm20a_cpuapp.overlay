@@ -1,0 +1,14 @@
+/*
+ * Nordic nRF54LM20 DK overlay — phase 1 bring-up.
+ *
+ * Nothing to override yet: the DK's devicetree already chooses &uart20 as the
+ * console (the HAL's serial link), defines the on-board LEDs/buttons the HAL
+ * maps the logical pins to (hal_zephyr.cpp map_pin), and provides a
+ * storage_partition for NVS (SAVE/autorun).
+ *
+ * Phase 2 (real components on the headers) adds here:
+ *  - &pwm20 channels for the buzzer (TONE), servo (SERVO) and L298N motor
+ *    enables (MOVE) — pinctrl on P1/P3 (the PWM-capable domain);
+ *  - a SAADC channel + zephyr,user io-channels for AREAD (P0.03);
+ *  - an I2S node for the INMP441 microphone (VOICE()).
+ */

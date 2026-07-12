@@ -245,6 +245,25 @@ int analogRead(int /*pin*/) {
 
 #ifdef TC_PWM_NODE
 static const struct device* const pwm_dev = DEVICE_DT_GET(TC_PWM_NODE);
+
+// Motor PWM enables (L298N ENA/ENB). On the nRF54 each PWM INSTANCE has ONE
+// period, so the two motor enables live on their OWN instance (pwm22, two
+// channels) via the `tc-pwm-motor` alias; on the ESP32-S3 LEDC (per-channel
+// timers) they share pwm_dev on channels 2/3. Absent alias -> motors are
+// silent (LEDs/serial still work), so a mic-less/motor-less board stays green.
+#if DT_NODE_EXISTS(DT_ALIAS(tc_pwm_motor))
+static const struct device* const pwm_motor = DEVICE_DT_GET(DT_ALIAS(tc_pwm_motor));
+#define MOTOR_DEV pwm_motor
+#define MOTOR_L_CH 0
+#define MOTOR_R_CH 1
+#define HAS_MOTORS 1
+#elif !defined(CONFIG_BOARD_NRF54LM20DK)
+#define MOTOR_DEV pwm_dev
+#define MOTOR_L_CH 2
+#define MOTOR_R_CH 3
+#define HAS_MOTORS 1
+#endif
+
 void tone(int /*pin*/, int hz) {
   if (hz <= 0) return;
   uint32_t period = 1000000000u / (uint32_t)hz;  // ns
@@ -266,11 +285,10 @@ void servo(int /*pin*/, int angle) {
   pwm_set(pwm_dev, 1, 20000000u, pulse, 0);                       // 20 ms = 50 Hz
 }
 
-// Differential drive on an L298N. Motor pins are FIXED here (MOVE carries only
-// the speeds) — PROVISIONAL, match lib/boardProfile.ts and finalize against the
-// Freenove pinout when wiring: left IN1=GPIO10 IN2=GPIO11 EN=GPIO12 (PWM ch2);
-// right IN3=GPIO13 IN4=GPIO14 EN=GPIO21 (PWM ch3). Direction from the sign,
-// speed |v| 0..255 → PWM duty (~1 kHz) on the EN channel.
+#ifdef HAS_MOTORS
+// Differential drive on an L298N. Motor pins are LOGICAL (map_pin resolves them
+// per board); direction from the sign, speed |v| 0..255 → PWM duty (~1 kHz) on
+// the enable channel. Left IN1=10 IN2=11 EN=12, right IN3=13 IN4=14 EN=21.
 static void drive_motor(int in1, int in2, int pwmCh, int v) {
   if (v < -255) v = -255;
   if (v > 255) v = 255;
@@ -282,12 +300,15 @@ static void drive_motor(int in1, int in2, int pwmCh, int v) {
   pinWrite(in1, v > 0 ? 1 : 0);
   pinWrite(in2, v < 0 ? 1 : 0);
   uint32_t duty = (uint32_t)(v < 0 ? -v : v);
-  pwm_set(pwm_dev, pwmCh, 1000000u, 1000000u * duty / 255u, 0);  // ~1 kHz
+  pwm_set(MOTOR_DEV, pwmCh, 1000000u, 1000000u * duty / 255u, 0);  // ~1 kHz
 }
 void move(int left, int right) {
-  drive_motor(10, 11, 2, left);
-  drive_motor(13, 14, 3, right);
+  drive_motor(10, 11, MOTOR_L_CH, left);
+  drive_motor(13, 14, MOTOR_R_CH, right);
 }
+#else
+void move(int, int) {}  // no motor PWM instance on this board yet
+#endif
 #else
 // No pwm node yet → buzzer + servo + motors are no-ops (LEDs/button still work).
 // Add a pwm node in app.overlay.

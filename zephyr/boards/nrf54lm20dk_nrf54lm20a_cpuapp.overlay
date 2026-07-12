@@ -5,6 +5,12 @@
  * devicetree already chooses &uart20 as the console, defines the on-board
  * LEDs/buttons that map_pin() targets, and provides storage_partition.
  *
+ * Phase 2 slice 2 — MOTORS: DEFERRED. Enabling pwm22 (the L298N enables)
+ * USAGE-FAULTs the nRF54 at boot inside the clock IRQ handler — pwm20 (buzzer)
+ * is fine, pwm22 is not; a Nordic-specific clock/domain issue that needs a
+ * focused debug session (docs/nordic doc). The HAL motor code stays, gated off
+ * (no tc-pwm-motor alias -> move() is a no-op), so the board boots clean.
+ *
  * Phase 2 slice 1 — BUZZER (TONE/SOUND/PLAY): route PWM20 channel 0 to
  * P1.13 (header pin D5, the board profile's buzzer) and label the instance
  * `pwm0` so hal_zephyr's tone() works unchanged (it drives
@@ -29,13 +35,14 @@
 			low-power-enable;
 		};
 	};
+
 };
 
 / {
 	aliases {
-		/* Our OWN alias — hal_zephyr's tone() resolves it first. Labelling
-		 * the node `pwm0` instead trips Nordic's base-address validation
-		 * (CHECK_DT_REG insists a pwm0 label means an NRF_PWM0 peripheral). */
+		/* Our OWN aliases — hal_zephyr resolves these (labelling a node `pwmN`
+		 * trips Nordic's base-address validation, which ties pwmN labels to
+		 * NRF_PWMN peripherals). */
 		tc-pwm-buzzer = &pwm20;
 	};
 };
@@ -46,3 +53,4 @@
 	pinctrl-1 = <&tc_pwm20_sleep>;
 	pinctrl-names = "default", "sleep";
 };
+

@@ -473,3 +473,26 @@ servo/motors need per-function pwm_dt_specs (small HAL rework, board-gated). Pha
 buzzer only (overlay labels pwm20 as pwm0, pinctrl on P1.13/D5) — TONE/PLAY work with the HAL
 unchanged; slice 2 = servo+motors with the per-instance HAL; slice 3 = SAADC (AREAD, P0.03);
 slice 4 = I2S mic (VOICE()).
+
+## Phase 2 slice 2 (motors) — BLOCKED on a pwm22 boot fault (2026-07-12)
+
+The HAL motor refactor is in (per-instance PWM: `tc-pwm-motor` alias → pwm22 on
+Nordic, ledc ch2/3 on ESP32; `HAS_MOTORS` gates it; `move()` no-ops without the
+alias). But **enabling `&pwm22` USAGE-FAULTs the nRF54LM20 at boot** — verified:
+- pwm20 (buzzer, slice 1) boots and PONGs fine; adding pwm22 crashes.
+- The fault is `Attempt to execute undefined instruction`, pc in
+  `nrfx_power_clock_irq_handler` (nrfx_clock.c) — a clock/power path, NOT the
+  pin. Reducing pwm22 to a single channel on a known-good pin (P1.07) still
+  crashes, so it's the INSTANCE, not the P1.08 pin choice.
+- Full-erase reflash does not help (it's a real init fault, not a stale image).
+
+So slice 2 is **deferred**: pwm22 removed from the shipped DK overlay (the board
+boots clean, motors are a no-op). To resume, debug the pwm22 clock/domain setup
+on the nRF54LM20 — likely a missing Kconfig (`CONFIG_NRFX_PWM22`?) or a
+clock-request path that the PWM driver triggers differently than pwm20. A
+focused session with the nRF54L PWM/clock docs. The wiring guide + ESP32 motors
+are unaffected (ESP32 LEDC works).
+
+**probe-rs installer validated:** `probe-rs download … && probe-rs reset` leaves
+the DK RUNNING (PONG confirmed) — the earlier "empty capture" was a host-side
+reader artifact, not an installer problem.

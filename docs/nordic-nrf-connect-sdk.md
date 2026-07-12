@@ -435,3 +435,15 @@ Verified on the real DK: probe detected (`1366:1068`), `probe-rs download --chip
 flash + reset), surfaced in the IDE's flash modal as the primary Linux/macOS route (Windows
 keeps the Programmer app). First-flash UX ladder: one command today → MCUboot browser updates
 next → pre-flashed kits at scale.
+
+**WebUSB → J-Link: transport PROVEN in the browser (2026-07-12, bench-verified).** A minimal
+local test page (navigator.usb.requestDevice → open → claimInterface on the vendor interface)
+succeeded against the DK's on-board J-Link in Chrome on Linux: the browser can claim and talk
+to the debugger's protocol channel directly, no drivers, no SEGGER software. Interfaces seen:
+2×CDC pairs + vendor (class 255, iface 4) + HID. Caveats: the OB advertises NO WebUSB/MS-OS
+BOS descriptors, so plain Windows cannot auto-bind WinUSB (Linux/macOS/ChromeOS/Android fine).
+Implication: a one-click FIRST-flash on textochip.com/flash is buildable — the missing layer is
+the J-Link protocol + SWD + nRF54 RRAM flash algorithm in the browser, exactly what upstream
+probe-rs is porting to WASM (async branch; inspect.probe.rs). Strategy: track probe-rs-wasm
+maturity and integrate rather than hand-rolling a JS J-Link driver; MCUboot remains the
+update-path multiplier (one click everywhere incl. Windows, plus BLE phone updates).

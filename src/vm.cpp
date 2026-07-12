@@ -4,6 +4,16 @@
 
 #include "hal.h"
 
+// Whenever the VM stops (STOP command, HALT, ran off the end, a fatal error),
+// drive the physical actuators SAFE — above all the motors: a robot must not
+// keep rolling after STOP (a real safety bug, not cosmetic). The buzzer is
+// silenced too. The servo holds its last angle (there is no "off" and it's
+// harmless). Pin 0 is a placeholder — the HAL owns the motor/buzzer pins.
+static void stopActuators() {
+  hal::move(0, 0);
+  hal::toneOff(0);
+}
+
 void VM::reset() {
   clearProgram();
   vsp = 0;
@@ -34,7 +44,10 @@ void VM::start() {
   state = VM_RUNNING;
 }
 
-void VM::stop() { state = VM_STOPPED; }
+void VM::stop() {
+  state = VM_STOPPED;
+  stopActuators();
+}
 
 void VM::execOne(const Instruction& in) { step(in); }
 
@@ -61,6 +74,7 @@ void VM::tick() {
   while (budget-- > 0 && state == VM_RUNNING) {
     if (pc < 0 || pc >= count) {
       state = VM_STOPPED;
+      stopActuators();
       hal::serialWriteLine("OK: done (ran off end)");
       break;
     }
@@ -86,6 +100,7 @@ void VM::step(const Instruction& in) {
       break;
     case OP_HALT:
       state = VM_STOPPED;
+      stopActuators();
       hal::serialWriteLine("OK: done");
       break;
     case OP_NOP:
@@ -136,6 +151,7 @@ void VM::step(const Instruction& in) {
       } else {
         hal::serialWriteLine("ERROR: call stack overflow");
         state = VM_STOPPED;
+        stopActuators();
       }
       break;
     case OP_RET:

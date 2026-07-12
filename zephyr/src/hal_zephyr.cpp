@@ -40,25 +40,30 @@
 // ── Serial: the chosen console UART is the link to the IDE (Web Serial) ──
 static const struct device* const uart_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
 
-#ifdef CONFIG_UART_INTERRUPT_DRIVEN
-// Interrupt-driven RX with a ring buffer. The nRF UARTE has NO hardware FIFO
-// worth speaking of in poll mode — polling between VM ticks LOSES bytes in
-// line bursts (verified at bring-up: `LOAD` streamed 6 instructions, the board
-// counted 2-3). The ISR drains every byte into this ring; serialReadChar pops.
-// The ESP32-S3 keeps plain polling (its UART/CDC has a real FIFO) — this path
-// is enabled per-board via CONFIG_UART_INTERRUPT_DRIVEN in boards/<target>.conf.
+// Interrupt-driven RX (ring buffer) is NORDIC-ONLY by design: the nRF UARTE
+// has no usable FIFO in poll mode and LOSES bytes in line bursts (verified at
+// bring-up: `LOAD` streamed 6 instructions, the board counted 2-3). The
+// ESP32-S3 keeps the bench-verified plain polling (its CDC-ACM console
+// selects UART_INTERRUPT_DRIVEN too, so gating on that alone would silently
+// change its behavior).
+#if defined(CONFIG_UART_INTERRUPT_DRIVEN) && defined(CONFIG_BOARD_NRF54LM20DK)
+#define TC_UART_IRQ_RX 1
+#endif
+
+#ifdef TC_UART_IRQ_RX
 static uint8_t rx_ring[512];
 static volatile uint16_t rx_head, rx_tail;
 
 static void uart_rx_isr(const struct device* dev, void* /*user*/) {
-  while (uart_irq_update(dev) && uart_irq_rx_ready(dev)) {
-    uint8_t b;
-    while (uart_fifo_read(dev, &b, 1) == 1) {
-      uint16_t next = (uint16_t)((rx_head + 1) % sizeof(rx_ring));
-      if (next != rx_tail) {  // on overflow, drop the newest byte
-        rx_ring[rx_head] = b;
-        rx_head = next;
-      }
+  // uart_irq_update() returns void on newer Zephyr — call it, then drain.
+  uart_irq_update(dev);
+  if (!uart_irq_rx_ready(dev)) return;
+  uint8_t b;
+  while (uart_fifo_read(dev, &b, 1) == 1) {
+    uint16_t next = (uint16_t)((rx_head + 1) % sizeof(rx_ring));
+    if (next != rx_tail) {  // on overflow, drop the newest byte
+      rx_ring[rx_head] = b;
+      rx_head = next;
     }
   }
 }
@@ -330,7 +335,7 @@ int camCapture(uint8_t* /*out*/, int /*max*/) { return 0; }
 uint32_t nowMs() { return (uint32_t)k_uptime_get(); }
 
 int serialReadChar() {
-#ifdef CONFIG_UART_INTERRUPT_DRIVEN
+#ifdef TC_UART_IRQ_RX
   if (rx_tail == rx_head) return -1;
   uint8_t b = rx_ring[rx_tail];
   rx_tail = (uint16_t)((rx_tail + 1) % sizeof(rx_ring));

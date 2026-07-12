@@ -396,3 +396,10 @@ application in nRF Connect for VS Code and add a build configuration for
 `READY`; type `PING` → `PONG`; then LOAD/RUN the semaforo → the three on-board
 LEDs cycle; Button 0 answers `BUTTON("A")`. Then flip the IDE's DK entry to Web
 Serial connect. Phase 2: PWM (TONE/SERVO/MOVE) + SAADC + I2S mic in the DK overlay.
+
+**Hosted DK firmware (2026-07-12).** The product serves the phase-1 DK build at
+`textochip.com/firmware/textochip-nrf54lm20dk.hex`; the IDE's flash modal writes it onto the
+DK's JLINK USB drive via the File System Access API (one click). After any DK rebuild worth
+shipping, copy `zephyr.hex` from the build dir to the product repo's
+`public/firmware/textochip-nrf54lm20dk.hex` and push. True in-browser flashing
+(MCUboot + mcumgr over Web Serial) remains the roadmap.

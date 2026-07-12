@@ -5,11 +5,8 @@
  * devicetree already chooses &uart20 as the console, defines the on-board
  * LEDs/buttons that map_pin() targets, and provides storage_partition.
  *
- * Phase 2 slice 2 — MOTORS: DEFERRED. Enabling pwm22 (the L298N enables)
- * USAGE-FAULTs the nRF54 at boot inside the clock IRQ handler — pwm20 (buzzer)
- * is fine, pwm22 is not; a Nordic-specific clock/domain issue that needs a
- * focused debug session (docs/nordic doc). The HAL motor code stays, gated off
- * (no tc-pwm-motor alias -> move() is a no-op), so the board boots clean.
+ * Phase 2 slice 2 — MOTORS: on pwm21 (NOT pwm22 — that instance boot-faults
+ * the app core; pwm21 is the board's expansion PWM and works). See below.
  *
  * Phase 2 slice 1 — BUZZER (TONE/SOUND/PLAY): route PWM20 channel 0 to
  * P1.13 (header pin D5, the board profile's buzzer) and label the instance
@@ -44,6 +41,7 @@
 		 * trips Nordic's base-address validation, which ties pwmN labels to
 		 * NRF_PWMN peripherals). */
 		tc-pwm-buzzer = &pwm20;
+		tc-pwm-motor = &pwm21;
 	};
 };
 
@@ -54,3 +52,31 @@
 	pinctrl-names = "default", "sleep";
 };
 
+
+/* Phase 2 slice 2 — MOTORS (MOVE / L298N enables) on pwm21, the board's
+ * designated nordic_expansion_pwm (app-core known-good; pwm22 boot-faults —
+ * reserved/other domain). Two channels: left ENA -> P1.07 (D12), right ENB ->
+ * P3.06 (D15) — both PWM-capable (P1/P3). The L298N IN1..IN4 dir pins are plain
+ * GPIO via map_pin: left 10/11 -> P3.02/03 (D10/D11), right 13/14 -> P1.06/05
+ * (D13/D14). Keep NORDIC_PINS + map_pin in sync. */
+&pinctrl {
+	tc_pwm21_default: tc_pwm21_default {
+		group1 {
+			psels = <NRF_PSEL(PWM_OUT0, 1, 7)>,	/* left  ENA -> P1.07 (D12) */
+				<NRF_PSEL(PWM_OUT1, 1, 6)>;	/* right ENB -> P1.06 (D13) */
+		};
+	};
+	tc_pwm21_sleep: tc_pwm21_sleep {
+		group1 {
+			psels = <NRF_PSEL(PWM_OUT0, 1, 7)>,
+				<NRF_PSEL(PWM_OUT1, 1, 6)>;
+			low-power-enable;
+		};
+	};
+};
+&pwm21 {
+	status = "okay";
+	pinctrl-0 = <&tc_pwm21_default>;
+	pinctrl-1 = <&tc_pwm21_sleep>;
+	pinctrl-names = "default", "sleep";
+};

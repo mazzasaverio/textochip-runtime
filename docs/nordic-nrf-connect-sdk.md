@@ -474,7 +474,7 @@ buzzer only (overlay labels pwm20 as pwm0, pinctrl on P1.13/D5) — TONE/PLAY wo
 unchanged; slice 2 = servo+motors with the per-instance HAL; slice 3 = SAADC (AREAD, P0.03);
 slice 4 = I2S mic (VOICE()).
 
-## Phase 2 slice 2 (motors) — BLOCKED on a pwm22 boot fault (2026-07-12)
+## Phase 2 slice 2 (motors) — RESOLVED, on pwm21 (2026-07-12)
 
 The HAL motor refactor is in (per-instance PWM: `tc-pwm-motor` alias → pwm22 on
 Nordic, ledc ch2/3 on ESP32; `HAS_MOTORS` gates it; `move()` no-ops without the
@@ -496,3 +496,21 @@ are unaffected (ESP32 LEDC works).
 **probe-rs installer validated:** `probe-rs download … && probe-rs reset` leaves
 the DK RUNNING (PONG confirmed) — the earlier "empty capture" was a host-side
 reader artifact, not an installer problem.
+
+
+**ROOT CAUSE + FIX (2026-07-12, bench-verified).** Two distinct nRF54L PWM
+constraints, each isolated on hardware:
+1. **pwm22 boot-faults the app core.** Enabling &pwm22 → USAGE FAULT at boot
+   (undefined instruction, clock/onoff path). pwm20 (buzzer) and pwm21 are
+   fine. pwm21 is the board's designated `nordic_expansion_pwm` — the
+   app-core PWM for the header. **Motors moved to pwm21.**
+2. **One PWM instance cannot span P1 AND P3.** pwm21 ch0→P1.07 + ch1→P3.06
+   MPU-faulted at boot; both channels on P1 (ch0→P1.07, ch1→P1.06) boots clean.
+   **Keep both motor enables on the same GPIO port.**
+
+Final DK motor map (verified: boot + `OVERRIDE MOVE` runs, no fault; wheel spin
+pending the chassis): left ENA→P1.07 (D12, pwm21 ch0), right ENB→P1.06 (D13,
+pwm21 ch1); dir pins GPIO left IN1/IN2→P3.02/03 (D10/D11), right IN3/IN4→P3.05/
+P1.05 (D0/D14). tc-pwm-motor alias→pwm21; HAS_MOTORS gates it. NORDIC_PINS +
+map_pin synced. Lesson for SERVO (slice, later): also pwm21-family, same-port,
+NOT pwm22.

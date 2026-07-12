@@ -100,7 +100,7 @@ static int map_pin(int logical) {
     case 10: return 3 * 32 + 2;   // motor L dir1 -> P3.02 (D10)
     case 11: return 3 * 32 + 3;   // motor L dir2 -> P3.03 (D11)
     case 12: return 1 * 32 + 7;   // motor L pwm  -> P1.07 (D12)
-    case 13: return 1 * 32 + 6;   // motor R dir1 -> P1.06 (D13)
+    case 13: return 3 * 32 + 5;   // motor R dir1 -> P3.05 (D0)  [P1.06/D13 is now ENB/PWM]
     case 14: return 1 * 32 + 5;   // motor R dir2 -> P1.05 (D14)
     case 21: return 2 * 32 + 5;   // motor R pwm  -> P2.05 (D21)
     case 38: return 2 * 32 + 0;   // line left    -> P2.00 (D16)

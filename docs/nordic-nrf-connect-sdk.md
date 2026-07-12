@@ -226,3 +226,31 @@ thread.
   ever enable `CONFIG_LOG` for debugging, point it at the RTT backend only.
 - The "don't do heavy work in ISRs" rule is moot for us by design: the VM is a cooperative poll
   loop, no ISRs in the runtime path.
+
+## Lesson 5 — UART (theory digest)
+
+UART = P2P serial (TX↔RX crossed, agreed baud, 8n1 typical; optional RTS/CTS hardware flow
+control; every Nordic DK has an onboard USB-to-UART via the interface MCU). Zephyr offers THREE
+UART APIs: **polling** (`uart_poll_in` non-blocking / `uart_poll_out` blocking), **interrupt-
+driven**, and **asynchronous** (`CONFIG_UART_ASYNC_API`, EasyDMA): `uart_callback_set` +
+`uart_rx_enable(buf, size, timeout_us)` → `UART_RX_RDY` events carry `buf/offset/len`; on
+`UART_RX_DISABLED` you must re-enable to keep receiving; `uart_tx(..., SYS_FOREVER_US)` returns
+immediately. On nRF54 the instance is two-digit: **`&uart20`**. The course exercise (chars '1'-'3'
+toggle LEDs over UART) is a toy version of our OVERRIDE protocol.
+
+### How this maps to textochip
+
+- **Best news of the lesson — the serial HAL may port with ZERO changes.** `hal_zephyr.cpp` reads
+  the IDE link with `uart_poll_in()` on `DEVICE_DT_GET(DT_CHOSEN(zephyr_console))` (line ~245).
+  On the DK the board devicetree already chooses `uart20` as `zephyr,console` (115200, debugger
+  VCOM) — the same line of code just resolves to the right device. The whole ESP32 CDC-ACM
+  workaround (prj.conf + app.overlay console redirect) simply DOESN'T APPLY on Nordic: J-Link
+  VCOM has no reset-on-DTR.
+- **Polling is the right API for us** (matches the §7 design: check serial between VM ticks,
+  cooperative, no ISR state). The async/EasyDMA API is the documented UPGRADE PATH if bring-up
+  shows dropped bytes during `LOAD` (the only high-throughput moment — program lines streamed);
+  symptoms would be truncated instruction lines / `ERROR: cannot parse`.
+- No flow control (8n1 @115200), matching `lib/boards.ts` baud for the DK.
+- **Course milestone reached:** L2–L5 = the minimum theory for the port. Next session: write
+  `zephyr/boards/nrf54lm20dk_nrf54lm20a_cpuapp.overlay` + split the ESP32 overlay, build, flash,
+  PING/PONG from the IDE.

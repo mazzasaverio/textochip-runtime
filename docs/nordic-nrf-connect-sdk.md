@@ -281,3 +281,44 @@ driver: `CONFIG_I2C=y`, declare the sensor as a CHILD NODE of the bus controller
 + L5 (UART transport) are read and mapped; L6 filed for future sensors; L7–L8 (threads/sync)
 optional culture. Next step is no longer course material: write the DK overlay + split the ESP32
 one, build for `nrf54lm20dk/nrf54lm20a/cpuapp`, flash, PING/PONG from the IDE.
+
+### L6 exercise nuggets worth keeping (DK-specific)
+
+- On the **nRF54LM20 DK** the course wires external I2C on **`&i2c21`** with pinctrl
+  `TWIM_SCL = P1.11`, `TWIM_SDA = P1.12` — a ready-made reference for the day we hang an I2C
+  sensor off the DK headers.
+- **Board Configurator** (nRF Connect for Desktop app): the DK's interface MCU has a "board
+  controller" that sets **VDD (nPM VOUT1)** — e.g. select 3.3 V and *Write config* before powering
+  external boards from VDDIO. Remember this at bring-up when we wire our external LEDs / buzzer /
+  sensors to the headers: wrong VDD = silent components, not an error message.
+- `CONFIG_CBPRINTF_FP_SUPPORT=y` enables float format in printk (+~1 KB) — we don't need it (the
+  protocol prints integers), noted only to recognize the symbol.
+
+## Lesson 7 — Threads, workqueues, the scheduler (theory digest)
+
+Bare-metal = one sequential loop + ISRs; an RTOS adds **threads** (smallest schedulable unit),
+each running/runnable/non-runnable. Zephyr spawns two **system threads**: `main` (runs your
+`main()`, priority 0) and `idle` (priority 15, activates power management on Nordic when nothing
+is runnable). Priorities: negative = cooperative (runs until it yields), non-negative =
+preemptible (higher/equal priority ready thread can replace it; lower number wins).
+**Workqueues**: work items (plain functions) processed FIFO by a dedicated thread — the standard
+way to offload non-urgent work from ISRs/high-priority threads without allocating a stack per
+task. Zephyr is **tickless**: the scheduler wakes on *rescheduling points* (yield, unblock,
+data arrival, time-slice expiry), not on a periodic tick. ISRs preempt everything and must stay
+short.
+
+### How this maps to textochip
+
+- **Our VM is deliberately "bare-metal style inside the main thread":** one loop = poll serial +
+  `vm.tick()`. The fun symmetry: the VM is itself a tiny cooperative scheduler for BASIC
+  programs — `WAIT` is our yield, `WAITING`/`RUNNING` are our thread states, resume-at
+  timestamps are our rescheduling points. Same concepts, one level up. No change for the port.
+- **The ONE place threads matter for us: the edge-AI service.** The planned/spec'd voice
+  pipeline (mic capture → features.c → ai_infer → vm.setAiClass) is exactly the workqueue /
+  dedicated-thread use case: inference is too slow for the protocol loop, so it runs at lower
+  priority while the VM keeps ticking. When we bring voice to the DK, L7's material is the
+  design manual for that piece.
+- **Idle thread + tickless = the nRF54L battery story.** Today our loop never sleeps (busy
+  poll), fine on USB power; a battery-powered tier would want the loop event-driven (sleep until
+  serial data / next WAIT deadline) so the idle thread can power-manage. Not port work — future
+  low-power work, and now we know its vocabulary.

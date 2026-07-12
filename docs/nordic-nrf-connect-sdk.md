@@ -130,3 +130,76 @@ over versions. Linux prerequisites the course installs first: SEGGER **J-Link** 
 ### … (the material)
 ### How this maps to textochip
 -->
+
+## Course progress (updated 2026-07-12)
+
+- **Installed:** NCS **v3.4.0** + toolchain via the VS Code extension (managed install at
+  `~/ncs/v3.4.0/`, toolchains at `~/ncs/toolchains/`). J-Link + nrf-udev in place.
+- **Lesson 1 done on hardware:** blinky built for `nrf54lm20dk/nrf54lm20a/cpuapp` and flashed —
+  LED blinks. (App folder: `~/blinky`; created via the extension's "Create a new application".)
+- **Lessons 2–3 done as THEORY ONLY** (decided: Saverio reads the theory and maps it to textochip;
+  the hands-on exercises are skipped — our HAL work later IS the exercise). Course exercise repo
+  cloned at `~/ncs/ncsfund` (NordicDeveloperAcademy/ncs-fund) if ever needed.
+- **Next:** Lesson 4 (printk/logger — light) and **Lesson 5 (UART — the important one:** the
+  IDE ↔ DK serial protocol transport). After L5: write the DK overlay and start the real port.
+
+## Lesson 2 — Devicetree + GPIO (theory digest)
+
+Hardware is described in a **devicetree** (DTS): nodes + properties, node **labels** (`&led0`),
+**aliases** (`led0`) for portable app code, **bindings** (YAML, matched via `compatible`) that
+validate nodes at build time. App code gets a node id with `DT_ALIAS()`/`DT_NODELABEL()`, then a
+ready-to-use pin spec with `GPIO_DT_SPEC_GET()` (device pointer + pin + flags in one struct);
+check with `gpio_is_ready_dt()`, configure with `gpio_pin_configure_dt()`, read/write with
+`gpio_pin_get_dt()`/`gpio_pin_set_dt()`. `DEVICE_DT_GET()` fails at build time (vs the deprecated
+runtime `device_get_binding()`). **pinctrl** nodes own peripheral pin muxing (default + sleep
+states). Buttons declare electrical reality in the DT: `(GPIO_PULL_UP | GPIO_ACTIVE_LOW)` — the
+API then returns logical values (pressed = 1).
+
+### How this maps to textochip
+
+- The DK overlay will declare OUR components as aliases/nodes; `hal_zephyr` reads them via
+  `gpio_dt_spec` — the firmware twin of the IDE's `lib/boards.ts` logical pins.
+- **pinctrl ownership** is the general form of the ESP32 "buzzer pad theft" bug we fixed in the
+  compiler prologue: a pad claimed by a PWM pinctrl group must never be re-configured as plain GPIO.
+- **nRF54 GPIOs are port+pin** (P0/P1/P2), not flat numbers like ESP32 — another reason the HAL
+  should hold `gpio_dt_spec`s from the overlay, not raw ints.
+- **Open decision for the port — button polarity ownership:** today the BROWSER compiler emits
+  `READ ; NOT` because the board profile says `button_active_low`; Zephyr's DT flags would
+  normalize polarity in `gpio_pin_get_dt()` instead. The two must not both invert. Options:
+  (a) DK HAL returns the RAW level (matches the ESP32 contract, keep the compiler's NOT), or
+  (b) declare polarity per-board in the DT and drop `button_active_low` from the profile.
+  Decide when writing the overlay; (a) is the no-frontend-change default.
+- **Polling, not interrupts:** the VM samples `READ` per tick (stays responsive to
+  OVERRIDE/STOP); GPIO interrupts (L2 ex. 2) are noted for the low-power story, not the port.
+- Blinky = `SET`+`WAIT` at C level, BUT it blocks in `k_msleep()` — our VM never blocks:
+  `hal::millis` = `k_uptime_get()`, WAIT = resume-timestamp + yield.
+
+## Lesson 3 — App elements: overlays, CMake, Kconfig, sysbuild, TF-M (theory digest)
+
+An app = `CMakeLists.txt` + `Kconfig` (optional custom symbols) + `prj.conf` + per-board
+`.overlay` + `src/`. **Overlays** patch the board devicetree per-application; the build system
+auto-picks `boards/<board_target>.overlay` (underscored board target, e.g.
+`nrf54lm20dk_nrf54lm20a_cpuapp.overlay` — NOT the board name). `target_sources_ifdef(CONFIG_X …)`
+gates source files on Kconfig symbols. **Sysbuild** (default since NCS 2.8) manages multi-image
+builds (bootloaders, netcore images). **TF-M**: build `<target>/ns` for secure/non-secure
+separation, or the plain target for a single full-privilege image. Console UART on the
+nRF54L15/LM20 is **`&uart20`** (`current-speed` property; DK default 115200 via the on-board
+debugger's VCOM ports).
+
+### How this maps to textochip
+
+- **Port structure decided:** move the ESP32-specific `zephyr/app.overlay` content to
+  `zephyr/boards/esp32s3_devkitc_esp32s3_procpu.overlay` and add
+  `zephyr/boards/nrf54lm20dk_nrf54lm20a_cpuapp.overlay` — one app, per-board hardware files,
+  auto-selected. The firmware twin of the IDE board selector.
+- **Serial transport on the DK:** `&uart20` at 115200 through the debugger VCOM (J-Link CDC has
+  no reset-on-DTR, unlike the ESP32 CH343 — the whole USB-CDC-ACM workaround may be unnecessary
+  on Nordic). Verify which VCOM carries uart20 at bring-up.
+- **TF-M: NO** — build the plain `nrf54lm20dk/nrf54lm20a/cpuapp` target (no `/ns`); secure
+  separation costs flash/RAM and buys nothing for a maker runtime.
+- **Sysbuild: ignore for now** (single-core app, transparent); becomes relevant with MCUboot/OTA.
+- **Edge-AI gating:** wrap the TFLM/voice service in our own Kconfig symbol
+  (e.g. `CONFIG_TEXTOCHIP_AI`) with `target_sources_ifdef` — base runtime stays small.
+- Lesson 4 (printk/logger) is light for us: the protocol replies are plain console lines.
+  PWM (TONE/SERVO), SAADC (AREAD) and NVS (SAVE) live in the *Intermediate* course — inject that
+  theory ad hoc while writing the overlay instead of taking the whole second course.

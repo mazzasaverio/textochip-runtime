@@ -254,3 +254,30 @@ toggle LEDs over UART) is a toy version of our OVERRIDE protocol.
 - **Course milestone reached:** L2–L5 = the minimum theory for the port. Next session: write
   `zephyr/boards/nrf54lm20dk_nrf54lm20a_cpuapp.overlay` + split the ESP32 overlay, build, flash,
   PING/PONG from the IDE.
+
+## Lesson 6 — I2C (theory digest)
+
+I2C/TWI: 2-wire synchronous bus (SCL clock from the controller, SDA bidirectional), multi-drop
+with 7-bit (sometimes 10-bit) target addresses; 100/400/1000 kbps on Nordic controllers. Zephyr
+driver: `CONFIG_I2C=y`, declare the sensor as a CHILD NODE of the bus controller in an overlay
+(`&i2c0 { mysensor: mysensor@4a { compatible = "i2c-device"; reg = <0x4a>; }; }`), grab it with
+`I2C_DT_SPEC_GET(DT_NODELABEL(mysensor))` (bus device + address in one struct), then
+`i2c_write_dt` / `i2c_read_dt` / `i2c_reg_read_byte_dt` / `i2c_burst_read_dt` /
+`i2c_write_read_dt` (write register address, read back — the classic sensor read).
+
+### How this maps to textochip
+
+- **NOT needed for the DK port** — the ISA has no I2C opcode and the port needs none. This is
+  the future path for richer sensors (IMU for a real CONTAPASSI, BME280-class temp/humidity
+  instead of the analog stand-in; we own I2C level shifters + the ELEGOO kit).
+- **Architecture rule when we do add one:** I2C never enters the ISA as a raw bus opcode. The
+  HAL owns the bus and the transaction (same principle as MOVE owning the L298N pins); the
+  language surface stays a named read — e.g. `SENSOR("temp")` → HAL does the write/read behind
+  one function. Keeps the bytecode contract lean and the sensor swappable per board.
+- The overlay child-node pattern is the same devicetree skill as everything else — no new
+  machinery when the day comes.
+
+**Theory milestone: COMPLETE.** L2 (devicetree/GPIO) + L3 (overlay/Kconfig/CMake) + L4 (console)
++ L5 (UART transport) are read and mapped; L6 filed for future sensors; L7–L8 (threads/sync)
+optional culture. Next step is no longer course material: write the DK overlay + split the ESP32
+one, build for `nrf54lm20dk/nrf54lm20a/cpuapp`, flash, PING/PONG from the IDE.

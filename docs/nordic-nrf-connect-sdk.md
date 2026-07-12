@@ -137,11 +137,11 @@ over versions. Linux prerequisites the course installs first: SEGGER **J-Link** 
   `~/ncs/v3.4.0/`, toolchains at `~/ncs/toolchains/`). J-Link + nrf-udev in place.
 - **Lesson 1 done on hardware:** blinky built for `nrf54lm20dk/nrf54lm20a/cpuapp` and flashed —
   LED blinks. (App folder: `~/blinky`; created via the extension's "Create a new application".)
-- **Lessons 2–3 done as THEORY ONLY** (decided: Saverio reads the theory and maps it to textochip;
+- **Lessons 2–8 done as THEORY ONLY** (decided: Saverio reads the theory and maps it to textochip;
   the hands-on exercises are skipped — our HAL work later IS the exercise). Course exercise repo
   cloned at `~/ncs/ncsfund` (NordicDeveloperAcademy/ncs-fund) if ever needed.
-- **Next:** Lesson 4 (printk/logger — light) and **Lesson 5 (UART — the important one:** the
-  IDE ↔ DK serial protocol transport). After L5: write the DK overlay and start the real port.
+- **Course status: THEORY COMPLETE (L1–L8, 2026-07-12).** L1 flashed on hardware; L2–L8 read as
+  theory and mapped below. **Next: the port itself** — DK overlay, build, flash, PING/PONG from the IDE.
 
 ## Lesson 2 — Devicetree + GPIO (theory digest)
 
@@ -322,3 +322,40 @@ short.
   poll), fine on USB power; a battery-powered tier would want the loop event-driven (sleep until
   serial data / next WAIT deadline) so the idle thread can power-manage. Not port work — future
   low-power work, and now we know its vocabulary.
+
+### L7 exercise nuggets worth keeping
+
+- `K_THREAD_DEFINE(id, stack, entry, …, priority, options, delay)` = static thread creation;
+  stack sizes in powers of two. `k_yield()` → back of the Runnable queue (scheduler overhead,
+  no power saving); `k_msleep()` → Non-runnable → the idle thread can power-manage. Prefer sleep.
+- **Time slicing is ON by default since NCS v3.1.1** (20 ms) — equal-priority threads
+  round-robin automatically.
+- The workqueue offload pattern in full: `k_work_init(&item, handler)` +
+  `k_work_submit_to_queue(&q, &item)` — the high-priority thread finishes in ~0 ms, the work
+  runs at the workqueue's low priority. This IS the shape of our future voice service.
+- `k_uptime_get()` / `k_uptime_delta()` for timing — `k_uptime_get()` is literally our
+  `hal::millis` on Zephyr.
+
+## Lesson 8 — Thread synchronization: semaphores + mutexes (theory digest)
+
+Race conditions appear the moment two threads touch shared state. **Semaphores**
+(`K_SEM_DEFINE(sem, initial, limit)`, `k_sem_take`/`k_sem_give`): counted resource signaling, no
+ownership — give is legal from an ISR (the "wake a thread from a driver callback" pattern).
+**Mutexes** (`K_MUTEX_DEFINE`, `k_mutex_lock/unlock`): binary, OWNED (only the locker unlocks),
+priority inheritance, never in ISRs. Copy shared values inside the critical section before
+printing/using them outside it.
+
+### How this maps to textochip
+
+- **The runtime needs NONE of this today — by construction.** One loop, one thread, zero shared
+  state: the single-loop VM design means no races exist. This lesson is why that design is
+  cheap to reason about.
+- **The one future consumer: the voice service on the DK.** When mic capture + inference get
+  their own low-priority thread (the L7 workqueue pattern), the handoff to the VM is
+  `setAiClass(index)` — a single aligned 32-bit word, so an atomic/volatile is enough (no mutex);
+  and if we ever go event-driven on serial (battery tier), the UART async callback giving a
+  semaphore to wake the protocol loop is the textbook ISR→thread pattern from this lesson.
+
+**Fundamentals course: DONE (theory).** Everything actionable is consolidated in the digests
+above; the next Nordic work item is the port (overlay split + DK overlay + build + flash +
+PING/PONG), tracked in the "Course progress" section.

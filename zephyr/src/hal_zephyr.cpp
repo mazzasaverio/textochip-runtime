@@ -32,6 +32,37 @@
 // ── Serial: the chosen console UART is the link to the IDE (Web Serial) ──
 static const struct device* const uart_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
 
+#ifdef CONFIG_UART_INTERRUPT_DRIVEN
+// Interrupt-driven RX with a ring buffer. The nRF UARTE has NO hardware FIFO
+// worth speaking of in poll mode — polling between VM ticks LOSES bytes in
+// line bursts (verified at bring-up: `LOAD` streamed 6 instructions, the board
+// counted 2-3). The ISR drains every byte into this ring; serialReadChar pops.
+// The ESP32-S3 keeps plain polling (its UART/CDC has a real FIFO) — this path
+// is enabled per-board via CONFIG_UART_INTERRUPT_DRIVEN in boards/<target>.conf.
+static uint8_t rx_ring[512];
+static volatile uint16_t rx_head, rx_tail;
+
+static void uart_rx_isr(const struct device* dev, void* /*user*/) {
+  while (uart_irq_update(dev) && uart_irq_rx_ready(dev)) {
+    uint8_t b;
+    while (uart_fifo_read(dev, &b, 1) == 1) {
+      uint16_t next = (uint16_t)((rx_head + 1) % sizeof(rx_ring));
+      if (next != rx_tail) {  // on overflow, drop the newest byte
+        rx_ring[rx_head] = b;
+        rx_head = next;
+      }
+    }
+  }
+}
+
+static void serial_rx_init() {
+  uart_irq_callback_user_data_set(uart_dev, uart_rx_isr, nullptr);
+  uart_irq_rx_enable(uart_dev);
+}
+#else
+static void serial_rx_init() {}
+#endif
+
 // ── GPIO: the bytecode carries LOGICAL pin numbers (baked from the browser's
 // shared board profile — ESP32-S3 GPIO numbers). Each board's HAL maps them to
 // its physical pins (lib/boards.ts + docs/hardware.md state this contract).
@@ -139,6 +170,7 @@ namespace hal {
 
 void init() {
   // console + gpio controllers are ready at boot
+  serial_rx_init();
 #ifdef HAS_ADC
   if (adc_is_ready_dt(&g_adc) && adc_channel_setup_dt(&g_adc) == 0)
     g_adc_ready = true;
@@ -290,8 +322,15 @@ int camCapture(uint8_t* /*out*/, int /*max*/) { return 0; }
 uint32_t nowMs() { return (uint32_t)k_uptime_get(); }
 
 int serialReadChar() {
+#ifdef CONFIG_UART_INTERRUPT_DRIVEN
+  if (rx_tail == rx_head) return -1;
+  uint8_t b = rx_ring[rx_tail];
+  rx_tail = (uint16_t)((rx_tail + 1) % sizeof(rx_ring));
+  return (int)b;
+#else
   unsigned char c;
   return uart_poll_in(uart_dev, &c) == 0 ? (int)c : -1;
+#endif
 }
 static void put_str(const char* s) {
   for (; *s; ++s) uart_poll_out(uart_dev, (unsigned char)*s);

@@ -403,3 +403,24 @@ DK's JLINK USB drive via the File System Access API (one click). After any DK re
 shipping, copy `zephyr.hex` from the build dir to the product repo's
 `public/firmware/textochip-nrf54lm20dk.hex` and push. True in-browser flashing
 (MCUboot + mcumgr over Web Serial) remains the roadmap.
+
+## Bring-up VERIFIED on the real DK (2026-07-12, evening)
+
+The runtime runs on the physical nRF54LM20 DK: flashed over J-Link (CLI:
+`JLinkExe -device nRF54LM20A_M33` loadfile, or `west flash --runner jlink` —
+the default nrfutil runner needs `nrfutil install device` first), then
+**PING → PONG over the J-Link VCOM** and a LOAD/RUN cycling the three on-board
+LEDs. Bench facts learned:
+
+- **The console is the SECOND VCOM** (`/dev/ttyACM1`; ttyACM0 is the other UART).
+- **This DK exposes NO JLINK mass-storage drive** (USB `1366:1068` is CDC-only —
+  verified with lsblk): hex drag-and-drop does NOT exist here. Browser-side
+  flashing therefore needs the MCUboot + mcumgr (SMP over Web Serial) route —
+  now the top roadmap item; until then the DK is flashed via J-Link/VS Code.
+- **nRF UARTE in poll mode DROPS bytes in line bursts** (LOAD counted 2-3 of 6
+  instructions): no usable RX FIFO. Fixed with interrupt-driven RX + a ring
+  buffer in hal_zephyr (`CONFIG_UART_INTERRUPT_DRIVEN=y` in the DK conf; the
+  ESP32 keeps plain polling — its UART/CDC has a real FIFO). After the fix a
+  13-instruction LOAD counts 13/13.
+- Junk bytes can sit in the line buffer at port open — senders should write a
+  bare `\n` before the first command (the IDE backend now does).

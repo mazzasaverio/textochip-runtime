@@ -447,3 +447,29 @@ the J-Link protocol + SWD + nRF54 RRAM flash algorithm in the browser, exactly w
 probe-rs is porting to WASM (async branch; inspect.probe.rs). Strategy: track probe-rs-wasm
 maturity and integrate rather than hand-rolling a JS J-Link driver; MCUboot remains the
 update-path multiplier (one click everywhere incl. Windows, plus BLE phone updates).
+
+**The flashing story, consolidated (2026-07-12 late).** Full rationale lives in the product
+repo's ADR (docs/decisions.md "textochip-webflash"); the facts that matter here:
+- ESP32 = serial bootloader in every chip's ROM (public protocol) → browser flash trivial.
+  Nordic = chips deaf by design (industrial/medical security model); entry via SWD through the
+  DK's SEGGER J-Link OB, whose protocol is closed and whose nRF54 build ships without SEGGER's
+  own (shelved) WebUSB/MSD flashing module.
+- probe-rs = the community's legal clean-room reimplementation; flashes our DK in ~6 s
+  (`probe-rs download --chip nRF54LM20A --binary-format hex <hex>`); served to users as
+  textochip.com/install-nordic.sh. Its WASM+WebUSB port (upstream effort branch) is the base
+  for a future browser first-flash — transport already bench-verified via WebUSB claim.
+- Roadmap order: port phase 2 → MCUboot+mcumgr → textochip-webflash (Saverio may develop that
+  repo himself).
+
+## Port phase 2 — design notes (PWM on the nRF54)
+
+One structural difference from the ESP32 discovered while planning: the ESP32 LEDC gives each
+channel its own timer, so ONE `pwm0` node served tone (variable Hz, ch0), servo (50 Hz, ch1)
+and motors (~1 kHz, ch2/3). The nRF54 PWM peripheral has ONE period (countertop) PER INSTANCE —
+channels of an instance share the frequency. So the DK mapping must SPLIT by instance:
+buzzer → pwm20 ch0 (variable), servo → pwm21 ch0 (fixed 50 Hz), motors → pwm22 ch0/ch1
+(~1 kHz). The HAL's single `DT_NODELABEL(pwm0)` assumption holds only for the buzzer slice;
+servo/motors need per-function pwm_dt_specs (small HAL rework, board-gated). Phase 2 slice 1 =
+buzzer only (overlay labels pwm20 as pwm0, pinctrl on P1.13/D5) — TONE/PLAY work with the HAL
+unchanged; slice 2 = servo+motors with the per-instance HAL; slice 3 = SAADC (AREAD, P0.03);
+slice 4 = I2S mic (VOICE()).

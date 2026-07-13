@@ -101,6 +101,10 @@ bring-up log and pitfalls: [`docs/nordic-nrf-connect-sdk.md`](docs/nordic-nrf-co
 
 ## Documentation
 
+Docs stay fresh with every change: living docs (this README, `SPEC.md`, `ARCHITECTURE.md`,
+the runbook) are updated in place; log docs (the Nordic bring-up notes) get dated appended
+entries.
+
 - [`SPEC.md`](SPEC.md): the bytecode ISA + serial protocol, the contract with the product repo. Keep them in sync.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md): how the core, HAL and boards fit together.
 - [`docs/bench-runbook.md`](docs/bench-runbook.md): wiring + stage-by-stage bring-up of the voice robot.

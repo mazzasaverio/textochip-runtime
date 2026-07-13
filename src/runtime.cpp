@@ -38,6 +38,15 @@ std::string trim(const std::string& s) {
 void runtime::feedLine(const std::string& raw) {
   std::string line = trim(raw);
 
+  // Silently drop lines carrying non-printable bytes: junk sits in the host's
+  // line buffer when it opens the port (seen on the DK's J-Link VCOM), and the
+  // IDE's flush newline turns it into a "line". It is never a real command —
+  // replying "ERROR: unknown command: <echoed junk>" just splats � glyphs in
+  // the IDE console.
+  for (unsigned char c : line) {
+    if (c < 0x20 || c > 0x7e) return;
+  }
+
   if (loading) {
     if (line == ".") {
       loading = false;

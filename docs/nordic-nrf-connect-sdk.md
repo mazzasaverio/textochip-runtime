@@ -556,3 +556,16 @@ Debug recipe that cracked it (keep): symbolicate fault PCs with
 `arm-zephyr-eabi-addr2line -f -C -e build/zephyr/zephyr.elf <addr>`; capture
 the boot banner on the FREE VCOM with a Python reader across a `probe-rs
 reset`; `probe-rs verify` after any suspicious flash.
+
+**Addendum (2026-07-13, daytime): the corruption is state-dependent, not
+condition-simple.** A controlled repro campaign the next day passed 30/30
+`probe-rs download`+`verify` cycles across every candidate trigger we could
+construct: identical re-flash, alternating two images (pages really change),
+`erase` before each download, a VCOM held open with DTR up during the flash
+(browser-like), and cold power-cycle with no SEGGER software in between. So
+none of those alone triggers probe-rs#3775 — during the failing night the
+board had been through ERASEALL + many rapid flash/reset cycles, and we cannot
+yet say which state mattered. Policy unchanged (bench = `west flash -r jlink`;
+installer = verify+retry); repro data + the one hard verify-mismatch were
+written up for the upstream issue (comment draft:
+`~/Downloads/probe-rs-issue-3775-comment.md`, posted by Saverio).

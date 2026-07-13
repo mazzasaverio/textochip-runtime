@@ -87,8 +87,12 @@ moat. Edit the firmware **only here** — the product no longer carries a copy.
 
 ## Roadmap
 
-- **Nordic nRF54LM20 DK** port (per-board work is just the HAL + the board profile).
-- **Edge-AI missions** on the nRF54L's NPU (voice keyword, vision) — the long-term differentiator.
+- Done (2026-07-13): the **Nordic nRF54LM20 DK** port — serial protocol, on-board
+  LEDs/button, buzzer PWM, and `MOVE` driving real wheels, all bench-verified (the
+  per-board work was indeed just the HAL pin map + `zephyr/boards/` files). Remaining
+  on the DK: the I2S mic (voice) and a SAVE bench check.
+- **Edge-AI on the nRF54L** (voice keyword on the M33 via CMSIS-NN; the Axon NPU as an
+  optional accelerator) — the long-term differentiator.
 
 Done: **flash persistence + boot autorun** (`SAVE`/`CLEAR`, run-on-boot) for
 PC-unplugged autonomy — NVS on the board's `storage` partition (see `runtime.cpp`

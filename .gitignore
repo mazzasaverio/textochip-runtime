@@ -1,5 +1,5 @@
 # host build artifacts (compiled binaries — the sources are *.c / *.cpp)
-host/sakura_vm_host
+host/textochip_vm_host
 host/test_ai_features
 host/test_ai_infer
 host/test_ai_vm

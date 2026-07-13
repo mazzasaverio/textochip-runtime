@@ -1,7 +1,7 @@
 // Zephyr implementation of the HAL — builds with the nRF Connect SDK (nRF54L) and
 // upstream Zephyr (ESP32-S3). LEDs / button / serial / time work from the board's
 // standard devicetree; the buzzer + servo (PWM) and analog (ADC) need nodes in
-// app.overlay (see README). This is the production firmware for the ESP32-S3
+// the board overlay (zephyr/boards/<board>.overlay). This is the production firmware for the ESP32-S3
 // (built + flashed with `west`); it is the ONLY file that differs per board.
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
@@ -159,7 +159,7 @@ static void store_init() {
 #ifdef HAS_MIC
 // INMP441 I2S mic on i2s0 (RX; the ESP32-S3 is master). 16 kHz mono = the model's
 // sample rate. The DMA fills a pool of 32-bit stereo blocks; aiCapture drains one
-// per call and keeps the left channel. PROVISIONAL pins in app.overlay.
+// per call and keeps the left channel. PROVISIONAL pins in the board overlay.
 static const struct device* const i2s_mic = DEVICE_DT_GET(DT_NODELABEL(i2s0));
 #define MIC_FRAMES 256                                           // frames / DMA block
 #define MIC_BLOCK_BYTES (MIC_FRAMES * 2 * (int)sizeof(int32_t))  // stereo, 32-bit
@@ -314,7 +314,7 @@ void move(int, int) {}  // no motor PWM instance on this board yet
 #endif
 #else
 // No pwm node yet → buzzer + servo + motors are no-ops (LEDs/button still work).
-// Add a pwm node in app.overlay.
+// Add a pwm node in the board overlay (zephyr/boards/<board>.overlay).
 void tone(int, int) {}
 void toneOff(int) {}
 void servo(int, int) {}

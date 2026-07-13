@@ -57,7 +57,7 @@ class Semaforo : public Mission {
     hal::pinMode(yellowPin, true);
     hal::pinMode(greenPin, true);
     // NOTE: do NOT gpio-configure the buzzer pin — the LEDC PWM (tone) owns it
-    // (see app.overlay). Driving it as a plain GPIO would kill the square wave.
+    // (see the board overlay). Driving it as a plain GPIO would kill the square wave.
     // Silence it explicitly: the LEDC channel can power up at a default duty,
     // which would be a continuous tone until the first walk-beep.
     hal::toneOff(buzzerPin);

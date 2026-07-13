@@ -73,7 +73,7 @@ make ai-infer  →  classes=5  "go"->1  "left"->2  "right"->3  "stop"->4
   the nRF54L M33, both wired in the Zephyr build.
 
 **Built now — the mic capture + the service.** `hal::aiCapture` (I2S, `zephyr/src/hal_zephyr.cpp`
-+ the `i2s0` node in `app.overlay`) reads the INMP441; `src/ai/ai_service.cpp` runs
++ the `i2s0` node in the board overlay) reads the INMP441; `src/ai/ai_service.cpp` runs
 `hal::aiCapture → features.c → ai_infer → vm.setAiClass` over a rolling 1 s window, driven by
 `runtime::tick` between VM ticks (non-blocking). The **whole board firmware compiles for the
 ESP32-S3** (`west build`), and `make test-ai-service` runs the entire chain on the host with the
@@ -87,7 +87,7 @@ is **green** (FLASH ~4.9%, DRAM ~61% with the 48 KB arena; `MicroInterpreter`/`a
 No separate `ai_esp32.cpp`: ESP-NN is a build-time kernel swap, not different code.
 
 **What's left (board-only, for the bench):** confirm the INMP441 wiring — the I2S pins in
-`app.overlay` (BCK/WS/SD) + the 24-bit-in-32-bit slot format in `aiCapture` — and validate the
+the board overlay (BCK/WS/SD) + the 24-bit-in-32-bit slot format in `aiCapture` — and validate the
 on-chip inference run on the real board (`IF VOICE()="go"` reading the live mic). The host proves the
 identical code + model classify correctly; ESP-NN is an optional later speedup.
 

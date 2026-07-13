@@ -3,7 +3,7 @@ CC ?= gcc
 CXXFLAGS ?= -std=c++17 -Wall -Wextra -O2 -I../src
 CFLAGS ?= -std=c11 -Wall -Wextra -O2 -I../src
 SRC = main.cpp hal_host.cpp ../src/isa.cpp ../src/vm.cpp ../src/runtime.cpp ../src/registry.cpp
-BIN = sakura_vm_host
+BIN = textochip_vm_host
 AI_BIN = test_ai_features
 
 $(BIN): $(SRC)

@@ -49,7 +49,7 @@ class Pianola : public Mission {
     hal::pinMode(greenPin, true);
     hal::pinMode(yellowPin, true);
     hal::pinMode(redPin, true);
-    // The LEDC PWM (tone) owns the buzzer pin (see app.overlay) — don't pinMode
+    // The LEDC PWM (tone) owns the buzzer pin (see the board overlay) — don't pinMode
     // it; just silence it (the channel can power up at a default duty).
     hal::toneOff(buzzerPin);
     hal::pinMode(buttonPin, false);  // INPUT_PULLUP

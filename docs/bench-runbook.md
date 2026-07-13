@@ -36,7 +36,7 @@ Follow it top to bottom. Each stage is a checkpoint — don't move on until it p
 > ⚠️ The mic + motor pins are **PROVISIONAL** — the values baked into the firmware today. If one
 > clashes with your chassis, change it in the source and rebuild (see §5), don't rewire around it.
 
-### Microphone — INMP441 → ESP32-S3  (I2S; pins from `zephyr/app.overlay`)
+### Microphone — INMP441 → ESP32-S3  (I2S; pins from the ESP32 board overlay)
 
 | INMP441 | ESP32-S3 | meaning |
 |---------|----------|---------|
@@ -206,10 +206,10 @@ wiring (BCK/WS/SD, L/R→GND). Send `MIC` **raw over serial**, not through the I
 
 ## 5. Changing a provisional pin
 
-- **Mic (I2S):** edit the pinmux in `zephyr/app.overlay` (`i2s0_default`: `I2S0_I_BCK_GPIOxx`,
+- **Mic (I2S):** edit the pinmux in the ESP32 board overlay (`zephyr/boards/esp32s3_devkitc_esp32s3_procpu.overlay`, `i2s0_default`: `I2S0_I_BCK_GPIOxx`,
   `I2S0_I_WS_GPIOxx`, `I2S0_I_SD_GPIOxx`) → `west build` → `west flash`.
 - **Motors (L298N):** edit `hal_zephyr.cpp` `move()` (the `drive_motor(IN1, IN2, pwmCh, …)` calls)
-  **and** the matching LEDC channel pins in `app.overlay` (`LEDC_CH2/CH3_GPIOxx`) → rebuild.
+  **and** the matching LEDC channel pins in the same overlay (`LEDC_CH2/CH3_GPIOxx`) → rebuild.
 - Keep them in sync with the browser board profile (`lib/boardProfile.ts`, in the product repo) so
   the wiring reference the child sees matches the board.
 

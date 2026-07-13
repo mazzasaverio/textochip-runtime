@@ -91,7 +91,8 @@ struct; the simulator executes the same instructions directly.
   the ESP32-S3 profile — also provisional). The bytecode only carries the two wheel speeds.
 - **On Zephyr a `<pin>` operand is advisory for PWM peripherals.** For `TONE`/`SERVO` the raw GPIO
   in the bytecode names the intent, but the actual channel is **fixed in the board overlay/pinctrl**
-  (`zephyr/app.overlay`: LEDC PWM ch0 on GPIO 5 for the buzzer, ch1 for the servo). Repoint the
+  (`zephyr/boards/esp32s3_devkitc_esp32s3_procpu.overlay`: LEDC PWM ch0 on GPIO 5 for the buzzer,
+  ch1 for the servo). Repoint the
   pinctrl group to change the physical pad. Plain-GPIO ops (`SET`/`READ`/`AREAD`/`MODE`) use the
   baked pin directly via `hal_zephyr.cpp` (`raw = port*32 + pin`).
 

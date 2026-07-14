@@ -26,6 +26,12 @@ int ai_infer(const float* features, int n_features);
 // (none) — so a quiet/ambiguous window doesn't trigger a command.
 int ai_infer_conf(const float* features, int n_features, float min_conf);
 
+// Raw argmax + its softmax confidence, UN-gated — the bench/tuning view of the
+// same inference (what did the model actually think, and how sure was it?).
+// Returns the class index (or -1 on error); writes the 0..1 confidence to
+// *out_conf when non-null.
+int ai_infer_top(const float* features, int n_features, float* out_conf);
+
 // Number of output classes the loaded model has (incl. class 0).
 int ai_num_classes(void);
 

@@ -32,7 +32,17 @@ float g_signal[kMaxSamples];  // the rolling window, float ~ -1..1 (the MFCC inp
 float g_feat[kMaxFeat];       // MFCC output (n_frames * n_mfcc)
 int16_t g_scratch[kChunk];    // small drain buffer for hal::aiCapture
 
+// Bench/tuning view of the latest completed inference: the UN-gated argmax and
+// its confidence (what the model actually thought), regardless of kMinConfidence.
+int g_lastTop = -1;
+float g_lastConf = 0.0f;
+
 }  // namespace
+
+void ai_service::lastTop(int* cls, float* conf) {
+  if (cls) *cls = g_lastTop;
+  if (conf) *conf = g_lastConf;
+}
 
 void ai_service::reset() {
   g_params = tcml_default_params();
@@ -63,8 +73,17 @@ int ai_service::poll() {
 
   // 3. Full window: extract MFCC and classify (confidence-gated — see kMinConfidence).
   int nf = tcml_mfcc(g_signal, g_win, &g_params, g_feat);
-  int cls =
-      (nf > 0) ? ai_infer_conf(g_feat, nf * g_params.n_mfcc, kMinConfidence) : 0;
+  int cls = 0;
+  if (nf > 0) {
+    float conf = 0.0f;
+    int top = ai_infer_top(g_feat, nf * g_params.n_mfcc, &conf);
+    g_lastTop = top;
+    g_lastConf = conf;
+    cls = (top > 0 && conf >= kMinConfidence) ? top : 0;
+  } else {
+    g_lastTop = -1;
+    g_lastConf = 0.0f;
+  }
 
   // 4. Slide the window forward by one hop (keep the newest g_win - g_hop samples),
   //    so the next inference overlaps this one — a keyword that lands across a

@@ -117,3 +117,7 @@ extern "C" int ai_infer_conf(const float* features, int n_features, float min_co
   if (cls < 0) return -1;
   return (conf >= min_conf) ? cls : 0;  // low confidence -> none
 }
+
+extern "C" int ai_infer_top(const float* features, int n_features, float* out_conf) {
+  return infer_raw(features, n_features, out_conf);
+}

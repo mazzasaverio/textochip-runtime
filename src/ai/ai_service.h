@@ -23,6 +23,11 @@ void reset();
 // or -1 when there is nothing new yet. 0 = "none" (quiet / unrecognized).
 int poll();
 
+// Bench/tuning view of the latest completed inference: the UN-gated argmax and
+// its 0..1 confidence — what the model actually thought even when the confidence
+// gate collapsed poll()'s answer to 0. Valid after a poll() that returned >= 0.
+void lastTop(int* cls, float* conf);
+
 }  // namespace ai_service
 
 #endif  // TEXTOCHIP_AI_AI_SERVICE_H

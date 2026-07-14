@@ -226,19 +226,30 @@ void runtime::tick() {
     }
     int cls = ai_service::poll();
     if (cls >= 0) vm.setAiClass(cls);
-    // Feedback: announce each fresh detection on the serial log, so the IDE's
-    // Serial tab SHOWS what the board heard ("VOICE: go"). Without this a voice
-    // program is a black box — you speak, nothing moves, and you can't tell a
-    // deaf mic from an unrecognized word from an unpowered motor. Only
-    // transitions to a non-background class are printed (quiet otherwise).
-    static int lastCls = 0;
-    if (cls > 0 && cls != lastCls) {
+    // Feedback: announce what the board heard on the serial log, so the IDE's
+    // Serial tab SHOWS it live. Without this a voice program is a black box —
+    // you speak, nothing moves, and you can't tell a deaf mic from an
+    // unrecognized word from an unpowered motor. Two levels:
+    //   VOICE: go 78%          — accepted (top class over the confidence gate)
+    //   voice? go 41% (<60%)   — heard but rejected by the gate (tuning view)
+    // Only word classes print (background/quiet stays silent).
+    if (cls >= 0) {
       static const char* kVoiceLabels[] = {"background", "go", "left", "right", "stop"};
       const int kNum = (int)(sizeof(kVoiceLabels) / sizeof(kVoiceLabels[0]));
-      hal::serialWriteLine(std::string("VOICE: ") +
-                           (cls < kNum ? kVoiceLabels[cls] : std::to_string(cls).c_str()));
+      int top = -1;
+      float conf = 0.0f;
+      ai_service::lastTop(&top, &conf);
+      if (top > 0) {
+        const char* name = top < kNum ? kVoiceLabels[top] : "?";
+        int pct = (int)(conf * 100.0f + 0.5f);
+        if (cls > 0) {
+          hal::serialWriteLine(std::string("VOICE: ") + name + " " + std::to_string(pct) + "%");
+        } else {
+          hal::serialWriteLine(std::string("voice? ") + name + " " + std::to_string(pct) +
+                               "% (<60%)");
+        }
+      }
     }
-    if (cls >= 0) lastCls = cls;
   } else if (aiRunning) {
     aiRunning = false;  // program stopped / took a non-AI path — pause the service
   }

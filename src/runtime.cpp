@@ -99,16 +99,26 @@ void runtime::feedLine(const std::string& raw) {
     hal::storeClear();
     hal::serialWriteLine("OK: cleared");
   } else if (line == "MIC") {
-    // Bench aid: sample the microphone and report its level, so you can confirm the
-    // I2S mic is wired + clocking (speak -> the numbers rise) BEFORE trusting the
-    // model. Drains what hal::aiCapture has buffered; run it with no program active.
-    // Mean-abs level (no sqrt/libm) — 0 = silence/not wired, rises with sound.
+    // Bench aid: sample the microphone over a ~600 ms WINDOW and report its
+    // level, so you can confirm the mic is wired + clocking (speak -> the
+    // numbers rise) BEFORE trusting the model. aiCapture is non-blocking and the
+    // DMA fills a block only every ~16 ms, so a tight read loop mostly returns
+    // n=0; we PACE the reads (yield ~10 ms between empty ones via nowMs) so a
+    // single MIC call reliably accumulates real audio. Mean-abs level (no
+    // sqrt/libm) — 0 = silence/not wired, rises with sound.
     int16_t buf[512];
     long peak = 0;
     long sumabs = 0;
     int total = 0;
-    for (int i = 0; i < 16; i++) {
+    uint32_t start = hal::nowMs();
+    while (hal::nowMs() - start < 600) {
       int n = hal::aiCapture(buf, 512);
+      if (n <= 0) {
+        uint32_t t = hal::nowMs();  // no block yet — wait ~10 ms for the DMA
+        while (hal::nowMs() - t < 10) { /* spin */
+        }
+        continue;
+      }
       for (int j = 0; j < n; j++) {
         int v = buf[j] < 0 ? -buf[j] : buf[j];
         if (v > peak) peak = v;

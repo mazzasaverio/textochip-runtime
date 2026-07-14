@@ -258,8 +258,12 @@ void runtime::tick() {
         beat = 0;
         int pct = (int)(conf * 100.0f + 0.5f);
         const char* name = (top > 0 && top < kNum) ? kVoiceLabels[top] : "background";
+        int mfccMs = 0, inferMs = 0;
+        ai_service::lastTiming(&mfccMs, &inferMs);
         hal::serialWriteLine("mic: level=" + std::to_string(ai_service::lastLevel()) +
-                             " top=" + name + " " + std::to_string(pct) + "%");
+                             " top=" + name + " " + std::to_string(pct) + "% mfcc=" +
+                             std::to_string(mfccMs) + "ms infer=" + std::to_string(inferMs) +
+                             "ms");
       }
     }
   } else if (aiRunning) {

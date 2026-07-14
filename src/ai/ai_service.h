@@ -32,6 +32,9 @@ void lastTop(int* cls, float* conf);
 // mic, speech runs in the thousands. For the serial heartbeat.
 int lastLevel();
 
+// Timing (ms) of the last inference: feature extraction vs model invoke.
+void lastTiming(int* mfccMs, int* inferMs);
+
 }  // namespace ai_service
 
 #endif  // TEXTOCHIP_AI_AI_SERVICE_H

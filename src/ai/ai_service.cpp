@@ -40,12 +40,22 @@ float g_lastConf = 0.0f;
 // mic; speech runs thousands). Lets the serial heartbeat separate "mic is dead"
 // from "hears audio but classifies it as background".
 int g_lastLevel = 0;
+// Timing of the last inference (ms): feature extraction vs model invoke — the
+// bench view that caught the soft-float MFCC (doubles on an FPU-less-for-double
+// M33) taking ~seconds. See the mic heartbeat in runtime.cpp.
+int g_lastMfccMs = 0;
+int g_lastInferMs = 0;
 
 }  // namespace
 
 void ai_service::lastTop(int* cls, float* conf) {
   if (cls) *cls = g_lastTop;
   if (conf) *conf = g_lastConf;
+}
+
+void ai_service::lastTiming(int* mfccMs, int* inferMs) {
+  if (mfccMs) *mfccMs = g_lastMfccMs;
+  if (inferMs) *inferMs = g_lastInferMs;
 }
 
 int ai_service::lastLevel() { return g_lastLevel; }
@@ -83,11 +93,15 @@ int ai_service::poll() {
     for (int i = 0; i < g_win; i++) sumabs += g_signal[i] < 0 ? -g_signal[i] : g_signal[i];
     g_lastLevel = (int)(sumabs / (float)g_win * 32768.0f);
   }
+  uint32_t t0 = hal::nowMs();
   int nf = tcml_mfcc(g_signal, g_win, &g_params, g_feat);
+  uint32_t t1 = hal::nowMs();
+  g_lastMfccMs = (int)(t1 - t0);
   int cls = 0;
   if (nf > 0) {
     float conf = 0.0f;
     int top = ai_infer_top(g_feat, nf * g_params.n_mfcc, &conf);
+    g_lastInferMs = (int)(hal::nowMs() - t1);
     g_lastTop = top;
     g_lastConf = conf;
     cls = (top > 0 && conf >= kMinConfidence) ? top : 0;

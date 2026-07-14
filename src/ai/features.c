@@ -61,30 +61,46 @@ int tcml_n_frames(const TcmlFeatureParams* p) {
 }
 
 // In-place iterative radix-2 Cooley-Tukey FFT (n a power of two). re/im length n.
-static void fft(double* re, double* im, int n) {
+//
+// FLOAT hot path (bench lesson, nRF54LM20 DK 2026-07-15): the M33's FPU is
+// single-precision only — in double this FFT ran in SOFTWARE floats and one MFCC
+// took ~2.7 s, so voice commands never landed in an analysed window. The
+// butterflies are float32 on the hardware FPU; the twiddle factors come from a
+// TABLE computed once in double and stored as float (exact per element — no
+// recurrence drift, so this is at least as close to NumPy as the old loop).
+// Golden-vector parity (tol 0.010) still holds — verified by make test-ai.
+static void fft(float* re, float* im, int n) {
+  // Twiddle table tw[j] = exp(-2*pi*i*j/n), j < n/2 — rebuilt only when n changes.
+  static float twr[MAX_NFFT / 2], twi[MAX_NFFT / 2];
+  static int tw_n = 0;
+  if (tw_n != n) {
+    for (int j = 0; j < n / 2; j++) {
+      double ang = -2.0 * M_PI * j / (double)n;
+      twr[j] = (float)cos(ang);
+      twi[j] = (float)sin(ang);
+    }
+    tw_n = n;
+  }
   // bit-reversal permutation
   for (int i = 1, j = 0; i < n; i++) {
     int bit = n >> 1;
     for (; j & bit; bit >>= 1) j ^= bit;
     j ^= bit;
     if (i < j) {
-      double tr = re[i]; re[i] = re[j]; re[j] = tr;
-      double ti = im[i]; im[i] = im[j]; im[j] = ti;
+      float tr = re[i]; re[i] = re[j]; re[j] = tr;
+      float ti = im[i]; im[i] = im[j]; im[j] = ti;
     }
   }
   for (int len = 2; len <= n; len <<= 1) {
-    double ang = -2.0 * M_PI / len;
-    double wlr = cos(ang), wli = sin(ang);
+    const int stride = n / len;  // tw index step for this stage
     for (int i = 0; i < n; i += len) {
-      double wr = 1.0, wi = 0.0;
       for (int k = 0; k < len / 2; k++) {
-        double ur = re[i + k], ui = im[i + k];
-        double vr = re[i + k + len / 2] * wr - im[i + k + len / 2] * wi;
-        double vi = re[i + k + len / 2] * wi + im[i + k + len / 2] * wr;
+        const float wr = twr[k * stride], wi = twi[k * stride];
+        float ur = re[i + k], ui = im[i + k];
+        float vr = re[i + k + len / 2] * wr - im[i + k + len / 2] * wi;
+        float vi = re[i + k + len / 2] * wi + im[i + k + len / 2] * wr;
         re[i + k] = ur + vr; im[i + k] = ui + vi;
         re[i + k + len / 2] = ur - vr; im[i + k + len / 2] = ui - vi;
-        double nwr = wr * wlr - wi * wli;
-        wi = wr * wli + wi * wlr; wr = nwr;
       }
     }
   }
@@ -94,7 +110,9 @@ static double hz_to_mel(double hz) { return 2595.0 * log10(1.0 + hz / 700.0); }
 static double mel_to_hz(double mel) { return 700.0 * (pow(10.0, mel / 2595.0) - 1.0); }
 
 // Triangular mel filterbank into fb[n_mels][n_bins]. Matches Python mel_filterbank.
-static void build_filterbank(const TcmlFeatureParams* p, double* fb, int n_bins) {
+// The DISCRETE decisions (the bin breakpoints, via floor()) stay in double so
+// they are bit-identical to NumPy's; only the stored weights are float.
+static void build_filterbank(const TcmlFeatureParams* p, float* fb, int n_bins) {
   int M = p->n_mels;
   double mmin = hz_to_mel(p->fmin), mmax = hz_to_mel(p->fmax);
   int bin[MAX_NMELS + 2];
@@ -106,13 +124,15 @@ static void build_filterbank(const TcmlFeatureParams* p, double* fb, int n_bins)
     if (b > n_bins - 1) b = n_bins - 1;
     bin[i] = b;
   }
-  memset(fb, 0, (size_t)M * n_bins * sizeof(double));
+  memset(fb, 0, (size_t)M * n_bins * sizeof(float));
   for (int m = 1; m <= M; m++) {
     int left = bin[m - 1], center = bin[m], right = bin[m + 1];
     for (int k = left; k < center; k++)
-      if (center > left) fb[(m - 1) * n_bins + k] = (k - left) / (double)(center - left);
+      if (center > left)
+        fb[(m - 1) * n_bins + k] = (float)((k - left) / (double)(center - left));
     for (int k = center; k < right; k++)
-      if (right > center) fb[(m - 1) * n_bins + k] = (right - k) / (double)(right - center);
+      if (right > center)
+        fb[(m - 1) * n_bins + k] = (float)((right - k) / (double)(right - center));
   }
 }
 
@@ -128,52 +148,57 @@ int tcml_mfcc(const float* signal, int n_samples, const TcmlFeatureParams* p,
   if (n_samples < fl) return 0;
   const int n_frames = 1 + (n_samples - fl) / hop;
 
-  // Hamming window (NumPy: 0.54 - 0.46 cos(2*pi*n/(N-1))).
-  // static: see the file header — these five buffers used to be ~300 KB of stack.
-  static double win[MAX_FRAME];
+  // Hamming window (NumPy: 0.54 - 0.46 cos(2*pi*n/(N-1))). Coefficients are
+  // computed in double (once per call, cheap) and STORED as float — the per-frame
+  // hot loops below run entirely in float32 on the M33's hardware FPU (in double
+  // they ran in software floats: one MFCC took ~2.7 s on the DK; float ~ms).
+  // static: see the file header — these buffers used to be ~300 KB of stack.
+  static float win[MAX_FRAME];
   for (int n = 0; n < fl; n++)
-    win[n] = 0.54 - 0.46 * cos(2.0 * M_PI * n / (double)(fl - 1));
+    win[n] = (float)(0.54 - 0.46 * cos(2.0 * M_PI * n / (double)(fl - 1)));
 
-  static double fb[MAX_NMELS * (MAX_NFFT / 2 + 1)];
+  static float fb[MAX_NMELS * (MAX_NFFT / 2 + 1)];
   build_filterbank(p, fb, n_bins);
 
   // Orthonormal DCT-II basis (K x M).
-  static double dct[MAX_NMFCC * MAX_NMELS];
+  static float dct[MAX_NMFCC * MAX_NMELS];
   for (int k = 0; k < K; k++) {
     double scale = sqrt(2.0 / M) * (k == 0 ? 1.0 / sqrt(2.0) : 1.0);
     for (int m = 0; m < M; m++)
-      dct[k * M + m] = cos(M_PI * (2 * m + 1) * k / (2.0 * M)) * scale;
+      dct[k * M + m] = (float)(cos(M_PI * (2 * m + 1) * k / (2.0 * M)) * scale);
   }
 
-  static double re[MAX_NFFT], im[MAX_NFFT];
+  const float pre = p->pre_emphasis;
+  const float inv_nfft = 1.0f / (float)nfft;
+  static float re[MAX_NFFT], im[MAX_NFFT];
   for (int f = 0; f < n_frames; f++) {
     const int start = f * hop;
     // pre-emphasis (applied across the signal) + window, into the FFT buffer.
-    for (int n = 0; n < nfft; n++) { re[n] = 0.0; im[n] = 0.0; }
+    for (int n = 0; n < nfft; n++) { re[n] = 0.0f; im[n] = 0.0f; }
     for (int n = 0; n < fl; n++) {
       int idx = start + n;
-      double x = signal[idx];
-      double xm1 = (idx > 0) ? signal[idx - 1] : 0.0;
-      double emph = (p->pre_emphasis > 0.0f) ? (x - p->pre_emphasis * xm1) : x;
+      float x = signal[idx];
+      float xm1 = (idx > 0) ? signal[idx - 1] : 0.0f;
+      float emph = (pre > 0.0f) ? (x - pre * xm1) : x;
       re[n] = emph * win[n];
     }
     fft(re, im, nfft);
     // mel energies -> log -> DCT
-    double logmel[MAX_NMELS];
+    float logmel[MAX_NMELS];
     for (int m = 0; m < M; m++) {
-      double e = 0.0;
+      float e = 0.0f;
       for (int k = 0; k < n_bins; k++) {
-        double power = (re[k] * re[k] + im[k] * im[k]) / (double)nfft;
+        float power = (re[k] * re[k] + im[k] * im[k]) * inv_nfft;
         e += power * fb[m * n_bins + k];
       }
-      logmel[m] = log(e + p->log_offset);
+      logmel[m] = logf(e + p->log_offset);
     }
     for (int k = 0; k < K; k++) {
-      double c = 0.0;
+      float c = 0.0f;
       for (int m = 0; m < M; m++) c += logmel[m] * dct[k * M + m];
       if (p->lifter > 0)
-        c *= 1.0 + (p->lifter / 2.0) * sin(M_PI * k / (double)p->lifter);
-      out[f * K + k] = (float)c;
+        c *= (float)(1.0 + (p->lifter / 2.0) * sin(M_PI * k / (double)p->lifter));
+      out[f * K + k] = c;
     }
   }
   return n_frames;

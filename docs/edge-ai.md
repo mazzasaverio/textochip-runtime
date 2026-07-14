@@ -16,6 +16,37 @@
 > board-only: validate the INMP441 I2S wiring/format and the on-chip run on the bench (ESP-NN is an
 > optional later speedup behind the same `ai_infer`).
 
+## On-hardware bring-up — the nRF54LM20 DK runs the voice pipeline in real time (2026-07-14 → 15)
+
+First-ever on-device run of the voice tier (INMP441 on the DK's TDM, PORT1 pins). Every layer hid a
+bench-only bug the host could never show; the fix chain, in order:
+
+1. **TDM pins must be on port 1** — the peripheral silently no-ops on P2 pads (config/trigger return
+   0, the DMA fills zeros). Diagnosed with the new `MICPINS` pad probe; pins now P1.23/P1.14/P1.31
+   (the same ones Nordic's own i2s tests use for this DK).
+2. **RX overrun self-heal** (`mic_read_block`): a full DMA pool put the driver in ERROR forever;
+   PREPARE+START re-arms it without disturbing a healthy stream.
+3. **Stack**: the MFCC's scratch (~300 KB at the old caps) lived on the stack → usage fault on the
+   first real inference. Now static, caps = the model envelope (~100 KB .bss);
+   `CONFIG_MAIN_STACK_SIZE=24576`.
+4. **TFLM flag parity**: the Zephyr glue built the lib without `TF_LITE_STATIC_MEMORY` while
+   `ai_host.cpp` defined it → `TfLiteTensor` layouts diverged → bus fault. The app CMake now forces
+   the define + `-fno-exceptions` on `modules__tflite-micro`.
+5. **Performance — 3.6 s → 0.16 s per 1 s window**: float32 MFCC hot path (golden parity holds,
+   tol 0.010) + `CONFIG_FPU=y` (Zephyr leaves the M33 FPU OFF by default): **2740 → 119 ms**;
+   CMSIS-NN kernels (DK board conf + the CMake trigger): invoke **846 → 37 ms**.
+6. **24-block mic pool** (~384 ms): the 64 ms pool overflowed during every inference stall,
+   injecting a glitch + a ~90 ms hole into every analysed window.
+
+Serial bench aids added along the way: `MIC` (level + start diagnostics), `MICRAW` (both raw
+channels), `MICPINS` (pad toggle counts), and the live log lines
+(`mic: level=… top=… mfcc=…ms infer=…ms`, `VOICE: go 78%`, `voice? go 41% (<60%)`).
+
+**Open (bench, next):** a live spoken-word test against the 60 % confidence gate
+(`kMinConfidence`, ai_service.cpp), and a suspected TDM start bit-alignment variance (the idle DC
+scales by ~2^k between some boots — if real words still miss, auto-realign capture at start until
+the DC lands in the lowest band).
+
 ## Spike results — TFLM + the feature contract are host-proven (2026-06-29)
 
 The two integration risks are both **de-risked with running code on the host**:

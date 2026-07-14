@@ -226,6 +226,19 @@ void runtime::tick() {
     }
     int cls = ai_service::poll();
     if (cls >= 0) vm.setAiClass(cls);
+    // Feedback: announce each fresh detection on the serial log, so the IDE's
+    // Serial tab SHOWS what the board heard ("VOICE: go"). Without this a voice
+    // program is a black box — you speak, nothing moves, and you can't tell a
+    // deaf mic from an unrecognized word from an unpowered motor. Only
+    // transitions to a non-background class are printed (quiet otherwise).
+    static int lastCls = 0;
+    if (cls > 0 && cls != lastCls) {
+      static const char* kVoiceLabels[] = {"background", "go", "left", "right", "stop"};
+      const int kNum = (int)(sizeof(kVoiceLabels) / sizeof(kVoiceLabels[0]));
+      hal::serialWriteLine(std::string("VOICE: ") +
+                           (cls < kNum ? kVoiceLabels[cls] : std::to_string(cls).c_str()));
+    }
+    if (cls >= 0) lastCls = cls;
   } else if (aiRunning) {
     aiRunning = false;  // program stopped / took a non-AI path — pause the service
   }

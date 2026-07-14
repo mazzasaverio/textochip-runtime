@@ -196,6 +196,21 @@ static bool mic_start() {
   mic_trg_ret = i2s_trigger(i2s_mic, I2S_DIR_RX, I2S_TRIGGER_START);
   return mic_trg_ret == 0;
 }
+
+// Read one RX block, self-healing over an overrun. With a fixed 4-block DMA slab,
+// any gap in draining (between MIC calls, or a slow tick) fills the pool and the
+// driver stops the stream (I2S_STATE_ERROR) — after which every read fails until
+// re-armed. PREPARE is REJECTED unless we're actually in ERROR, so issuing it on a
+// failed read re-arms an overrun WITHOUT disturbing a merely-empty (still RUNNING)
+// queue; START then resumes. Returns true iff a block was obtained. Keeps capture
+// continuous for both the bench MIC command and the background voice service.
+static bool mic_read_block(void** block, size_t* size) {
+  if (i2s_read(i2s_mic, block, size) == 0) return true;
+  if (i2s_trigger(i2s_mic, I2S_DIR_RX, I2S_TRIGGER_PREPARE) == 0) {
+    i2s_trigger(i2s_mic, I2S_DIR_RX, I2S_TRIGGER_START);
+  }
+  return false;
+}
 #endif
 
 namespace hal {
@@ -349,7 +364,7 @@ int aiCapture(int16_t* out, int n) {
   }
   void* block = nullptr;
   size_t size = 0;
-  if (i2s_read(i2s_mic, &block, &size) != 0) return 0;  // nothing captured yet
+  if (!mic_read_block(&block, &size)) return 0;  // none ready (self-heals an overrun)
   const int32_t* s = (const int32_t*)block;
   int frames = (int)(size / (2 * sizeof(int32_t)));
   int k = 0;
@@ -388,7 +403,7 @@ int aiCaptureRaw(int32_t* out, int n) {
   }
   void* block = nullptr;
   size_t size = 0;
-  if (i2s_read(i2s_mic, &block, &size) != 0) return 0;
+  if (!mic_read_block(&block, &size)) return 0;
   const int32_t* s = (const int32_t*)block;
   int words = (int)(size / sizeof(int32_t));  // interleaved L,R,L,R…
   int k = 0;

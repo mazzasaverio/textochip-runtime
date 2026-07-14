@@ -249,6 +249,18 @@ void runtime::tick() {
                                "% (<60%)");
         }
       }
+      // Heartbeat every ~8 inferences (~2 s): mic level + the model's current top
+      // guess. level=0 exposes a dead/unplugged mic instantly (a dead mic and a
+      // confident "background" both print NO word lines — this line tells them
+      // apart at a glance); speech pushes the level into the thousands.
+      static int beat = 0;
+      if (++beat >= 8) {
+        beat = 0;
+        int pct = (int)(conf * 100.0f + 0.5f);
+        const char* name = (top > 0 && top < kNum) ? kVoiceLabels[top] : "background";
+        hal::serialWriteLine("mic: level=" + std::to_string(ai_service::lastLevel()) +
+                             " top=" + name + " " + std::to_string(pct) + "%");
+      }
     }
   } else if (aiRunning) {
     aiRunning = false;  // program stopped / took a non-AI path — pause the service

@@ -28,6 +28,10 @@ int poll();
 // gate collapsed poll()'s answer to 0. Valid after a poll() that returned >= 0.
 void lastTop(int* cls, float* conf);
 
+// Mean-abs level (int16 units) of the last analysed window — 0 means a dead/muted
+// mic, speech runs in the thousands. For the serial heartbeat.
+int lastLevel();
+
 }  // namespace ai_service
 
 #endif  // TEXTOCHIP_AI_AI_SERVICE_H

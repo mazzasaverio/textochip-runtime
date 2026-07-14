@@ -36,6 +36,10 @@ int16_t g_scratch[kChunk];    // small drain buffer for hal::aiCapture
 // its confidence (what the model actually thought), regardless of kMinConfidence.
 int g_lastTop = -1;
 float g_lastConf = 0.0f;
+// Mean-abs level of the last analysed window, in int16 units (0 = silence/dead
+// mic; speech runs thousands). Lets the serial heartbeat separate "mic is dead"
+// from "hears audio but classifies it as background".
+int g_lastLevel = 0;
 
 }  // namespace
 
@@ -43,6 +47,8 @@ void ai_service::lastTop(int* cls, float* conf) {
   if (cls) *cls = g_lastTop;
   if (conf) *conf = g_lastConf;
 }
+
+int ai_service::lastLevel() { return g_lastLevel; }
 
 void ai_service::reset() {
   g_params = tcml_default_params();
@@ -72,6 +78,11 @@ int ai_service::poll() {
   if (g_have < g_win) return -1;
 
   // 3. Full window: extract MFCC and classify (confidence-gated — see kMinConfidence).
+  {
+    float sumabs = 0.0f;
+    for (int i = 0; i < g_win; i++) sumabs += g_signal[i] < 0 ? -g_signal[i] : g_signal[i];
+    g_lastLevel = (int)(sumabs / (float)g_win * 32768.0f);
+  }
   int nf = tcml_mfcc(g_signal, g_win, &g_params, g_feat);
   int cls = 0;
   if (nf > 0) {

@@ -171,7 +171,12 @@ static void store_init() {
 static const struct device* const i2s_mic = DEVICE_DT_GET(TC_MIC_NODE);
 #define MIC_FRAMES 256                                           // frames / DMA block
 #define MIC_BLOCK_BYTES (MIC_FRAMES * 2 * (int)sizeof(int32_t))  // stereo, 32-bit
-K_MEM_SLAB_DEFINE_STATIC(mic_slab, MIC_BLOCK_BYTES, 4, 4);
+// 24 blocks = ~384 ms of buffered audio (2 KB each, 48 KB total). The pool must
+// ride out the inference stall: MFCC+invoke block the main loop ~156 ms per
+// window, and the old 4-block (64 ms) pool overflowed EVERY window — each
+// self-heal restart put a glitch + a ~90 ms hole into every analysed window
+// (rail spikes at idle, words never recognized). Bench-sized on the DK.
+K_MEM_SLAB_DEFINE_STATIC(mic_slab, MIC_BLOCK_BYTES, 24, 4);
 static bool mic_started = false;
 // Bench diagnostics: the last mic-start return codes, surfaced by hal::micStatus()
 // so the MIC command can say WHY audio is silent. -99 = "step not reached yet".

@@ -28,9 +28,17 @@
 #include <zephyr/drivers/adc.h>
 #define HAS_ADC 1
 #endif
-// Digital microphone (I2S) for the edge-AI voice tier — active when the overlay
-// marks i2s0 "okay" (the INMP441 wiring). Absent -> hal::aiCapture returns 0.
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(i2s0), okay)
+// Digital microphone (I2S) for the edge-AI voice tier — active when a mic node
+// is wired in the board overlay. Portable across chips: the nRF54L has no I2S
+// block, so its INMP441 hangs off the TDM peripheral (a superset that binds to
+// Zephyr's I2S API) — the board overlay points the `tc-mic` alias at that node
+// (&tdm). The ESP32-S3 keeps its plain `i2s0`. Absent -> aiCapture returns 0.
+#if DT_NODE_HAS_STATUS(DT_ALIAS(tc_mic), okay)
+#define TC_MIC_NODE DT_ALIAS(tc_mic)
+#elif DT_NODE_HAS_STATUS(DT_NODELABEL(i2s0), okay)
+#define TC_MIC_NODE DT_NODELABEL(i2s0)
+#endif
+#if defined(TC_MIC_NODE)
 #include <zephyr/drivers/i2s.h>
 #define HAS_MIC 1
 #endif
@@ -160,7 +168,7 @@ static void store_init() {
 // INMP441 I2S mic on i2s0 (RX; the ESP32-S3 is master). 16 kHz mono = the model's
 // sample rate. The DMA fills a pool of 32-bit stereo blocks; aiCapture drains one
 // per call and keeps the left channel. PROVISIONAL pins in the board overlay.
-static const struct device* const i2s_mic = DEVICE_DT_GET(DT_NODELABEL(i2s0));
+static const struct device* const i2s_mic = DEVICE_DT_GET(TC_MIC_NODE);
 #define MIC_FRAMES 256                                           // frames / DMA block
 #define MIC_BLOCK_BYTES (MIC_FRAMES * 2 * (int)sizeof(int32_t))  // stereo, 32-bit
 K_MEM_SLAB_DEFINE_STATIC(mic_slab, MIC_BLOCK_BYTES, 4, 4);

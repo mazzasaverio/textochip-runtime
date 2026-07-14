@@ -47,6 +47,19 @@ Follow it top to bottom. Each stage is a checkpoint — don't move on until it p
 | SD  | **GPIO17** | mic data out → ESP data in |
 | L/R | **GND** | ties the mic to the **LEFT** channel (the one the firmware reads) |
 
+### Microphone — INMP441 → Nordic nRF54LM20 DK  (TDM; the nRF54L has no I2S, so
+the mic hangs off its TDM peripheral, which speaks the I2S API — pins from the
+DK overlay `tc_tdm_default`, all on the **PORT2** header)
+
+| INMP441 | DK pin | meaning |
+|---------|--------|---------|
+| VDD | **3V3** (VDD on a power header) | power (NOT 5V) |
+| GND | **GND** | ground |
+| SCK | **P2.00** (PORT2) | TDM bit clock (SCK_M) — the DK is master |
+| WS  | **P2.01** (PORT2) | frame sync / word select (FSYNC_M) |
+| SD  | **P2.02** (PORT2) | mic data out → DK SDIN |
+| L/R | **GND** | LEFT channel (the one the firmware reads) |
+
 ### Robot — L298N → ESP32-S3  (differential drive; pins from `zephyr/src/hal_zephyr.cpp`)
 
 | L298N | ESP32-S3 | wheel |

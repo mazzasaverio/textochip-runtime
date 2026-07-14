@@ -569,3 +569,32 @@ yet say which state mattered. Policy unchanged (bench = `west flash -r jlink`;
 installer = verify+retry); repro data + the one hard verify-mismatch were
 written up for the upstream issue (comment draft:
 `~/Downloads/probe-rs-issue-3775-comment.md`, posted by Saverio).
+
+## Voice tier builds for the DK — TFLM links, INMP441 via TDM (2026-07-14)
+
+The edge-AI voice path is up on the nRF54LM20 DK in firmware (mic bring-up on the
+bench is the only remaining step). Two unknowns resolved:
+
+1. **TFLite Micro LINKS on the nRF54.** Flipping `CONFIG_TEXTOCHIP_AI=y` and
+   building under NCS just works: the Zephyr tflite-micro module glue
+   (`$ZEPHYR_BASE/modules/tflite-micro`) compiles our vendored submodule and
+   selects CMSIS-NN for the Cortex-M33. Footprint with the whole voice model +
+   motors + buzzer: **FLASH 231 KB / 2 MB (11%), RAM 191 KB / 511 KB (37%)** —
+   comfortable. So voice inference runs on the DK, no NPU needed.
+
+2. **The nRF54L has NO I2S peripheral — its TDM block is the superset.** The
+   INMP441 (an I2S mic) hangs off `tdm@e8000` (`compatible = "nordic,nrf-tdm"`),
+   whose Zephyr driver lives in `drivers/i2s/i2s_nrf_tdm.c` and BINDS TO THE I2S
+   API — so `hal::aiCapture` (i2s_configure/i2s_read) works unchanged, pointed at
+   `&tdm` instead of `i2s0`. The HAL now finds the mic via a `tc-mic` alias
+   (portable, like tc-pwm-*): the DK overlay aliases `tc-mic = &tdm`; the ESP32
+   keeps `i2s0` by the fallback. Pinctrl: `TDM_SCK_M`/`TDM_FSYNC_M`/`TDM_SDIN`
+   (RX only), PCLK clock (no audio PLL — fine for 16 kHz). Pins on PORT2 (free on
+   the voice car): SCK->P2.00, WS->P2.01, SD->P2.02. `CONFIG_I2S=y` pulls the
+   driver in.
+
+Build recipe (DK, voice): the standard NCS `west build` — `CONFIG_TEXTOCHIP_AI`
+is now `y` in the board conf. Remaining: wire the INMP441 and confirm a spoken
+word drives the wheels (may need a clock-divider / gain tweak — the host test
+used clean audio). The AI service runs in the runtime pump (`ai_service::poll()`
+in runtime.cpp), no extra thread.

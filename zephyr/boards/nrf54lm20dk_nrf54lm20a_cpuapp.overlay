@@ -42,7 +42,41 @@
 		 * NRF_PWMN peripherals). */
 		tc-pwm-buzzer = &pwm20;
 		tc-pwm-motor = &pwm21;
+		/* Voice: the INMP441 mic. The nRF54L has NO I2S block — its TDM
+		 * peripheral is the superset and binds to Zephyr's I2S API, so the HAL
+		 * (i2s_read) works unchanged pointed at &tdm. */
+		tc-mic = &tdm;
 	};
+};
+
+/* Phase 2 slice 3 — VOICE: the INMP441 I2S microphone on the TDM peripheral.
+ * RX only (a mic): SCK (bit clock) + FSYNC (word select) driven out, SDIN read
+ * in. PCLK clock (the driver default — no audio PLL) is fine for the 16 kHz KWS
+ * model. Pins on PORT2 (free on the voice car; motors are on P1/P3). Wiring —
+ * INMP441: VDD->3V3, GND->GND, L/R->GND (left channel), SCK->P2.00, WS->P2.01,
+ * SD->P2.02. See docs/hardware.md. */
+&pinctrl {
+	tc_tdm_default: tc_tdm_default {
+		group1 {
+			psels = <NRF_PSEL(TDM_SCK_M, 2, 0)>,
+				<NRF_PSEL(TDM_FSYNC_M, 2, 1)>,
+				<NRF_PSEL(TDM_SDIN, 2, 2)>;
+		};
+	};
+	tc_tdm_sleep: tc_tdm_sleep {
+		group1 {
+			psels = <NRF_PSEL(TDM_SCK_M, 2, 0)>,
+				<NRF_PSEL(TDM_FSYNC_M, 2, 1)>,
+				<NRF_PSEL(TDM_SDIN, 2, 2)>;
+			low-power-enable;
+		};
+	};
+};
+&tdm {
+	status = "okay";
+	pinctrl-0 = <&tc_tdm_default>;
+	pinctrl-1 = <&tc_tdm_sleep>;
+	pinctrl-names = "default", "sleep";
 };
 
 /* No crypto. The DK devicetree enables a `zephyr,psa-crypto-rng` entropy node,

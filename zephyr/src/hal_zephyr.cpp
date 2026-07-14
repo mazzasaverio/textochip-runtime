@@ -394,6 +394,49 @@ std::string micStatus() {
 #endif
 }
 
+// Bench diagnostic (see hal.h): sample the mic pads and count toggles. The pads
+// are decoded from the SAME pinctrl group the TDM/I2S uses (psel & 0x1FF =
+// port*32+pin), so the probe can never drift from the real mux. Nordic-only for
+// now (the ESP32 pinctrl model differs); elsewhere returns "n/a".
+std::string micPinsProbe() {
+#if defined(HAS_MIC) && DT_NODE_EXISTS(DT_CHILD(DT_NODELABEL(tc_tdm_default), group1))
+#define TC_TDM_PSEL(i) \
+  (DT_PROP_BY_IDX(DT_CHILD(DT_NODELABEL(tc_tdm_default), group1), psels, i) & 0x1FF)
+  static const int pads[3] = {TC_TDM_PSEL(0), TC_TDM_PSEL(1), TC_TDM_PSEL(2)};
+  static const char* names[3] = {"sck", "ws", "sd"};
+  // Connect the input buffers so gpio_pin_get_raw reads the pad level even while
+  // the peripheral owns the pin (readback only — the PSEL keeps driving).
+  for (int k = 0; k < 3; k++) {
+    gpio_pin_configure(gpio_port(pads[k]), gpio_index(pads[k]), GPIO_INPUT);
+  }
+  int16_t drain[64];
+  aiCapture(drain, 64);  // make sure capture is started (and self-heal if stalled)
+  long tog[3] = {0, 0, 0};
+  long ones[3] = {0, 0, 0};
+  int last[3] = {-1, -1, -1};
+  const int N = 60000;  // a few ms of ~MHz-rate sampling — plenty vs a 1 MHz SCK
+  for (int i = 0; i < N; i++) {
+    if ((i & 2047) == 0) aiCapture(drain, 64);  // keep the DMA drained mid-probe
+    for (int k = 0; k < 3; k++) {
+      int v = gpio_pin_get_raw(gpio_port(pads[k]), gpio_index(pads[k]));
+      if (last[k] >= 0 && v != last[k]) tog[k]++;
+      if (v > 0) ones[k]++;
+      last[k] = v;
+    }
+  }
+  std::string s = "pads";
+  for (int k = 0; k < 3; k++) {
+    s += " " + std::string(names[k]) + "=P" + std::to_string(pads[k] / 32) + "." +
+         std::to_string(pads[k] % 32) + " tog=" + std::to_string(tog[k]) +
+         " hi%=" + std::to_string(ones[k] * 100 / N);
+  }
+  return s;
+#undef TC_TDM_PSEL
+#else
+  return "n/a";
+#endif
+}
+
 // Bench diagnostic (see hal.h): drain one raw block as interleaved 32-bit L/R words.
 int aiCaptureRaw(int32_t* out, int n) {
 #ifdef HAS_MIC

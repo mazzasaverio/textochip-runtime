@@ -136,6 +136,9 @@ int aiCaptureRaw(int32_t* out, int n) {
   return 0;
 }
 
+// No pads to probe on the host.
+std::string micPinsProbe() { return "n/a"; }
+
 // Edge-AI camera stub: drain up to `max` queued grayscale bytes (host_feed_image)
 // into `out`. Stands in for the board's DVP camera (hal_zephyr.cpp) so the whole
 // capture -> vision_service -> ai_infer_vision path runs on the PC with no hardware.

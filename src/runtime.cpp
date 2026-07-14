@@ -130,6 +130,11 @@ void runtime::feedLine(const std::string& raw) {
     hal::serialWriteLine("OK: mic n=" + std::to_string(total) +
                          " peak=" + std::to_string(peak) +
                          " level=" + std::to_string(level) + " [" + hal::micStatus() + "]");
+  } else if (line == "MICPINS") {
+    // Bench aid: prove at the PAD whether the mic clocks actually leave the chip
+    // (see hal::micPinsProbe). sck tog=0 while MIC happily DMAs zeros = the pin
+    // mux points at a pad the peripheral can't drive — firmware, not wiring.
+    hal::serialWriteLine("OK: micpins " + hal::micPinsProbe());
   } else if (line == "MICRAW") {
     // Bench aid: dump BOTH mic channels + the first raw words, to tell a left/right
     // channel-select mismatch (L/R pin not grounded -> the mic drives the R slot,

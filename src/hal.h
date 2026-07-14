@@ -58,6 +58,15 @@ std::string micStatus();
 // mismatch (L/R pin not grounded -> data on the right slot) from a dead data pin.
 int aiCaptureRaw(int32_t* out, int n);
 
+// Bench diagnostic: while capture runs, tight-loop sample the mic pads (SCK /
+// FSYNC / SDIN) through the GPIO input buffer (readback does not steal the pad
+// from the peripheral) and report toggle counts. Proves at the PAD whether the
+// bit clock actually leaves the chip: sck toggles ≈ 0 while the driver is happily
+// DMA-ing means the pin mux points at a pad the peripheral cannot drive (e.g. a
+// GPIO port outside the peripheral's power domain on nRF54L) — firmware bug, not
+// wiring. sck/ws toggling with sd flat = clock out, mic silent (wiring/mic side).
+std::string micPinsProbe();
+
 // Camera capture for the edge-AI VISION tier. Fills `out` with up to `max` bytes of a
 // GRAYSCALE frame at the model's input size (e.g. 96x96 = 9216 px for person
 // detection), one byte per pixel (0..255), and returns how many it wrote (0 if no

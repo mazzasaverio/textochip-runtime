@@ -52,22 +52,28 @@
 /* Phase 2 slice 3 — VOICE: the INMP441 I2S microphone on the TDM peripheral.
  * RX only (a mic): SCK (bit clock) + FSYNC (word select) driven out, SDIN read
  * in. PCLK clock (the driver default — no audio PLL) is fine for the 16 kHz KWS
- * model. Pins on PORT2 (free on the voice car; motors are on P1/P3). Wiring —
- * INMP441: VDD->3V3, GND->GND, L/R->GND (left channel), SCK->P2.00, WS->P2.01,
- * SD->P2.02. See docs/hardware.md. */
+ * model.
+ *
+ * PINS MUST BE ON PORT 1 — bench-proven 2026-07-14. The TDM cannot drive
+ * P2 pads on the nRF54LM20A (PSEL accepts them, i2s_configure/trigger return 0,
+ * the DMA fills blocks — but MICPINS showed the SCK pad flat while "capturing",
+ * so the peripheral's pin mux silently no-ops outside its GPIO port domain).
+ * Nordic's own i2s tests for this DK use P1.23/P1.14/P1.31 — we use the same.
+ * Wiring — INMP441: VDD->VDDIO (3.3 V, NOT 5V0), GND->GND, L/R->GND (left
+ * channel), SCK->P1.23, WS->P1.14, SD->P1.31. See docs/hardware.md. */
 &pinctrl {
 	tc_tdm_default: tc_tdm_default {
 		group1 {
-			psels = <NRF_PSEL(TDM_SCK_M, 2, 0)>,
-				<NRF_PSEL(TDM_FSYNC_M, 2, 1)>,
-				<NRF_PSEL(TDM_SDIN, 2, 2)>;
+			psels = <NRF_PSEL(TDM_SCK_M, 1, 23)>,
+				<NRF_PSEL(TDM_FSYNC_M, 1, 14)>,
+				<NRF_PSEL(TDM_SDIN, 1, 31)>;
 		};
 	};
 	tc_tdm_sleep: tc_tdm_sleep {
 		group1 {
-			psels = <NRF_PSEL(TDM_SCK_M, 2, 0)>,
-				<NRF_PSEL(TDM_FSYNC_M, 2, 1)>,
-				<NRF_PSEL(TDM_SDIN, 2, 2)>;
+			psels = <NRF_PSEL(TDM_SCK_M, 1, 23)>,
+				<NRF_PSEL(TDM_FSYNC_M, 1, 14)>,
+				<NRF_PSEL(TDM_SDIN, 1, 31)>;
 			low-power-enable;
 		};
 	};

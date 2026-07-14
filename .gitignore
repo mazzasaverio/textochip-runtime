@@ -9,4 +9,5 @@ host/test_vision
 host/*.o
 # Zephyr/west build output
 build/
+build_*/
 zephyr/build/

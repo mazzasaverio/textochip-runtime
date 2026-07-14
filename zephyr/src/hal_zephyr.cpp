@@ -173,9 +173,15 @@ static const struct device* const i2s_mic = DEVICE_DT_GET(TC_MIC_NODE);
 #define MIC_BLOCK_BYTES (MIC_FRAMES * 2 * (int)sizeof(int32_t))  // stereo, 32-bit
 K_MEM_SLAB_DEFINE_STATIC(mic_slab, MIC_BLOCK_BYTES, 4, 4);
 static bool mic_started = false;
+// Bench diagnostics: the last mic-start return codes, surfaced by hal::micStatus()
+// so the MIC command can say WHY audio is silent. -99 = "step not reached yet".
+static int mic_dev_ready = -1;  // 1 = device_is_ready, 0 = not
+static int mic_cfg_ret = -99;   // i2s_configure() return
+static int mic_trg_ret = -99;   // i2s_trigger(START) return
 
 static bool mic_start() {
-  if (!device_is_ready(i2s_mic)) return false;
+  mic_dev_ready = device_is_ready(i2s_mic) ? 1 : 0;
+  if (!mic_dev_ready) return false;
   struct i2s_config cfg = {};
   cfg.word_size = 32;   // INMP441 sends a 24-bit sample left-justified in 32 bits
   cfg.channels = 2;     // stereo frame; the mic drives one channel (L/R -> GND)
@@ -185,8 +191,10 @@ static bool mic_start() {
   cfg.mem_slab = &mic_slab;
   cfg.block_size = MIC_BLOCK_BYTES;
   cfg.timeout = 0;      // non-blocking: i2s_read returns -EAGAIN if no block is ready
-  if (i2s_configure(i2s_mic, I2S_DIR_RX, &cfg) != 0) return false;
-  return i2s_trigger(i2s_mic, I2S_DIR_RX, I2S_TRIGGER_START) == 0;
+  mic_cfg_ret = i2s_configure(i2s_mic, I2S_DIR_RX, &cfg);
+  if (mic_cfg_ret != 0) return false;
+  mic_trg_ret = i2s_trigger(i2s_mic, I2S_DIR_RX, I2S_TRIGGER_START);
+  return mic_trg_ret == 0;
 }
 #endif
 
@@ -354,6 +362,20 @@ int aiCapture(int16_t* out, int n) {
   (void)out;
   (void)n;
   return 0;  // no mic node in the overlay -> the edge-AI service reads silence
+#endif
+}
+
+// Bench diagnostic (see hal.h): report the mic-start state so `MIC` can explain a
+// silent capture. `started=1 cfg=0 trg=0` with n=0 -> the TDM started but no DMA
+// block filled (clock/SCK or wiring); `started=0` with a negative cfg/trg -> the
+// driver rejected the config or trigger (that errno points at the cause).
+std::string micStatus() {
+#ifdef HAS_MIC
+  return "started=" + std::to_string(mic_started ? 1 : 0) +
+         " ready=" + std::to_string(mic_dev_ready) +
+         " cfg=" + std::to_string(mic_cfg_ret) + " trg=" + std::to_string(mic_trg_ret);
+#else
+  return "no-mic-node";
 #endif
 }
 

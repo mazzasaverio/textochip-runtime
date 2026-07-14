@@ -129,7 +129,7 @@ void runtime::feedLine(const std::string& raw) {
     long level = total > 0 ? sumabs / total : 0;
     hal::serialWriteLine("OK: mic n=" + std::to_string(total) +
                          " peak=" + std::to_string(peak) +
-                         " level=" + std::to_string(level));
+                         " level=" + std::to_string(level) + " [" + hal::micStatus() + "]");
   } else if (line.rfind("OVERRIDE", 0) == 0) {
     std::string rest = trim(line.substr(8));
     if (rest.empty()) {

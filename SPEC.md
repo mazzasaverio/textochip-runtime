@@ -141,7 +141,7 @@ parsing.
 | `OVERRIDE <instr>`  | execute one instruction immediately            | `OK` / `ERROR`              |
 | `SAVE`              | persist the loaded bytecode to flash + arm autorun | `OK: saved` / `ERROR: …`    |
 | `CLEAR`             | forget the saved program (disable autorun)     | `OK: cleared`               |
-| `MIC` (debug)       | sample the mic + report its level — bench aid to confirm the I2S mic is alive | `OK: mic n=N peak=P level=L` |
+| `MIC` (debug)       | sample the mic + report its level — bench aid to confirm the I2S/TDM mic is alive. The trailing `[…]` is the capture-start diagnostic (device-ready + i2s_configure/i2s_trigger return codes): `n>0` with `level=0` means the peripheral runs but no audio reaches the data pin (wiring/power); `started=0` means the driver rejected the config | `OK: mic n=N peak=P level=L [started=.. ready=.. cfg=.. trg=..]` |
 | (boot)              | if a saved program exists, load + run it (PC-unplugged autonomy) | `READY` then `OK: autorun N` |
 
 `SAVE` persists exactly the raw bytecode just received via `LOAD` (one slot — a

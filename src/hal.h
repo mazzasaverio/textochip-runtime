@@ -45,6 +45,12 @@ void move(int left, int right);
 // class VOICE() reads (docs/edge-ai.md).
 int aiCapture(int16_t* out, int n);
 
+// Bench diagnostic for the mic path: a short human-readable status of the last
+// capture-start attempt (device-ready, i2s_configure, i2s_trigger return codes,
+// and whether capture is running), so the `MIC` command can report WHY audio is
+// silent (config rejected vs clock not toggling) instead of just n=0. Host: a stub.
+std::string micStatus();
+
 // Camera capture for the edge-AI VISION tier. Fills `out` with up to `max` bytes of a
 // GRAYSCALE frame at the model's input size (e.g. 96x96 = 9216 px for person
 // detection), one byte per pixel (0..255), and returns how many it wrote (0 if no

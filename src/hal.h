@@ -51,6 +51,13 @@ int aiCapture(int16_t* out, int n);
 // silent (config rejected vs clock not toggling) instead of just n=0. Host: a stub.
 std::string micStatus();
 
+// Bench diagnostic: drain one raw mic DMA block as interleaved 32-bit L/R words
+// (L,R,L,R…) into `out` (up to `n`), returning the word count (0 if none ready).
+// Unlike aiCapture (which keeps only the LEFT channel as int16) this exposes BOTH
+// channels and the raw bits, so `MICRAW` can tell a left/right channel-select
+// mismatch (L/R pin not grounded -> data on the right slot) from a dead data pin.
+int aiCaptureRaw(int32_t* out, int n);
+
 // Camera capture for the edge-AI VISION tier. Fills `out` with up to `max` bytes of a
 // GRAYSCALE frame at the model's input size (e.g. 96x96 = 9216 px for person
 // detection), one byte per pixel (0..255), and returns how many it wrote (0 if no

@@ -379,6 +379,29 @@ std::string micStatus() {
 #endif
 }
 
+// Bench diagnostic (see hal.h): drain one raw block as interleaved 32-bit L/R words.
+int aiCaptureRaw(int32_t* out, int n) {
+#ifdef HAS_MIC
+  if (!mic_started) {
+    mic_started = mic_start();
+    if (!mic_started) return 0;
+  }
+  void* block = nullptr;
+  size_t size = 0;
+  if (i2s_read(i2s_mic, &block, &size) != 0) return 0;
+  const int32_t* s = (const int32_t*)block;
+  int words = (int)(size / sizeof(int32_t));  // interleaved L,R,L,R…
+  int k = 0;
+  for (int i = 0; i < words && k < n; i++) out[k++] = s[i];
+  k_mem_slab_free(&mic_slab, block);
+  return k;
+#else
+  (void)out;
+  (void)n;
+  return 0;
+#endif
+}
+
 // Camera capture (edge-AI VISION). STUB for now: returns 0 (no frame), so SEE() reads
 // "nothing" on the board. The ESP32-S3-CAM brings this up over the DVP camera interface
 // — Zephyr has the driver (drivers/video/video_esp32_dvp.c) + the video subsystem

@@ -130,6 +130,43 @@ void runtime::feedLine(const std::string& raw) {
     hal::serialWriteLine("OK: mic n=" + std::to_string(total) +
                          " peak=" + std::to_string(peak) +
                          " level=" + std::to_string(level) + " [" + hal::micStatus() + "]");
+  } else if (line == "MICRAW") {
+    // Bench aid: dump BOTH mic channels + the first raw words, to tell a left/right
+    // channel-select mismatch (L/R pin not grounded -> the mic drives the R slot,
+    // so the left channel we keep reads 0) from a genuinely dead data pin (all zero
+    // on both). Same ~600 ms paced window as MIC.
+    int32_t buf[512];
+    long lpeak = 0, rpeak = 0;
+    int total = 0;
+    int32_t first[12];
+    int nfirst = 0;
+    uint32_t start = hal::nowMs();
+    while (hal::nowMs() - start < 600) {
+      int n = hal::aiCaptureRaw(buf, 512);
+      if (n <= 0) {
+        uint32_t t = hal::nowMs();
+        while (hal::nowMs() - t < 10) { /* spin */
+        }
+        continue;
+      }
+      for (int j = 0; j + 1 < n; j += 2) {
+        long l = buf[j] < 0 ? -(long)buf[j] : (long)buf[j];
+        long r = buf[j + 1] < 0 ? -(long)buf[j + 1] : (long)buf[j + 1];
+        if (l > lpeak) lpeak = l;
+        if (r > rpeak) rpeak = r;
+      }
+      if (nfirst == 0) {
+        for (int j = 0; j < n && nfirst < 12; j++) first[nfirst++] = buf[j];
+      }
+      total += n;
+    }
+    std::string raw;
+    for (int j = 0; j + 1 < nfirst; j += 2) {
+      raw += "(" + std::to_string(first[j]) + "," + std::to_string(first[j + 1]) + ") ";
+    }
+    hal::serialWriteLine("OK: micraw words=" + std::to_string(total) +
+                         " Lpeak=" + std::to_string(lpeak) +
+                         " Rpeak=" + std::to_string(rpeak) + " first: " + raw);
   } else if (line.rfind("OVERRIDE", 0) == 0) {
     std::string rest = trim(line.substr(8));
     if (rest.empty()) {

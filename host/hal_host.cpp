@@ -129,6 +129,13 @@ int aiCapture(int16_t* out, int n) {
 // diagnose — a fixed marker keeps the MIC command's format uniform across builds.
 std::string micStatus() { return "host"; }
 
+// No real I2S block on the host, so there are no raw L/R words to inspect.
+int aiCaptureRaw(int32_t* out, int n) {
+  (void)out;
+  (void)n;
+  return 0;
+}
+
 // Edge-AI camera stub: drain up to `max` queued grayscale bytes (host_feed_image)
 // into `out`. Stands in for the board's DVP camera (hal_zephyr.cpp) so the whole
 // capture -> vision_service -> ai_infer_vision path runs on the PC with no hardware.

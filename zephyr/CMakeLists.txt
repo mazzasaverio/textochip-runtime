@@ -52,6 +52,14 @@ if(CONFIG_TEXTOCHIP_AI)
     ${_tflm_dl}/flatbuffers/include
     ${_tflm_dl}/ruy
   )
+  # Optimized CMSIS-NN kernels on Cortex-M (int8 conv/depthwise/fc/pool run on
+  # the DSP extension — bench: the reference-kernel invoke took ~846 ms/window on
+  # the DK's M33). The glue keys on this Kconfig symbol; we include the glue
+  # manually (the tflite-micro module isn't in the NCS manifest), so set the
+  # trigger at CMake level and enable the CMSIS-NN module ops in prj.conf.
+  if(CONFIG_CPU_CORTEX_M)
+    set(CONFIG_TENSORFLOW_LITE_MICRO_CMSIS_NN_KERNELS TRUE)
+  endif()
   include(${ZEPHYR_BASE}/modules/tflite-micro/CMakeLists.txt)
   # The glue compiles TFLM into its own library; link it into the app image
   # (app's ai_host.cpp references the interpreter / kernels / MicroPrintf).

@@ -73,6 +73,11 @@ extern "C" int ai_num_classes(void) {
 static int infer_raw(const float* features, int n_features, float* out_conf) {
   if (!ensure_init()) return -1;
   TfLiteTensor* input = g_interp->input(0);
+  // Defensive: a null tensor/data means the interpreter is not in the state we
+  // think (e.g. a build-flag mismatch corrupting struct offsets — seen on the
+  // DK when the TFLM lib lacked TF_LITE_STATIC_MEMORY). Fail as "no class"
+  // instead of bus-faulting the whole VM.
+  if (!input || !input->data.int8) return -1;
   const float scale = input->params.scale;
   const int zp = input->params.zero_point;
   const int in_count = input->bytes;  // int8

@@ -56,4 +56,17 @@ if(CONFIG_TEXTOCHIP_AI)
   # The glue compiles TFLM into its own library; link it into the app image
   # (app's ai_host.cpp references the interpreter / kernels / MicroPrintf).
   target_link_libraries(app PRIVATE modules__tflite-micro)
+  # CRITICAL: the lib and every TU that includes TFLM headers must agree on
+  # TF_LITE_STATIC_MEMORY — it changes the TfLiteTensor STRUCT LAYOUT. The
+  # Zephyr glue builds the lib WITHOUT it, while ai_host.cpp defines it (and
+  # TFLM's own Makefile, which the host build uses, always defines it). The
+  # mismatch made interp.input(0) field reads land on wrong offsets -> a
+  # garbage tensor data pointer -> a bus fault on the FIRST on-device
+  # inference (bench-proven on the nRF54LM20 DK, 2026-07-14).
+  target_compile_definitions(modules__tflite-micro PRIVATE TF_LITE_STATIC_MEMORY)
+  # Static-memory mode requires -fno-exceptions (as TFLM's own Makefile sets):
+  # TF_LITE_REMOVE_VIRTUAL_DELETE makes each planner's operator delete private,
+  # and with exceptions ON the placement-new cleanup lookup in micro_allocator
+  # trips over it ("operator delete is private"). The glue only sets -fno-rtti.
+  target_compile_options(modules__tflite-micro PRIVATE -fno-exceptions)
 endif()

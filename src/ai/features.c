@@ -1,6 +1,16 @@
 // MFCC feature extraction — the on-device mirror of textochip-ml's Python MFCC.
 // See features.h. Plain C + <math.h>; double internally for parity with NumPy,
 // float output. Fixed upper bounds keep it heap-free for the MCU.
+//
+// SCRATCH IS STATIC, NOT STACK (bench lesson, nRF54LM20 DK 2026-07-14): at the
+// old caps the locals (win + fb + dct + re/im) added up to ~300 KB of stack and
+// the FIRST on-device inference blew the 8 KB main-thread stack with a usage
+// fault — host builds never see it (MB-sized stacks). The buffers are now
+// `static` (this makes tcml_mfcc NON-REENTRANT — fine: the one on-device caller
+// is the ai_service on the main loop, and host tests call it sequentially), and
+// the caps are the shipped model's envelope (n_fft 512, 40 mels, 16 MFCC,
+// 30 ms frame = 480 samples), giving ~100 KB of .bss. The MATH is untouched:
+// storage class and bounds only, so the Python golden-vector parity holds.
 #include "features.h"
 
 #include <math.h>
@@ -10,10 +20,10 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-#define MAX_NFFT 1024
-#define MAX_NMELS 64
-#define MAX_NMFCC 32
-#define MAX_FRAME 1024
+#define MAX_NFFT 512
+#define MAX_NMELS 40
+#define MAX_NMFCC 16
+#define MAX_FRAME 512
 
 TcmlFeatureParams tcml_default_params(void) {
   TcmlFeatureParams p;
@@ -119,22 +129,23 @@ int tcml_mfcc(const float* signal, int n_samples, const TcmlFeatureParams* p,
   const int n_frames = 1 + (n_samples - fl) / hop;
 
   // Hamming window (NumPy: 0.54 - 0.46 cos(2*pi*n/(N-1))).
-  double win[MAX_FRAME];
+  // static: see the file header — these five buffers used to be ~300 KB of stack.
+  static double win[MAX_FRAME];
   for (int n = 0; n < fl; n++)
     win[n] = 0.54 - 0.46 * cos(2.0 * M_PI * n / (double)(fl - 1));
 
-  double fb[MAX_NMELS * (MAX_NFFT / 2 + 1)];
+  static double fb[MAX_NMELS * (MAX_NFFT / 2 + 1)];
   build_filterbank(p, fb, n_bins);
 
   // Orthonormal DCT-II basis (K x M).
-  double dct[MAX_NMFCC * MAX_NMELS];
+  static double dct[MAX_NMFCC * MAX_NMELS];
   for (int k = 0; k < K; k++) {
     double scale = sqrt(2.0 / M) * (k == 0 ? 1.0 / sqrt(2.0) : 1.0);
     for (int m = 0; m < M; m++)
       dct[k * M + m] = cos(M_PI * (2 * m + 1) * k / (2.0 * M)) * scale;
   }
 
-  double re[MAX_NFFT], im[MAX_NFFT];
+  static double re[MAX_NFFT], im[MAX_NFFT];
   for (int f = 0; f < n_frames; f++) {
     const int start = f * hop;
     // pre-emphasis (applied across the signal) + window, into the FFT buffer.

@@ -23,9 +23,9 @@ typedef struct {
   float window_ms;
   float frame_ms;
   float hop_ms;
-  int n_fft;     // must be a power of two (<= 1024)
-  int n_mels;    // <= 64
-  int n_mfcc;    // <= 32
+  int n_fft;     // must be a power of two (<= 512 — the static-scratch caps in features.c)
+  int n_mels;    // <= 40
+  int n_mfcc;    // <= 16
   float fmin;
   float fmax;
   float pre_emphasis;

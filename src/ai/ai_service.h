@@ -35,6 +35,10 @@ int lastLevel();
 // Timing (ms) of the last inference: feature extraction vs model invoke.
 void lastTiming(int* mfccMs, int* inferMs);
 
+// AGC gain applied to the last analysed window, x10 (10 = no gain). The input
+// conditioner scales quiet real-mic speech up into the training loudness band.
+int lastGainX10();
+
 }  // namespace ai_service
 
 #endif  // TEXTOCHIP_AI_AI_SERVICE_H

@@ -260,10 +260,12 @@ void runtime::tick() {
         const char* name = (top > 0 && top < kNum) ? kVoiceLabels[top] : "background";
         int mfccMs = 0, inferMs = 0;
         ai_service::lastTiming(&mfccMs, &inferMs);
+        int gx10 = ai_service::lastGainX10();
         hal::serialWriteLine("mic: level=" + std::to_string(ai_service::lastLevel()) +
-                             " top=" + name + " " + std::to_string(pct) + "% mfcc=" +
-                             std::to_string(mfccMs) + "ms infer=" + std::to_string(inferMs) +
-                             "ms");
+                             " gain=" + std::to_string(gx10 / 10) + "." +
+                             std::to_string(gx10 % 10) + " top=" + name + " " +
+                             std::to_string(pct) + "% mfcc=" + std::to_string(mfccMs) +
+                             "ms infer=" + std::to_string(inferMs) + "ms");
       }
     }
   } else if (aiRunning) {

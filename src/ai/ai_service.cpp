@@ -28,7 +28,8 @@ int g_hop = 0;   // slide between inferences (samples)
 int g_have = 0;  // valid samples currently held in g_signal
 bool g_ready = false;
 
-float g_signal[kMaxSamples];  // the rolling window, float ~ -1..1 (the MFCC input)
+float g_signal[kMaxSamples];  // the rolling window, float ~ -1..1 (raw mic units)
+float g_proc[kMaxSamples];    // DC-removed + gained copy — the actual MFCC input
 float g_feat[kMaxFeat];       // MFCC output (n_frames * n_mfcc)
 int16_t g_scratch[kChunk];    // small drain buffer for hal::aiCapture
 
@@ -45,6 +46,23 @@ int g_lastLevel = 0;
 // M33) taking ~seconds. See the mic heartbeat in runtime.cpp.
 int g_lastMfccMs = 0;
 int g_lastInferMs = 0;
+// AGC gain applied to the last analysed window (x10 fixed point for the log).
+int g_lastGainX10 = 10;
+
+// ── Input conditioning: DC removal + conditional AGC (bench root-cause,
+// 2026-07-15). The training clips (make_voice_model.py) are Piper TTS speech
+// placed at gain 0.4–1.0 of full scale over a 0.004–0.03 noise floor; a real
+// INMP441 delivers speech around 0.01–0.06 FS — INSIDE the training noise band,
+// so the model correctly answered "background" to every real spoken word
+// (bench: background 97%→84% dip on a shout, never a word). The fix is the
+// standard KWS front-end move: per analysis window, subtract the mean (the mic
+// has a DC pedestal that would otherwise dominate the peak) and scale the PEAK
+// up to the training band. NEVER attenuate (gain floor 1.0): training-loud
+// audio — like the host tests' TTS clips — passes through untouched, so this
+// stage is a no-op exactly where the old behavior was already right.
+constexpr float kAgcTargetPeak = 0.6f;  // mid training band (clips used 0.4–1.0)
+constexpr float kAgcMaxGain = 40.0f;    // cap: silence must not become fake speech
+constexpr float kAgcMinPeak = 1e-4f;    // below this it's a dead line — leave it
 
 }  // namespace
 
@@ -59,6 +77,8 @@ void ai_service::lastTiming(int* mfccMs, int* inferMs) {
 }
 
 int ai_service::lastLevel() { return g_lastLevel; }
+
+int ai_service::lastGainX10() { return g_lastGainX10; }
 
 void ai_service::reset() {
   g_params = tcml_default_params();
@@ -93,8 +113,34 @@ int ai_service::poll() {
     for (int i = 0; i < g_win; i++) sumabs += g_signal[i] < 0 ? -g_signal[i] : g_signal[i];
     g_lastLevel = (int)(sumabs / (float)g_win * 32768.0f);
   }
+  // Condition a COPY of the window (g_proc): DC-remove + conditional AGC (see
+  // the constants above). Never in place — the window SLIDES, and re-gaining
+  // the kept 3/4 next round would compound the gain.
+  {
+    float mean = 0.0f;
+    for (int i = 0; i < g_win; i++) mean += g_signal[i];
+    mean /= (float)g_win;
+    float peak = 0.0f;
+    for (int i = 0; i < g_win; i++) {
+      float a = g_signal[i] - mean;
+      if (a < 0) a = -a;
+      if (a > peak) peak = a;
+    }
+    float gain = 1.0f;
+    if (peak > kAgcMinPeak && peak < kAgcTargetPeak) {
+      gain = kAgcTargetPeak / peak;
+      if (gain > kAgcMaxGain) gain = kAgcMaxGain;
+    }
+    g_lastGainX10 = (int)(gain * 10.0f + 0.5f);
+    for (int i = 0; i < g_win; i++) {
+      float v = (g_signal[i] - mean) * gain;
+      if (v > 1.0f) v = 1.0f;
+      if (v < -1.0f) v = -1.0f;
+      g_proc[i] = v;
+    }
+  }
   uint32_t t0 = hal::nowMs();
-  int nf = tcml_mfcc(g_signal, g_win, &g_params, g_feat);
+  int nf = tcml_mfcc(g_proc, g_win, &g_params, g_feat);
   uint32_t t1 = hal::nowMs();
   g_lastMfccMs = (int)(t1 - t0);
   int cls = 0;

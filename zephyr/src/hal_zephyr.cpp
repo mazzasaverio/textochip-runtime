@@ -217,8 +217,10 @@ static int mic_dc = 0;
 // until it lands in the sane band. DROP is allowed from RUNNING and purges the
 // queue; START re-arms it.
 static bool mic_arm(void) {
-  const int kSaneAbsDc = 2500;  // good sessions sit ~1.5k; one bit of shift ~3.1k
-  for (int attempt = 0; attempt < 8; attempt++) {
+  const int kSaneAbsDc = 2000;  // good sessions sit ~1.5k; one bit of shift ~3.1k
+                                // (2500 let a ~2.8k roll through — its doubled
+                                // noise floor drowned quiet words; bench 2026-07-15)
+  for (int attempt = 0; attempt < 12; attempt++) {
     if (attempt > 0) {
       i2s_trigger(i2s_mic, I2S_DIR_RX, I2S_TRIGGER_DROP);
     }

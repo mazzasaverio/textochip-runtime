@@ -39,6 +39,10 @@ void lastTiming(int* mfccMs, int* inferMs);
 // conditioner scales quiet real-mic speech up into the training loudness band.
 int lastGainX10();
 
+// Envelope (max 10 ms block mean-abs, x1000) the AGC keyed on for the last
+// window — for bench tuning of the silence gate / target.
+int lastEnvX1000();
+
 }  // namespace ai_service
 
 #endif  // TEXTOCHIP_AI_AI_SERVICE_H

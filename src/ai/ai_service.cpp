@@ -48,21 +48,33 @@ int g_lastMfccMs = 0;
 int g_lastInferMs = 0;
 // AGC gain applied to the last analysed window (x10 fixed point for the log).
 int g_lastGainX10 = 10;
+// Envelope (max 10 ms block mean-abs, x1000) of the last window — the loudness
+// the AGC keyed on; lets the bench tune the silence gate + target empirically.
+int g_lastEnvX1000 = 0;
 
-// ── Input conditioning: DC removal + conditional AGC (bench root-cause,
+// ── Input conditioning: high-pass + envelope AGC (bench root-cause,
 // 2026-07-15). The training clips (make_voice_model.py) are Piper TTS speech
 // placed at gain 0.4–1.0 of full scale over a 0.004–0.03 noise floor; a real
 // INMP441 delivers speech around 0.01–0.06 FS — INSIDE the training noise band,
 // so the model correctly answered "background" to every real spoken word
-// (bench: background 97%→84% dip on a shout, never a word). The fix is the
-// standard KWS front-end move: per analysis window, subtract the mean (the mic
-// has a DC pedestal that would otherwise dominate the peak) and scale the PEAK
-// up to the training band. NEVER attenuate (gain floor 1.0): training-loud
-// audio — like the host tests' TTS clips — passes through untouched, so this
-// stage is a no-op exactly where the old behavior was already right.
-constexpr float kAgcTargetPeak = 0.6f;  // mid training band (clips used 0.4–1.0)
-constexpr float kAgcMaxGain = 40.0f;    // cap: silence must not become fake speech
-constexpr float kAgcMinPeak = 1e-4f;    // below this it's a dead line — leave it
+// (bench: background 97%→84% dip on a shout, never a word). Three stages:
+//   1. one-pole HIGH-PASS (~13 Hz): kills the mic's DC pedestal AND its slow
+//      wander (mean-subtraction alone left ±0.1 FS of drift in the window,
+//      which capped a peak-based gain at ~3x — bench-measured). Content below
+//      20 Hz never reaches the features anyway (mel fmin = 20 Hz).
+//   2. envelope AGC: gain = target / max(10 ms mean-abs) — block mean-abs is
+//      immune to the isolated rail spikes a marginal pin contact injects
+//      (a single-sample spike would cap a raw-peak gain).
+//   3. silence gate: below kAgcSilenceEnv the window stays untouched, so a
+//      quiet room is NOT amplified into fake loud noise.
+// NEVER attenuate (gain floor 1.0): training-loud audio — like the host tests'
+// TTS clips — passes through unchanged, so this stage is a no-op exactly where
+// the old behavior was already right.
+constexpr float kAgcTargetEnv = 0.15f;   // Piper speech env at training gains
+constexpr float kAgcMaxGain = 60.0f;     // cap
+constexpr float kAgcSilenceEnv = 0.005f; // below this = silence, leave it alone
+constexpr float kHpfPole = 0.995f;       // ~13 Hz @ 16 kHz
+constexpr int kEnvBlock = 160;           // 10 ms @ 16 kHz
 
 }  // namespace
 
@@ -79,6 +91,8 @@ void ai_service::lastTiming(int* mfccMs, int* inferMs) {
 int ai_service::lastLevel() { return g_lastLevel; }
 
 int ai_service::lastGainX10() { return g_lastGainX10; }
+
+int ai_service::lastEnvX1000() { return g_lastEnvX1000; }
 
 void ai_service::reset() {
   g_params = tcml_default_params();
@@ -113,30 +127,40 @@ int ai_service::poll() {
     for (int i = 0; i < g_win; i++) sumabs += g_signal[i] < 0 ? -g_signal[i] : g_signal[i];
     g_lastLevel = (int)(sumabs / (float)g_win * 32768.0f);
   }
-  // Condition a COPY of the window (g_proc): DC-remove + conditional AGC (see
-  // the constants above). Never in place — the window SLIDES, and re-gaining
-  // the kept 3/4 next round would compound the gain.
+  // Condition a COPY of the window (g_proc): high-pass + envelope AGC (see the
+  // constants above). Never in place — the window SLIDES, and re-gaining the
+  // kept 3/4 next round would compound the gain.
   {
-    float mean = 0.0f;
-    for (int i = 0; i < g_win; i++) mean += g_signal[i];
-    mean /= (float)g_win;
-    float peak = 0.0f;
-    for (int i = 0; i < g_win; i++) {
-      float a = g_signal[i] - mean;
-      if (a < 0) a = -a;
-      if (a > peak) peak = a;
+    // 1. one-pole HPF: y[n] = x[n] - x[n-1] + pole*y[n-1]
+    float py = 0.0f;
+    g_proc[0] = 0.0f;
+    for (int i = 1; i < g_win; i++) {
+      py = g_signal[i] - g_signal[i - 1] + kHpfPole * py;
+      g_proc[i] = py;
     }
+    // 2. envelope: max of 10 ms block mean-abs (spike-immune loudness estimate)
+    float envMax = 0.0f;
+    for (int b = 0; b + kEnvBlock <= g_win; b += kEnvBlock) {
+      float m = 0.0f;
+      for (int i = b; i < b + kEnvBlock; i++) m += g_proc[i] < 0 ? -g_proc[i] : g_proc[i];
+      m /= (float)kEnvBlock;
+      if (m > envMax) envMax = m;
+    }
+    g_lastEnvX1000 = (int)(envMax * 1000.0f + 0.5f);
+    // 3. gain (silence-gated, never attenuate, capped) + clip
     float gain = 1.0f;
-    if (peak > kAgcMinPeak && peak < kAgcTargetPeak) {
-      gain = kAgcTargetPeak / peak;
+    if (envMax > kAgcSilenceEnv && envMax < kAgcTargetEnv) {
+      gain = kAgcTargetEnv / envMax;
       if (gain > kAgcMaxGain) gain = kAgcMaxGain;
     }
     g_lastGainX10 = (int)(gain * 10.0f + 0.5f);
-    for (int i = 0; i < g_win; i++) {
-      float v = (g_signal[i] - mean) * gain;
-      if (v > 1.0f) v = 1.0f;
-      if (v < -1.0f) v = -1.0f;
-      g_proc[i] = v;
+    if (gain != 1.0f) {
+      for (int i = 0; i < g_win; i++) {
+        float v = g_proc[i] * gain;
+        if (v > 1.0f) v = 1.0f;
+        if (v < -1.0f) v = -1.0f;
+        g_proc[i] = v;
+      }
     }
   }
   uint32_t t0 = hal::nowMs();

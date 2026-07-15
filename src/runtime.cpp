@@ -262,6 +262,7 @@ void runtime::tick() {
         ai_service::lastTiming(&mfccMs, &inferMs);
         int gx10 = ai_service::lastGainX10();
         hal::serialWriteLine("mic: level=" + std::to_string(ai_service::lastLevel()) +
+                             " env=" + std::to_string(ai_service::lastEnvX1000()) +
                              " gain=" + std::to_string(gx10 / 10) + "." +
                              std::to_string(gx10 % 10) + " top=" + name + " " +
                              std::to_string(pct) + "% mfcc=" + std::to_string(mfccMs) +

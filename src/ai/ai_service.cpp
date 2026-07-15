@@ -73,6 +73,15 @@ int g_lastSpikes = 0;
 // once (the slider catching the word's tail). The candidate from the previous
 // completed inference:
 int g_candidate = 0;
+// Refractory period: after a word FIRES, suppress further detections for this
+// many completed inferences (~0.25 s each). The tail of the utterance + the
+// room echo keep sliding through the next windows and their fragments match
+// OTHER words with high confidence — bench: one shouted "go" fired go 99%,
+// then phantom "stop 78%" and "left 82%" over the next seconds, so the robot
+// started, stopped and curved on a single command. Real consecutive commands
+// are slower than this window.
+constexpr int kRefractoryInferences = 5;  // ~1.25 s
+int g_refractory = 0;
 
 // ── Input conditioning: high-pass + envelope AGC (bench root-cause,
 // 2026-07-15). The training clips (make_voice_model.py) are Piper TTS speech
@@ -129,6 +138,7 @@ void ai_service::reset() {
   if (g_hop < 1) g_hop = 1;
   g_have = 0;
   g_candidate = 0;
+  g_refractory = 0;
   g_ready = true;
 }
 
@@ -239,6 +249,13 @@ int ai_service::poll() {
     // agreeing on the class (see kStrongConfidence)
     cls = (gated > 0 && (conf >= kStrongConfidence || gated == g_candidate)) ? gated : 0;
     g_candidate = gated;
+    if (g_refractory > 0) {
+      g_refractory--;
+      cls = 0;  // utterance tail / echo — see kRefractoryInferences
+      g_candidate = 0;
+    } else if (cls > 0) {
+      g_refractory = kRefractoryInferences;
+    }
   } else {
     g_lastTop = -1;
     g_lastConf = 0.0f;

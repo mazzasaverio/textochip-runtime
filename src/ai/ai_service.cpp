@@ -25,6 +25,12 @@ constexpr int kChunk = 256;         // samples drained per poll (~one I2S DMA bl
 // spoken "go" at normal voice scores ~0.50-0.52. The gate moves down and a
 // DEBOUNCE (below) supplies the robustness the higher gate used to.
 constexpr float kMinConfidence = 0.45f;
+// A detection at/above this fires IMMEDIATELY (no debounce): bench data shows
+// real words often score 88-99% in a single window, and waiting for the second
+// window made the robot feel deaf when the word straddled a boundary (one
+// strong window + one weak -> no confirmation -> the user repeats himself).
+// Spurious one-off detections observed so far sit at 31-53% — far below.
+constexpr float kStrongConfidence = 0.75f;
 
 TcmlFeatureParams g_params;
 int g_win = 0;   // analysis window length (samples)
@@ -229,8 +235,9 @@ int ai_service::poll() {
     g_lastTop = top;
     g_lastConf = conf;
     int gated = (top > 0 && conf >= kMinConfidence) ? top : 0;
-    // debounce: fire only on the second consecutive window agreeing on the class
-    cls = (gated > 0 && gated == g_candidate) ? gated : 0;
+    // strong detections fire at once; weak ones need two consecutive windows
+    // agreeing on the class (see kStrongConfidence)
+    cls = (gated > 0 && (conf >= kStrongConfidence || gated == g_candidate)) ? gated : 0;
     g_candidate = gated;
   } else {
     g_lastTop = -1;

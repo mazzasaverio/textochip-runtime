@@ -598,3 +598,24 @@ is now `y` in the board conf. Remaining: wire the INMP441 and confirm a spoken
 word drives the wheels (may need a clock-divider / gain tweak — the host test
 used clean audio). The AI service runs in the runtime pump (`ai_service::poll()`
 in runtime.cpp), no extra thread.
+
+## Voice bring-up DONE on the DK (2026-07-14/15) + the Axon-NPU adoption
+
+Voice now drives the wheels on the real DK, end to end. The bench lessons, in order:
+
+- **The TDM mic MUST be on PORT 1** (`SCK P1.23 / FSYNC P1.14 / SDIN P1.31`). On `nrf54lm20a`
+  the TDM silently no-ops on P2 pads — `i2s_configure`/`trigger` return 0 and the DMA fills
+  blocks, but the clock never leaves the pin (proved with the new `MICPINS` pad probe: `sck tog=0`
+  on P2, thousands on P1). Nordic's own i2s tests use these exact P1 pins.
+- **On-device inference performance** (host builds hide all of it): the MFCC ran in **double** =
+  software float on the M33 → 2740 ms; float32 + `CONFIG_FPU=y` (Zephyr default-OFF) → 119 ms;
+  CMSIS-NN kernels → invoke 846 → 37 ms. Plus a stack overflow (MFCC scratch → static), a TFLM
+  `TF_LITE_STATIC_MEMORY` lib/app flag mismatch (bus fault), and a 4→24 block DMA pool (the small
+  pool overran during every inference stall). See runtime `docs/edge-ai.md`.
+- **The Axon NPU (nRF54LM20B).** Our DK is the **B** chip (FICR `INFO.PART = 0x054BC20B`), so it
+  has the Axon NPU. We adopted **Nordic's nRF Edge AI Add-on** (`sdk-edge-ai` v2.2.0, pins the
+  same NCS v3.4.0): its `ww_kws` model runs on the Axon at **1–12 ms/inference**, trained on
+  thousands of speakers. `ai_nrf_edgeai.cpp` implements our `ai_service::` interface against it, so
+  the `nrf54lm20b` build (`-DEXTRA_ZEPHYR_MODULES=<sdk-edge-ai>`, `&axon` + `NRF_EDGEAI` + `NRF_AXON`
+  in the board conf) swaps the classifier behind `VOICE()` with zero change to the bytecode or the
+  BASIC programs. Policy: **B chip → Nordic Axon backend; A chip / ESP32 → our TFLM backend.**

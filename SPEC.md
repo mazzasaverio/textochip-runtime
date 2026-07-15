@@ -141,8 +141,16 @@ parsing.
 | `OVERRIDE <instr>`  | execute one instruction immediately            | `OK` / `ERROR`              |
 | `SAVE`              | persist the loaded bytecode to flash + arm autorun | `OK: saved` / `ERROR: …`    |
 | `CLEAR`             | forget the saved program (disable autorun)     | `OK: cleared`               |
-| `MIC` (debug)       | sample the mic + report its level — bench aid to confirm the I2S/TDM mic is alive. The trailing `[…]` is the capture-start diagnostic (device-ready + i2s_configure/i2s_trigger return codes): `n>0` with `level=0` means the peripheral runs but no audio reaches the data pin (wiring/power); `started=0` means the driver rejected the config | `OK: mic n=N peak=P level=L [started=.. ready=.. cfg=.. trg=..]` |
+| `MIC` (debug)       | sample the mic + report its level — bench aid to confirm the I2S/TDM mic is alive. The trailing `[…]` is the capture-start diagnostic (device-ready + i2s_configure/i2s_trigger return codes + start DC): `n>0` with `level=0` means the peripheral runs but no audio reaches the data pin (wiring/power); `started=0` means the driver rejected the config | `OK: mic n=N peak=P level=L [started=.. ready=.. cfg=.. trg=.. dc=..]` |
+| `MICRAW` (debug)    | dump both mic channels + first raw words — tells a left/right channel-select mismatch (data on the R slot) from a dead data pin (all zero) | `OK: micraw words=N Lpeak=.. Rpeak=.. first: (L,R)…` |
+| `MICPINS` (debug)   | count toggles on the mic's SCK/WS/SD pads while capturing — proves whether the bit clock physically leaves the chip (`sck tog=0` while "capturing" = the pin mux no-ops on that GPIO port; caught the nRF54L "TDM can't drive P2 pads" gotcha) | `OK: micpins pads sck=P… tog=.. ws=… sd=…` |
 | (boot)              | if a saved program exists, load + run it (PC-unplugged autonomy) | `READY` then `OK: autorun N` |
+
+While a **voice program runs**, the firmware streams edge-AI feedback on the console: a heartbeat
+every ~2 s (`mic: level=… env=… gain=… spk=… top=<label> NN% mfcc=…ms infer=…ms`) so a silent mic
+is visible at a glance, plus a `VOICE: <word> NN%` line on each accepted detection (and
+`voice? <word> NN% (…)` for one rejected by the confidence gate / lockout). These are diagnostics,
+not part of the machine-parsed reply protocol.
 
 `SAVE` persists exactly the raw bytecode just received via `LOAD` (one slot — a
 new save overwrites it); on boot the firmware reloads + runs it, so the board is

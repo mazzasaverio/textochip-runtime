@@ -19,16 +19,25 @@ src/        portable core, shared by ALL targets (no hardware calls here)
   isa.{h,cpp}      opcode parsing (31 opcodes)
   vm.{h,cpp}       the tick-based bytecode VM
   runtime.{h,cpp}  serial protocol + VM driver
-  ai/              edge-AI: MFCC features (C), TFLM inference, voice/vision services
+  ai/              edge-AI: mic capture -> the ai_service:: interface -> VOICE().
+                   TWO interchangeable classifier backends (CMake picks one):
+                     ai_service.cpp     MFCC (features.c) + int8 TFLite Micro  [host/ESP32/nRF54L-A]
+                     ai_nrf_edgeai.cpp  Nordic nRF Edge AI on the Axon NPU      [nRF54LM20B]
   mission.h, semaforo.h, pianola.h, registry.cpp   legacy native missions (CALL)
 host/       PC build (plain g++): run and test the VM with no board
 zephyr/     Zephyr application build
   src/hal_zephyr.cpp   the HAL on Zephyr (gpio / pwm / uart / i2s / nvs)
   prj.conf             board-agnostic config
-  boards/              per-board config + devicetree overlays (ESP32-S3, Nordic DK)
-  Kconfig              CONFIG_TEXTOCHIP_AI gate (links TFLM + the AI services)
-third_party/tflite-micro   submodule, only needed for the AI paths
+  boards/              per-board config + devicetree overlays (ESP32-S3, Nordic DK A + B)
+  Kconfig              CONFIG_TEXTOCHIP_AI (edge-AI service) + _NRF_EDGEAI (Axon backend)
+third_party/tflite-micro   submodule, only needed for the TFLM backend
 ```
+
+**Voice is live on the Nordic DK.** `IF VOICE()="go" THEN MOVE 180 180` drives the robot's
+wheels from a spoken word — verified end-to-end on the nRF54LM20 DK (INMP441 I2S mic on the TDM
+peripheral). On the **B** chip the classifier is Nordic's Axon-NPU KWS model (~1–12 ms/inference,
+trained on thousands of speakers); on the A chip / ESP32 it is our own MFCC + TFLite-Micro model.
+Same `VOICE()` bytecode either way. See [`docs/edge-ai.md`](docs/edge-ai.md).
 
 ## Run on the PC (no toolchain needed beyond g++)
 

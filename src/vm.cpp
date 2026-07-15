@@ -47,6 +47,12 @@ void VM::start() {
 void VM::stop() {
   state = VM_STOPPED;
   stopActuators();
+  // Release the edge-AI services: aiActive/visionActive latch on the first
+  // INFER and, without this, the mic/camera service kept running (and logging
+  // detections) after STOP — bench-observed as phantom "voice?" lines on a
+  // stopped program. The next RUN re-arms them via INFER.
+  aiActive = false;
+  visionActive = false;
 }
 
 void VM::execOne(const Instruction& in) { step(in); }

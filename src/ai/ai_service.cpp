@@ -82,6 +82,20 @@ int g_candidate = 0;
 // are slower than this window.
 constexpr int kRefractoryInferences = 5;  // ~1.25 s
 int g_refractory = 0;
+// Posterior smoothing (Chen et al., "Small-footprint KWS using DNNs"): decisions
+// run on a MOVING AVERAGE of the class posteriors over the last kSmooth windows,
+// not on each raw window — raw posteriors are noisy and a single flukey window
+// used to steer the whole decision. Ring buffer of the last vectors:
+constexpr int kMaxClasses = 8;
+constexpr int kSmooth = 3;
+float g_probRing[kSmooth][kMaxClasses];
+int g_probCount = 0;  // vectors currently in the ring (reset() clears)
+// Motion-aware stop gate: while the robot is DRIVING, "stop" fires at this low
+// bar, immediately (a false stop is cheap; an unstoppable robot is not). The
+// voice model's class order is the labels.json contract (background,go,left,
+// right,stop) — stop = 4.
+constexpr int kStopClass = 4;
+constexpr float kMovingStopConfidence = 0.30f;
 
 // ── Input conditioning: high-pass + envelope AGC (bench root-cause,
 // 2026-07-15). The training clips (make_voice_model.py) are Piper TTS speech
@@ -128,6 +142,8 @@ int ai_service::lastEnvX1000() { return g_lastEnvX1000; }
 
 int ai_service::lastSpikes() { return g_lastSpikes; }
 
+bool ai_service::inRefractory() { return g_refractory > 0; }
+
 int ai_service::gatePct() { return (int)(kMinConfidence * 100.0f + 0.5f); }
 
 void ai_service::reset() {
@@ -139,6 +155,7 @@ void ai_service::reset() {
   g_have = 0;
   g_candidate = 0;
   g_refractory = 0;
+  g_probCount = 0;
   g_ready = true;
 }
 
@@ -239,22 +256,54 @@ int ai_service::poll() {
   g_lastMfccMs = (int)(t1 - t0);
   int cls = 0;
   if (nf > 0) {
-    float conf = 0.0f;
-    int top = ai_infer_top(g_feat, nf * g_params.n_mfcc, &conf);
+    float probs[kMaxClasses] = {0};
+    int nc = ai_infer_probs(g_feat, nf * g_params.n_mfcc, probs, kMaxClasses);
     g_lastInferMs = (int)(hal::nowMs() - t1);
-    g_lastTop = top;
-    g_lastConf = conf;
-    int gated = (top > 0 && conf >= kMinConfidence) ? top : 0;
-    // strong detections fire at once; weak ones need two consecutive windows
-    // agreeing on the class (see kStrongConfidence)
-    cls = (gated > 0 && (conf >= kStrongConfidence || gated == g_candidate)) ? gated : 0;
-    g_candidate = gated;
-    if (g_refractory > 0) {
-      g_refractory--;
-      cls = 0;  // utterance tail / echo — see kRefractoryInferences
-      g_candidate = 0;
-    } else if (cls > 0) {
-      g_refractory = kRefractoryInferences;
+    if (nc > 0) {
+      // slide the ring + compute the smoothed posterior
+      for (int k = kSmooth - 1; k > 0; k--) {
+        for (int c = 0; c < nc; c++) g_probRing[k][c] = g_probRing[k - 1][c];
+      }
+      for (int c = 0; c < nc; c++) g_probRing[0][c] = probs[c];
+      if (g_probCount < kSmooth) g_probCount++;
+      float sm[kMaxClasses] = {0};
+      for (int k = 0; k < g_probCount; k++) {
+        for (int c = 0; c < nc; c++) sm[c] += g_probRing[k][c];
+      }
+      int top = 0;
+      for (int c = 1; c < nc; c++) {
+        if (sm[c] > sm[top]) top = c;
+      }
+      float conf = sm[top] / (float)g_probCount;
+      g_lastTop = top;
+      g_lastConf = conf;
+      int gated = (top > 0 && conf >= kMinConfidence) ? top : 0;
+      // strong detections fire at once; weak ones need two consecutive windows
+      // agreeing on the class (see kStrongConfidence)
+      cls = (gated > 0 && (conf >= kStrongConfidence || gated == g_candidate)) ? gated : 0;
+      g_candidate = gated;
+      // Motion-aware stop: while driving, the CURRENT window's stop posterior
+      // alone (un-smoothed — latency matters when the robot is rolling toward a
+      // wall) clears a much lower bar and bypasses the debounce.
+      if (cls == 0 && hal::isMoving() && nc > kStopClass &&
+          probs[kStopClass] >= kMovingStopConfidence) {
+        cls = kStopClass;
+        g_lastTop = kStopClass;
+        g_lastConf = probs[kStopClass];
+      }
+      if (g_refractory > 0) {
+        g_refractory--;
+        // utterance tail / echo — see kRefractoryInferences. A moving-robot STOP
+        // is exempt: it must never wait out a lockout.
+        if (!(cls == kStopClass && hal::isMoving())) {
+          cls = 0;
+          g_candidate = 0;
+        }
+      }
+      if (cls > 0) g_refractory = kRefractoryInferences;
+    } else {
+      g_lastTop = -1;
+      g_lastConf = 0.0f;
     }
   } else {
     g_lastTop = -1;

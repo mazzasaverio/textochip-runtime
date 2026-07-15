@@ -105,6 +105,8 @@ void servo(int pin, int angle) {
 // Differential-drive motors — host edition just prints the wheel speeds (no real
 // motors on a PC). The in-browser simulator drives a robot from MOVE; the board
 // build (hal_zephyr.cpp) drives the L298N.
+bool isMoving() { return g_moveL != 0 || g_moveR != 0; }
+
 void move(int left, int right) {
   auto clamp = [](int v) { return v < -255 ? -255 : v > 255 ? 255 : v; };
   int l = clamp(left), r = clamp(right);

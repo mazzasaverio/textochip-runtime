@@ -121,3 +121,14 @@ extern "C" int ai_infer_conf(const float* features, int n_features, float min_co
 extern "C" int ai_infer_top(const float* features, int n_features, float* out_conf) {
   return infer_raw(features, n_features, out_conf);
 }
+
+extern "C" int ai_infer_probs(const float* features, int n_features, float* out_probs,
+                              int max_classes) {
+  if (infer_raw(features, n_features, nullptr) < 0) return -1;
+  const TfLiteTensor* output = g_interp->output(0);
+  const int n = (int)output->bytes < max_classes ? (int)output->bytes : max_classes;
+  for (int i = 0; i < n; i++) {
+    out_probs[i] = (output->data.int8[i] - output->params.zero_point) * output->params.scale;
+  }
+  return n;
+}

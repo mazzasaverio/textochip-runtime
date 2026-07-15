@@ -244,6 +244,9 @@ void runtime::tick() {
         int pct = (int)(conf * 100.0f + 0.5f);
         if (cls > 0) {
           hal::serialWriteLine(std::string("VOICE: ") + name + " " + std::to_string(pct) + "%");
+        } else if (ai_service::inRefractory()) {
+          hal::serialWriteLine(std::string("voice? ") + name + " " + std::to_string(pct) +
+                               "% (refractory)");
         } else {
           hal::serialWriteLine(std::string("voice? ") + name + " " + std::to_string(pct) +
                                "% (<" + std::to_string(ai_service::gatePct()) + "% or unconfirmed)");

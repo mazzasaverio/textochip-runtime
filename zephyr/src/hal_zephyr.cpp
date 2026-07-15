@@ -394,12 +394,16 @@ static void drive_motor(int in1, int in2, int pwmCh, int v) {
   uint32_t duty = (uint32_t)(v < 0 ? -v : v);
   pwm_set(MOTOR_DEV, pwmCh, 1000000u, 1000000u * duty / 255u, 0);  // ~1 kHz
 }
+static bool g_isMoving = false;
 void move(int left, int right) {
   drive_motor(10, 11, MOTOR_L_CH, left);
   drive_motor(13, 14, MOTOR_R_CH, right);
+  g_isMoving = (left != 0 || right != 0);
 }
+bool isMoving() { return g_isMoving; }
 #else
 void move(int, int) {}  // no motor PWM instance on this board yet
+bool isMoving() { return false; }
 #endif
 #else
 // No pwm node yet → buzzer + servo + motors are no-ops (LEDs/button still work).
@@ -408,6 +412,7 @@ void tone(int, int) {}
 void toneOff(int) {}
 void servo(int, int) {}
 void move(int, int) {}
+bool isMoving() { return false; }
 #endif
 
 // Edge-AI mic capture (INMP441 over I2S). Drains one DMA block if ready, extracts

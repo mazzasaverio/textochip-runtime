@@ -32,6 +32,13 @@ int ai_infer_conf(const float* features, int n_features, float min_conf);
 // *out_conf when non-null.
 int ai_infer_top(const float* features, int n_features, float* out_conf);
 
+// Full dequantized posterior vector (0..1 per class) for one inference — what
+// production KWS post-processing needs: the caller SMOOTHS these over a few
+// windows before thresholding (Chen et al., "Small-footprint KWS using DNNs").
+// Writes up to max_classes probabilities into out_probs; returns the number of
+// classes written, or -1 on error.
+int ai_infer_probs(const float* features, int n_features, float* out_probs, int max_classes);
+
 // Number of output classes the loaded model has (incl. class 0).
 int ai_num_classes(void);
 

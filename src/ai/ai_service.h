@@ -50,6 +50,10 @@ int lastSpikes();
 // The confidence gate as a percentage (for log strings that must not go stale).
 int gatePct();
 
+// True while the post-detection lockout is active (the serial log labels
+// suppressed windows honestly instead of calling them low-confidence).
+bool inRefractory();
+
 }  // namespace ai_service
 
 #endif  // TEXTOCHIP_AI_AI_SERVICE_H

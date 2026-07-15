@@ -34,6 +34,11 @@ void servo(int pin, int angle);
 // the speeds), so the bytecode stays board-generic. 0,0 = stop.
 void move(int left, int right);
 
+// True while the last MOVE left either wheel running. The voice service uses it
+// for a motion-aware "stop" gate: while the robot is driving, stopping must be
+// EASY (a false stop is cheap, an unstoppable robot is not).
+bool isMoving();
+
 // Microphone capture for the edge-AI voice tier. Reads up to `n` new mono samples
 // (signed 16-bit PCM at the model's sample rate, ~16 kHz) from the board's I2S
 // digital mic (e.g. INMP441) into `out`, and returns how many it wrote (0 if none

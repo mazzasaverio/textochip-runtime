@@ -47,6 +47,40 @@ channels), `MICPINS` (pad toggle counts), and the live log lines
 scales by ~2^k between some boots — if real words still miss, auto-realign capture at start until
 the DC lands in the lowest band).
 
+## Backend #2 — Nordic nRF Edge AI on the Axon NPU (nRF54LM20B, 2026-07-15)
+
+The nRF54LM20**B** has the **Axon NPU**, and Nordic ships an official Edge AI stack
+(`github.com/nrfconnect/sdk-edge-ai`) with a professionally-trained wake-word + 10-keyword
+model. For accents/speakers a hand-trained model can't cover, that is the better answer — so on
+the B chip the classifier behind `VOICE()` swaps to it.
+
+**Same interface, one compiled:** `src/ai/ai_nrf_edgeai.cpp` is a second implementation of the
+`ai_service::` interface (the first is `ai_service.cpp`, MFCC + TFLM). CMake compiles exactly one,
+chosen by `CONFIG_TEXTOCHIP_NRF_EDGEAI`; `runtime.cpp`, the `VOICE()`/`INFER` opcodes, and every
+BASIC program are unchanged.
+
+**How it plugs in:** Nordic's model is streaming + end-to-end — fed 160 raw `int16` samples (10 ms)
+at a time, DSP baked in, a 12-class posterior per block on the NPU. We feed it the **same 16 kHz
+mono audio our TDM/INMP441 `aiCapture` already produces** (no PDM mic required), map its keywords
+onto ours (`go/left/right/stop` = 3/4/8/9 → 1/2/3/4), and run Nordic's own tuned post-processor
+(EMA 0.12, per-class threshold 0.8, 10-in-a-row, 10-block lockout — from `applications/ww_kws`).
+
+**Build (needs the add-on as a module; nothing proprietary is copied into this repo):**
+```
+west build -b nrf54lm20dk/nrf54lm20b/cpuapp zephyr -p always \
+    -- -DEXTRA_ZEPHYR_MODULES=$HOME/projects/sdk-edge-ai
+west flash -d build_dk_b -r jlink
+```
+The board `.conf`/`.overlay` for `nrf54lm20b` enable `&axon`, `NRF_EDGEAI`, `NRF_AXON`, and the
+interlayer buffer (6656, per the bundled model). The prebuilt `libnrf_edgeai_cortex-m33.a` + the
+compiled model are referenced from the module, not vendored (LicenseRef-Nordic-5-Clause).
+
+**Verified on the real DK (B):** builds/links (FLASH 24.5 % / RAM 32.2 %), boots (`PONG`), the mic
+captures, and the **Axon runs inference in 1–12 ms/block** (vs 37 ms CMSIS-NN, 107 ms CPU),
+reading `background` when quiet. Open: the live spoken-word test (Nordic's 0.8 threshold wants a
+clear word; an input-gain tweak may be needed if the INMP441's level differs from Nordic's DMIC
+training). The TFLM/DS-CNN path stays as the ESP32 backend + fallback.
+
 ## Spike results — TFLM + the feature contract are host-proven (2026-06-29)
 
 The two integration risks are both **de-risked with running code on the host**:

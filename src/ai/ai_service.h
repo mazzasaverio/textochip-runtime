@@ -47,6 +47,9 @@ int lastEnvX1000();
 // inference — a live read of the physical pin-contact quality.
 int lastSpikes();
 
+// The confidence gate as a percentage (for log strings that must not go stale).
+int gatePct();
+
 }  // namespace ai_service
 
 #endif  // TEXTOCHIP_AI_AI_SERVICE_H

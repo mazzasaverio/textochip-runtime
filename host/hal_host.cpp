@@ -50,6 +50,7 @@ void host_reset_audio() {
   g_audio.clear();
   g_audioPos = 0;
 }
+bool host_audio_drained() { return g_audioPos >= g_audio.size(); }
 void host_feed_image(const unsigned char* pixels, int n) {
   g_image.insert(g_image.end(), pixels, pixels + n);
 }

@@ -246,7 +246,7 @@ void runtime::tick() {
           hal::serialWriteLine(std::string("VOICE: ") + name + " " + std::to_string(pct) + "%");
         } else {
           hal::serialWriteLine(std::string("voice? ") + name + " " + std::to_string(pct) +
-                               "% (<60%)");
+                               "% (<" + std::to_string(ai_service::gatePct()) + "% or unconfirmed)");
         }
       }
       // Heartbeat every ~8 inferences (~2 s): mic level + the model's current top

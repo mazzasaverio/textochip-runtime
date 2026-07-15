@@ -37,16 +37,28 @@ static int build_window_i16(const float* word, int word_n, int16_t* out) {
   return N;
 }
 
-// Feed one word's window through the service (mic stub -> features -> ai_infer) and
-// return the class it reports once the window fills.
+// Feed a word through the service (mic stub -> features -> ai_infer) and return
+// the first non-zero class it reports. The service DEBOUNCES (a word must win
+// two consecutive windows), so the same window is fed repeatedly — the rolling
+// window keeps containing the word, and the second inference fires. For the
+// noise-floor case (want 0) every inference stays 0 and the loop returns 0.
 static int classify_via_service(const float* word, int word_n) {
   static int16_t pcm[16000];
   int n = build_window_i16(word, word_n, pcm);
   host_reset_audio();
   host_feed_audio(pcm, n);
   ai_service::reset();
-  int cls = -1;
-  for (int i = 0; i < 300 && cls < 0; i++) cls = ai_service::poll();
+  int cls = 0;
+  int inferences = 0;
+  for (int i = 0; i < 3000 && inferences < 6; i++) {
+    int r = ai_service::poll();
+    if (r < 0) {
+      host_feed_audio(pcm, n);  // stub drained — feed the same word again
+      continue;
+    }
+    inferences++;
+    if (r > 0) { cls = r; break; }
+  }
   return cls;
 }
 
@@ -103,8 +115,10 @@ int main(void) {
   runtime::feedLine("RUN");
   int l = 0, r = 0;
   bool moved = false;
-  for (int i = 0; i < 600 && !(moved && l == 160 && r == 160); i++) {
+  for (int i = 0; i < 3000 && !(moved && l == 160 && r == 160); i++) {
     runtime::tick();
+    if (host_audio_drained()) host_feed_audio(pcm, n);  // keep "go" playing (debounce
+                                                        // needs two agreeing windows)
     moved = host_get_move(&l, &r);
   }
   const bool e2e_ok = moved && l == 160 && r == 160;

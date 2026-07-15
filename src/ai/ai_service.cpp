@@ -20,7 +20,11 @@ constexpr int kChunk = 256;         // samples drained per poll (~one I2S DMA bl
 // only reacts to a clearly-spoken word. (The model also has a trained "background"
 // class 0; this is the second guard.) Tune up if it reacts to noise, down if clear
 // words are missed.
-constexpr float kMinConfidence = 0.6f;
+// Bench-tuned 2026-07-15 (voice-sc-v1): the real-speech model is properly
+// calibrated (less overconfident than the synthetic-only one), and a real
+// spoken "go" at normal voice scores ~0.50-0.52. The gate moves down and a
+// DEBOUNCE (below) supplies the robustness the higher gate used to.
+constexpr float kMinConfidence = 0.45f;
 
 TcmlFeatureParams g_params;
 int g_win = 0;   // analysis window length (samples)
@@ -57,6 +61,12 @@ int g_lastEnvX1000 = 0;
 int16_t g_medh[4] = {0, 0, 0, 0};
 int g_spikes = 0;
 int g_lastSpikes = 0;
+// Debounce: a word fires only when it wins TWO CONSECUTIVE windows above the
+// gate. A single-window fluke stays silent — bench data: a real "go" scored
+// 52% + 51% in consecutive windows; a spurious "left 53%" appeared exactly
+// once (the slider catching the word's tail). The candidate from the previous
+// completed inference:
+int g_candidate = 0;
 
 // ── Input conditioning: high-pass + envelope AGC (bench root-cause,
 // 2026-07-15). The training clips (make_voice_model.py) are Piper TTS speech
@@ -103,6 +113,8 @@ int ai_service::lastEnvX1000() { return g_lastEnvX1000; }
 
 int ai_service::lastSpikes() { return g_lastSpikes; }
 
+int ai_service::gatePct() { return (int)(kMinConfidence * 100.0f + 0.5f); }
+
 void ai_service::reset() {
   g_params = tcml_default_params();
   g_win = tcml_window_samples(&g_params);
@@ -110,6 +122,7 @@ void ai_service::reset() {
   g_hop = g_win / 4;                              // ~4 inferences/sec (0.25 s slide)
   if (g_hop < 1) g_hop = 1;
   g_have = 0;
+  g_candidate = 0;
   g_ready = true;
 }
 
@@ -215,7 +228,10 @@ int ai_service::poll() {
     g_lastInferMs = (int)(hal::nowMs() - t1);
     g_lastTop = top;
     g_lastConf = conf;
-    cls = (top > 0 && conf >= kMinConfidence) ? top : 0;
+    int gated = (top > 0 && conf >= kMinConfidence) ? top : 0;
+    // debounce: fire only on the second consecutive window agreeing on the class
+    cls = (gated > 0 && gated == g_candidate) ? gated : 0;
+    g_candidate = gated;
   } else {
     g_lastTop = -1;
     g_lastConf = 0.0f;

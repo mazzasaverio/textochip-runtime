@@ -43,6 +43,10 @@ int lastGainX10();
 // window — for bench tuning of the silence gate / target.
 int lastEnvX1000();
 
+// Samples the median-3 de-spiker replaced by > 0.1 FS since the previous
+// inference — a live read of the physical pin-contact quality.
+int lastSpikes();
+
 }  // namespace ai_service
 
 #endif  // TEXTOCHIP_AI_AI_SERVICE_H

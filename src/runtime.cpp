@@ -264,9 +264,11 @@ void runtime::tick() {
         hal::serialWriteLine("mic: level=" + std::to_string(ai_service::lastLevel()) +
                              " env=" + std::to_string(ai_service::lastEnvX1000()) +
                              " gain=" + std::to_string(gx10 / 10) + "." +
-                             std::to_string(gx10 % 10) + " top=" + name + " " +
-                             std::to_string(pct) + "% mfcc=" + std::to_string(mfccMs) +
-                             "ms infer=" + std::to_string(inferMs) + "ms");
+                             std::to_string(gx10 % 10) +
+                             " spk=" + std::to_string(ai_service::lastSpikes()) + " top=" +
+                             name + " " + std::to_string(pct) + "% mfcc=" +
+                             std::to_string(mfccMs) + "ms infer=" + std::to_string(inferMs) +
+                             "ms");
       }
     }
   } else if (aiRunning) {

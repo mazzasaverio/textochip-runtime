@@ -51,6 +51,13 @@ int g_lastGainX10 = 10;
 // Envelope (max 10 ms block mean-abs, x1000) of the last window — the loudness
 // the AGC keyed on; lets the bench tune the silence gate + target empirically.
 int g_lastEnvX1000 = 0;
+// De-spike state: the median-3 carry (previous two raw samples) + how many
+// samples the median replaced by > 0.1 FS since the last inference (a direct
+// read of how noisy the physical pin contact is).
+int16_t g_med1 = 0;
+int16_t g_med2 = 0;
+int g_spikes = 0;
+int g_lastSpikes = 0;
 
 // ── Input conditioning: high-pass + envelope AGC (bench root-cause,
 // 2026-07-15). The training clips (make_voice_model.py) are Piper TTS speech
@@ -94,6 +101,8 @@ int ai_service::lastGainX10() { return g_lastGainX10; }
 
 int ai_service::lastEnvX1000() { return g_lastEnvX1000; }
 
+int ai_service::lastSpikes() { return g_lastSpikes; }
+
 void ai_service::reset() {
   g_params = tcml_default_params();
   g_win = tcml_window_samples(&g_params);
@@ -108,12 +117,30 @@ int ai_service::poll() {
   if (!g_ready) reset();
 
   // 1. Drain a bounded chunk of new audio into the rolling window (non-blocking).
+  //    DE-SPIKE with a 3-sample median as it lands: a marginal (unsoldered) pin
+  //    contact injects isolated MSB glitches — single-sample excursions of
+  //    ±0.1..1.0 FS that survive a high-pass (they ARE high frequency) and were
+  //    keeping the idle envelope above the AGC target (bench: env=0.159 in a
+  //    quiet room -> gain stuck at 1.0). A median-3 removes a 1-sample spike
+  //    exactly and distorts speech negligibly. One sample of latency; spike
+  //    replacements are counted for the heartbeat.
   int room = g_win - g_have;
   if (room > 0) {
     int want = room < kChunk ? room : kChunk;
     int got = hal::aiCapture(g_scratch, want);
     for (int i = 0; i < got; i++) {
-      g_signal[g_have + i] = (float)g_scratch[i] / 32768.0f;
+      int16_t s = g_scratch[i];
+      int16_t a = g_med1, b = g_med2, c = s;  // previous, current, incoming
+      // median of (a, b, c) replaces the MIDDLE sample b
+      int16_t m = b;
+      if ((a <= b) == (b <= c)) m = b;
+      else if ((b <= a) == (a <= c)) m = a;
+      else m = c;
+      int d = (int)m - (int)b;
+      if (d > 3277 || d < -3277) g_spikes++;  // replaced by > 0.1 FS
+      g_signal[g_have + i] = (float)m / 32768.0f;
+      g_med1 = b;
+      g_med2 = s;
     }
     g_have += got;
   }
@@ -163,6 +190,8 @@ int ai_service::poll() {
       }
     }
   }
+  g_lastSpikes = g_spikes;
+  g_spikes = 0;
   uint32_t t0 = hal::nowMs();
   int nf = tcml_mfcc(g_proc, g_win, &g_params, g_feat);
   uint32_t t1 = hal::nowMs();

@@ -184,6 +184,56 @@ static int mic_dev_ready = -1;  // 1 = device_is_ready, 0 = not
 static int mic_cfg_ret = -99;   // i2s_configure() return
 static int mic_trg_ret = -99;   // i2s_trigger(START) return
 
+// DC of one captured block's LEFT channel at int16 scale (blocking, ~16-50 ms),
+// or INT32_MIN on timeout. Used by the start-alignment loop below.
+static int mic_block_dc(void) {
+  for (int tries = 0; tries < 30; tries++) {
+    void* block = nullptr;
+    size_t size = 0;
+    if (i2s_read(i2s_mic, &block, &size) == 0) {
+      const int32_t* s = (const int32_t*)block;
+      int frames = (int)(size / (2 * sizeof(int32_t)));
+      int64_t sum = 0;
+      for (int i = 0; i < frames; i++) sum += (s[i * 2] >> 16);
+      k_mem_slab_free(&mic_slab, block);
+      return frames > 0 ? (int)(sum / frames) : 0;
+    }
+    k_busy_wait(2000);  // 2 ms — a 256-frame block fills every 16 ms
+  }
+  return INT32_MIN;
+}
+
+// Last measured start DC (int16 scale) — exposed in micStatus for the bench.
+static int mic_dc = 0;
+
+// START the RX stream with ALIGNMENT VERIFICATION (bench-proven necessity,
+// 2026-07-15): on this TDM the bit alignment of the 24-in-32 sample is NOT
+// deterministic across starts — some starts land the data shifted left by k
+// bits, scaling BOTH the mic's natural DC (~-1.5k at int16) and the audio by
+// 2^k (observed idle "DC" of ~5k and ~11.5k on bad boots). A shifted stream
+// crushes/clips speech and the KWS model sees only a huge pedestal, so words
+// never classify. Each (re)START re-rolls the alignment: measure the DC of the
+// second block (the first can hold the mic's power-up transient) and re-start
+// until it lands in the sane band. DROP is allowed from RUNNING and purges the
+// queue; START re-arms it.
+static bool mic_arm(void) {
+  const int kSaneAbsDc = 2500;  // good sessions sit ~1.5k; one bit of shift ~3.1k
+  for (int attempt = 0; attempt < 8; attempt++) {
+    if (attempt > 0) {
+      i2s_trigger(i2s_mic, I2S_DIR_RX, I2S_TRIGGER_DROP);
+    }
+    mic_trg_ret = i2s_trigger(i2s_mic, I2S_DIR_RX, I2S_TRIGGER_START);
+    if (mic_trg_ret != 0) return false;
+    (void)mic_block_dc();  // skip the first block
+    int dc = mic_block_dc();
+    if (dc == INT32_MIN) continue;
+    mic_dc = dc;
+    int a = dc < 0 ? -dc : dc;
+    if (a <= kSaneAbsDc) return true;
+  }
+  return true;  // accept the last roll — micStatus reports dc so the bench sees it
+}
+
 static bool mic_start() {
   mic_dev_ready = device_is_ready(i2s_mic) ? 1 : 0;
   if (!mic_dev_ready) return false;
@@ -198,8 +248,7 @@ static bool mic_start() {
   cfg.timeout = 0;      // non-blocking: i2s_read returns -EAGAIN if no block is ready
   mic_cfg_ret = i2s_configure(i2s_mic, I2S_DIR_RX, &cfg);
   if (mic_cfg_ret != 0) return false;
-  mic_trg_ret = i2s_trigger(i2s_mic, I2S_DIR_RX, I2S_TRIGGER_START);
-  return mic_trg_ret == 0;
+  return mic_arm();
 }
 
 // Read one RX block, self-healing over an overrun. With a fixed 4-block DMA slab,
@@ -212,7 +261,9 @@ static bool mic_start() {
 static bool mic_read_block(void** block, size_t* size) {
   if (i2s_read(i2s_mic, block, size) == 0) return true;
   if (i2s_trigger(i2s_mic, I2S_DIR_RX, I2S_TRIGGER_PREPARE) == 0) {
-    i2s_trigger(i2s_mic, I2S_DIR_RX, I2S_TRIGGER_START);
+    // Re-arm through the ALIGNED start (see mic_arm) — a plain START re-rolls
+    // the bit alignment and can leave the stream shifted/crushed.
+    mic_arm();
   }
   return false;
 }
@@ -393,7 +444,8 @@ std::string micStatus() {
 #ifdef HAS_MIC
   return "started=" + std::to_string(mic_started ? 1 : 0) +
          " ready=" + std::to_string(mic_dev_ready) +
-         " cfg=" + std::to_string(mic_cfg_ret) + " trg=" + std::to_string(mic_trg_ret);
+         " cfg=" + std::to_string(mic_cfg_ret) + " trg=" + std::to_string(mic_trg_ret) +
+         " dc=" + std::to_string(mic_dc);
 #else
   return "no-mic-node";
 #endif

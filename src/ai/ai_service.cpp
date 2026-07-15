@@ -51,11 +51,10 @@ int g_lastGainX10 = 10;
 // Envelope (max 10 ms block mean-abs, x1000) of the last window — the loudness
 // the AGC keyed on; lets the bench tune the silence gate + target empirically.
 int g_lastEnvX1000 = 0;
-// De-spike state: the median-3 carry (previous two raw samples) + how many
+// De-spike state: the median-5 carry (previous four raw samples) + how many
 // samples the median replaced by > 0.1 FS since the last inference (a direct
 // read of how noisy the physical pin contact is).
-int16_t g_med1 = 0;
-int16_t g_med2 = 0;
+int16_t g_medh[4] = {0, 0, 0, 0};
 int g_spikes = 0;
 int g_lastSpikes = 0;
 
@@ -74,12 +73,13 @@ int g_lastSpikes = 0;
 //      (a single-sample spike would cap a raw-peak gain).
 //   3. silence gate: below kAgcSilenceEnv the window stays untouched, so a
 //      quiet room is NOT amplified into fake loud noise.
-// NEVER attenuate (gain floor 1.0): training-loud audio — like the host tests'
-// TTS clips — passes through unchanged, so this stage is a no-op exactly where
-// the old behavior was already right.
+// In-band audio (the host tests' TTS clips) passes through unchanged; only
+// quieter-than-band windows gain UP and louder-than-band windows (close
+// shouting, contact crackle riding on speech) attenuate DOWN into the band.
 constexpr float kAgcTargetEnv = 0.15f;   // Piper speech env at training gains
 constexpr float kAgcMaxGain = 60.0f;     // cap
 constexpr float kAgcSilenceEnv = 0.005f; // below this = silence, leave it alone
+constexpr float kAgcHighEnv = 0.25f;     // above this = louder than training — attenuate
 constexpr float kHpfPole = 0.995f;       // ~13 Hz @ 16 kHz
 constexpr int kEnvBlock = 160;           // 10 ms @ 16 kHz
 
@@ -117,30 +117,35 @@ int ai_service::poll() {
   if (!g_ready) reset();
 
   // 1. Drain a bounded chunk of new audio into the rolling window (non-blocking).
-  //    DE-SPIKE with a 3-sample median as it lands: a marginal (unsoldered) pin
-  //    contact injects isolated MSB glitches — single-sample excursions of
-  //    ±0.1..1.0 FS that survive a high-pass (they ARE high frequency) and were
-  //    keeping the idle envelope above the AGC target (bench: env=0.159 in a
-  //    quiet room -> gain stuck at 1.0). A median-3 removes a 1-sample spike
-  //    exactly and distorts speech negligibly. One sample of latency; spike
-  //    replacements are counted for the heartbeat.
+  //    DE-SPIKE with a 5-sample median as it lands: a marginal (unsoldered) pin
+  //    contact injects MSB glitches — excursions of ±0.1..1.0 FS, up to a couple
+  //    of samples wide — that survive a high-pass (they ARE high frequency) and
+  //    were keeping the idle envelope above the AGC target (bench: env=0.159 in
+  //    a quiet room -> gain stuck at 1.0; median-3 cleaned idle but speech-time
+  //    vibration bursts got through). Two samples of latency; replacements are
+  //    counted for the heartbeat (spk=).
   int room = g_win - g_have;
   if (room > 0) {
     int want = room < kChunk ? room : kChunk;
     int got = hal::aiCapture(g_scratch, want);
     for (int i = 0; i < got; i++) {
-      int16_t s = g_scratch[i];
-      int16_t a = g_med1, b = g_med2, c = s;  // previous, current, incoming
-      // median of (a, b, c) replaces the MIDDLE sample b
-      int16_t m = b;
-      if ((a <= b) == (b <= c)) m = b;
-      else if ((b <= a) == (a <= c)) m = a;
-      else m = c;
-      int d = (int)m - (int)b;
+      // median-5 over (h0..h3, incoming) replaces the CENTER sample h2 —
+      // kills glitch bursts up to 2 samples wide (median-3 only handled 1).
+      int16_t v[5] = {g_medh[0], g_medh[1], g_medh[2], g_medh[3], g_scratch[i]};
+      int16_t center = v[2];
+      // 5-element sorting network (partial — enough to place the median)
+      int16_t t;
+#define TC_SWP(x, y)   if (v[x] > v[y]) { t = v[x]; v[x] = v[y]; v[y] = t; }
+      TC_SWP(0, 1) TC_SWP(3, 4) TC_SWP(0, 3) TC_SWP(1, 4) TC_SWP(1, 2) TC_SWP(2, 3) TC_SWP(1, 2)
+#undef TC_SWP
+      int16_t m = v[2];
+      int d = (int)m - (int)center;
       if (d > 3277 || d < -3277) g_spikes++;  // replaced by > 0.1 FS
       g_signal[g_have + i] = (float)m / 32768.0f;
-      g_med1 = b;
-      g_med2 = s;
+      g_medh[0] = g_medh[1];
+      g_medh[1] = g_medh[2];
+      g_medh[2] = g_medh[3];
+      g_medh[3] = g_scratch[i];
     }
     g_have += got;
   }
@@ -174,11 +179,18 @@ int ai_service::poll() {
       if (m > envMax) envMax = m;
     }
     g_lastEnvX1000 = (int)(envMax * 1000.0f + 0.5f);
-    // 3. gain (silence-gated, never attenuate, capped) + clip
+    // 3. gain (silence-gated, capped) + clip. Quiet speech is amplified UP to
+    //    the training band; OVER-loud windows (close shouting, or contact
+    //    crackle riding on speech — bench: env=0.536 vs a 0.10-0.25 training
+    //    band) are attenuated DOWN to the band's top so the model never sees
+    //    energies it never trained on. In-band audio (the host tests' TTS
+    //    clips) still passes untouched.
     float gain = 1.0f;
     if (envMax > kAgcSilenceEnv && envMax < kAgcTargetEnv) {
       gain = kAgcTargetEnv / envMax;
       if (gain > kAgcMaxGain) gain = kAgcMaxGain;
+    } else if (envMax > kAgcHighEnv) {
+      gain = kAgcHighEnv / envMax;  // attenuate into the band (gain < 1)
     }
     g_lastGainX10 = (int)(gain * 10.0f + 0.5f);
     if (gain != 1.0f) {

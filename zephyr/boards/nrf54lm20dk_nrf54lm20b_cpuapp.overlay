@@ -1,0 +1,101 @@
+/*
+ * Nordic nRF54LM20 DK — "B" chip overlay (Axon NPU voice build).
+ *
+ * IDENTICAL to the A overlay (LEDs/button/serial via the board devicetree;
+ * buzzer PWM20, motors PWM21, the INMP441 mic on the TDM peripheral, psa_rng
+ * disabled) — the B chip is the same board plus the Axon NPU, which this
+ * overlay's ONE extra line (`&axon { status = "okay"; }`) enables for
+ * Nordic's nRF Edge AI Library. See the A overlay for the pin rationale;
+ * keep the two in sync.
+ */
+
+&pinctrl {
+	tc_pwm20_default: tc_pwm20_default {
+		group1 {
+			psels = <NRF_PSEL(PWM_OUT0, 1, 13)>;	/* buzzer -> P1.13 (D5) */
+		};
+	};
+	tc_pwm20_sleep: tc_pwm20_sleep {
+		group1 {
+			psels = <NRF_PSEL(PWM_OUT0, 1, 13)>;
+			low-power-enable;
+		};
+	};
+};
+
+/ {
+	aliases {
+		tc-pwm-buzzer = &pwm20;
+		tc-pwm-motor = &pwm21;
+		/* Voice: the INMP441 on the TDM peripheral (nRF54L has no I2S block;
+		 * TDM binds to the Zephyr I2S API). Same 16 kHz int16 audio the Nordic
+		 * KWS model wants — no PDM required. */
+		tc-mic = &tdm;
+	};
+};
+
+/* Mic pins MUST be on PORT 1 (bench-proven: the TDM silently no-ops on P2 pads
+ * on this SoC). SCK->P1.23, WS->P1.14, SD->P1.31. */
+&pinctrl {
+	tc_tdm_default: tc_tdm_default {
+		group1 {
+			psels = <NRF_PSEL(TDM_SCK_M, 1, 23)>,
+				<NRF_PSEL(TDM_FSYNC_M, 1, 14)>,
+				<NRF_PSEL(TDM_SDIN, 1, 31)>;
+		};
+	};
+	tc_tdm_sleep: tc_tdm_sleep {
+		group1 {
+			psels = <NRF_PSEL(TDM_SCK_M, 1, 23)>,
+				<NRF_PSEL(TDM_FSYNC_M, 1, 14)>,
+				<NRF_PSEL(TDM_SDIN, 1, 31)>;
+			low-power-enable;
+		};
+	};
+};
+&tdm {
+	status = "okay";
+	pinctrl-0 = <&tc_tdm_default>;
+	pinctrl-1 = <&tc_tdm_sleep>;
+	pinctrl-names = "default", "sleep";
+};
+
+/* No crypto (psa_rng CRACEN init hard-faults without a KMU seed). */
+&psa_rng {
+	status = "disabled";
+};
+
+&pwm20 {
+	status = "okay";
+	pinctrl-0 = <&tc_pwm20_default>;
+	pinctrl-1 = <&tc_pwm20_sleep>;
+	pinctrl-names = "default", "sleep";
+};
+
+&pinctrl {
+	tc_pwm21_default: tc_pwm21_default {
+		group1 {
+			psels = <NRF_PSEL(PWM_OUT0, 1, 7)>,	/* left  ENA -> P1.07 (D12) */
+				<NRF_PSEL(PWM_OUT1, 1, 6)>;	/* right ENB -> P1.06 (D13) */
+		};
+	};
+	tc_pwm21_sleep: tc_pwm21_sleep {
+		group1 {
+			psels = <NRF_PSEL(PWM_OUT0, 1, 7)>,
+				<NRF_PSEL(PWM_OUT1, 1, 6)>;
+			low-power-enable;
+		};
+	};
+};
+&pwm21 {
+	status = "okay";
+	pinctrl-0 = <&tc_pwm21_default>;
+	pinctrl-1 = <&tc_pwm21_sleep>;
+	pinctrl-names = "default", "sleep";
+};
+
+/* THE Axon NPU — the one thing the B build adds over the A build. Nordic's
+ * nrf_edgeai runtime binds to this node to run the compiled KWS model. */
+&axon {
+	status = "okay";
+};

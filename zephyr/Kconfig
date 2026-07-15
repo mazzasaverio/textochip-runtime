@@ -10,3 +10,18 @@ config TEXTOCHIP_AI
 	  TFLite Micro library. Disable on boards that don't wire a microphone
 	  yet (e.g. the Nordic DK phase-1 bring-up) to keep the image small —
 	  AISTART/INFER still execute, VOICE() just reads "none".
+
+config TEXTOCHIP_NRF_EDGEAI
+	bool "Use Nordic's nRF Edge AI (Axon NPU) as the VOICE() classifier"
+	depends on TEXTOCHIP_AI
+	select NRF_EDGEAI
+	select NRF_AXON
+	help
+	  On the nRF54LM20B (which has the Axon NPU), swap the classifier behind
+	  VOICE() from our TFLite Micro path (ai_service.cpp: MFCC + int8 CNN) to
+	  Nordic's nRF Edge AI Library (ai_nrf_edgeai.cpp): a professionally
+	  trained, STREAMING, end-to-end (raw 16 kHz audio -> class) KWS model
+	  run on the Axon NPU. Both implement the SAME ai_service:: interface, so
+	  runtime.cpp is unchanged; CMake compiles exactly one. Needs the
+	  sdk-edge-ai add-on as a module (EXTRA_ZEPHYR_MODULES) — see the board
+	  .conf. The bytecode ISA / VOICE() semantics are identical.

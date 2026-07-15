@@ -16,20 +16,47 @@ target_sources(app PRIVATE
 # ── Edge-AI tier (CONFIG_TEXTOCHIP_AI, default y; boards without a mic wired
 # turn it off in boards/<target>.conf — e.g. the Nordic DK phase-1 bring-up).
 # When off, AISTART/INFER still execute in the VM; VOICE()/SEE() read "none".
+#
+# The CLASSIFIER behind VOICE() has two interchangeable backends, both
+# implementing the same ai_service:: interface (so runtime.cpp is unchanged;
+# exactly ONE is compiled):
+#   • default          → ai_service.cpp  : MFCC (features.c) + int8 TFLite Micro
+#   • NRF_EDGEAI (B)    → ai_nrf_edgeai.cpp: Nordic's end-to-end streaming KWS
+#                         model on the Axon NPU (nrf_edgeai lib, sdk-edge-ai).
 if(CONFIG_TEXTOCHIP_AI)
+  target_compile_definitions(app PRIVATE TEXTOCHIP_AI)
+  # Vision tier: the camera service + a placeholder vision backend (both paths).
   target_sources(app PRIVATE
-    # The background inference service (mic -> features -> class).
-    ../src/ai/ai_service.cpp
-    ../src/ai/features.c
-    ../src/ai/ai_host.cpp    # the TFLM backend of ai_infer (host + ESP32 — same code)
-    # Vision tier: the camera service + a placeholder vision backend. The camera
-    # (DVP) + a trained vision model are the bench step; SEE() reads "nothing".
     ../src/ai/vision_service.cpp
     ../src/ai/ai_vision_stub.cpp
   )
-  # Turn on the runtime's background inference service (see runtime::tick), and
-  # the TFLite Micro static-memory mode ai_host.cpp + the TFLM lib compile against.
-  target_compile_definitions(app PRIVATE TEXTOCHIP_AI TF_LITE_STATIC_MEMORY)
+
+if(CONFIG_TEXTOCHIP_NRF_EDGEAI)
+  # ── Nordic nRF Edge AI backend (Axon NPU) ───────────────────────────────────
+  # ai_nrf_edgeai.cpp implements ai_service:: against Nordic's streaming KWS
+  # model. The nrf_edgeai library + Axon driver link automatically from the
+  # sdk-edge-ai module (CONFIG_NRF_EDGEAI/NRF_AXON, added via EXTRA_ZEPHYR_MODULES).
+  # We compile the GENERATED model + reference its headers FROM the add-on tree
+  # (proprietary, LicenseRef-Nordic-5-Clause — referenced, never copied into this
+  # open repo). Override TC_EDGEAI_MODEL_DIR with -D if the add-on is elsewhere.
+  target_sources(app PRIVATE ../src/ai/ai_nrf_edgeai.cpp)
+  target_compile_definitions(app PRIVATE TEXTOCHIP_NRF_EDGEAI)
+  set(TC_EDGEAI_MODEL_DIR "$ENV{HOME}/projects/sdk-edge-ai/applications/ww_kws/src/kws/nrf_edgeai_generated"
+      CACHE PATH "Nordic KWS generated-model directory (from sdk-edge-ai)")
+  if(NOT EXISTS "${TC_EDGEAI_MODEL_DIR}/nrf_edgeai_user_model.c")
+    message(FATAL_ERROR "TEXTOCHIP_NRF_EDGEAI: model not found at ${TC_EDGEAI_MODEL_DIR} "
+                        "— clone github.com/nrfconnect/sdk-edge-ai and/or set -DTC_EDGEAI_MODEL_DIR=")
+  endif()
+  target_sources(app PRIVATE ${TC_EDGEAI_MODEL_DIR}/nrf_edgeai_user_model.c)
+  target_include_directories(app PRIVATE ${TC_EDGEAI_MODEL_DIR})
+else()
+  # ── TFLite Micro backend (host / ESP32 / nRF54L-A) ──────────────────────────
+  target_sources(app PRIVATE
+    ../src/ai/ai_service.cpp
+    ../src/ai/features.c
+    ../src/ai/ai_host.cpp    # the TFLM backend of ai_infer (host + ESP32 — same code)
+  )
+  target_compile_definitions(app PRIVATE TF_LITE_STATIC_MEMORY)
 
   # ── On-device inference: TFLite Micro (reference kernels) ───────────────────
   # Compile TFLM from our vendored submodule (third_party/tflite-micro) with
@@ -77,4 +104,5 @@ if(CONFIG_TEXTOCHIP_AI)
   # and with exceptions ON the placement-new cleanup lookup in micro_allocator
   # trips over it ("operator delete is private"). The glue only sets -fno-rtti.
   target_compile_options(modules__tflite-micro PRIVATE -fno-exceptions)
-endif()
+endif()  # NRF_EDGEAI vs TFLM backend
+endif()  # CONFIG_TEXTOCHIP_AI

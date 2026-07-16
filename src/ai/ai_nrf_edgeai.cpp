@@ -26,7 +26,7 @@ extern "C" {
 #include <nrf_edgeai/nrf_edgeai.h>
 
 #include "nrf_edgeai_user_model.h"         // nrf_edgeai_user_model() (the getter macro)
-#include "nrf_edgeai_user_model_labels.h"  // MODEL_LABEL_INDEX_* enum
+#include "nrf_edgeai_user_model_labels.h"  // NRF_EDGEAI_USER_LABELS_NAME[] strings
 }
 
 namespace {
@@ -44,21 +44,42 @@ constexpr int kSkipBlocks = 10;      // lockout blocks after a fire
 // the serial heartbeat + VOID-class updates should stay ~4/s like the TFLM path.
 constexpr int kIdleReportEvery = 25;
 
-// Map Nordic's 12 keyword classes onto ours (0=none/background, 1=go, 2=left,
-// 3=right, 4=stop — the VOICE_LABELS contract). Everything else -> 0.
-int our_class(uint16_t nordic_class) {
-  switch (nordic_class) {
-    case MODEL_LABEL_INDEX_GO:
-      return 1;
-    case MODEL_LABEL_INDEX_LEFT:
-      return 2;
-    case MODEL_LABEL_INDEX_RIGHT:
-      return 3;
-    case MODEL_LABEL_INDEX_STOP:
-      return 4;
-    default:
-      return 0;
+// Case-insensitive equality of two label words (no locale, ASCII only — the
+// labels are short command names).
+bool label_eq(const char* a, const char* b) {
+  if (a == nullptr || b == nullptr) return false;
+  for (; *a && *b; ++a, ++b) {
+    char ca = (*a >= 'A' && *a <= 'Z') ? (char)(*a + 32) : *a;
+    char cb = (*b >= 'A' && *b <= 'Z') ? (char)(*b + 32) : *b;
+    if (ca != cb) return false;
   }
+  return *a == '\0' && *b == '\0';
+}
+
+// Map a predicted class onto ours (0=none/background, 1=go, 2=left, 3=right,
+// 4=stop — the VOICE_LABELS contract) by the label's NAME, not its enum index.
+// Every generated model ships NRF_EDGEAI_USER_LABELS_NAME[]; matching on the
+// word (English OR Italian) means a custom Edge AI Lab model drops into this
+// build with no code change here — retrain the KWS model with vai/sinistra/
+// destra/fermo (or add a "hey chip" wake word) and this still maps it. Any
+// unrecognised class (silence/other/an unmapped keyword/a wake word) -> 0.
+int our_class(uint16_t predicted) {
+  constexpr int kNames =
+      (int)(sizeof(NRF_EDGEAI_USER_LABELS_NAME) / sizeof(NRF_EDGEAI_USER_LABELS_NAME[0]));
+  if ((int)predicted >= kNames) return 0;
+  const char* name = NRF_EDGEAI_USER_LABELS_NAME[predicted];
+  struct Syn {
+    const char* word;
+    int cls;
+  };
+  static const Syn kSyn[] = {
+      {"go", 1},   {"vai", 1},      {"avanti", 1}, {"forward", 1},
+      {"left", 2}, {"sinistra", 2}, {"right", 3},  {"destra", 3},
+      {"stop", 4}, {"fermo", 4},    {"ferma", 4},  {"alt", 4},   {"halt", 4},
+  };
+  for (const Syn& s : kSyn)
+    if (label_eq(name, s.word)) return s.cls;
+  return 0;
 }
 
 nrf_edgeai_t* g_model = nullptr;
@@ -94,8 +115,11 @@ int process_block() {
   const uint16_t predicted = g_model->decoded_output.classif.predicted_class;
   const float prob = g_model->decoded_output.classif.probabilities.p_f32[predicted];
 
-  // Nordic's kws_postprocess, verbatim in spirit.
-  if (predicted == MODEL_LABEL_INDEX_OTHER || predicted == MODEL_LABEL_INDEX_SILENCE) {
+  // Nordic's kws_postprocess, verbatim in spirit. Any class that isn't one of
+  // our four commands (silence/other/background, or an unmapped keyword) resets
+  // the smoother — expressed via our_class so it needs no model-specific enum
+  // names (and so a loud non-command word can't trip the fire lockout).
+  if (our_class(predicted) == 0) {
     g_count = 0;
     g_ema = 0.0f;
     g_topOur = 0;

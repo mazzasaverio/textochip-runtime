@@ -102,9 +102,11 @@ bring-up log and pitfalls: [`docs/nordic-nrf-connect-sdk.md`](docs/nordic-nrf-co
 - **ESP32-S3**: the full product path on real hardware. Serial protocol, LEDs, buzzer
   (LEDC PWM), button, servo, ADC, SAVE + boot autorun, TFLM linked on-device.
 - **Nordic nRF54LM20 DK**: serial protocol (interrupt-driven RX), on-board LEDs and
-  button, buzzer PWM, the **L298N motors drive real wheels** (`MOVE`), and **voice is
-  live**: the INMP441 I2S mic on the TDM peripheral feeds VOICE(), with Nordic's Axon-NPU
-  KWS model on the B chip (~1 to 12 ms per inference). Remaining: SAVE + boot autorun bench check.
+  button, buzzer PWM, the **L298N motors drive real wheels** (`MOVE`), **voice is
+  live** (the INMP441 I2S mic on the TDM peripheral feeds VOICE(), with Nordic's Axon-NPU
+  KWS model on the B chip, ~1 to 12 ms per inference), and **SAVE + boot autorun** is
+  verified (a saved program reruns on power-up, PC unplugged). Note: the DK persists to
+  RRAM via `flash_area`, not NVS (NVS does not stick on this no-explicit-erase RRAM).
 - The VM zeroes motors and buzzer on every stop path (STOP, HALT, end, error): a robot
   must not keep rolling after STOP.
 

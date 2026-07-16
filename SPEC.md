@@ -144,6 +144,7 @@ parsing.
 | `MIC` (debug)       | sample the mic + report its level — bench aid to confirm the I2S/TDM mic is alive. The trailing `[…]` is the capture-start diagnostic (device-ready + i2s_configure/i2s_trigger return codes + start DC): `n>0` with `level=0` means the peripheral runs but no audio reaches the data pin (wiring/power); `started=0` means the driver rejected the config | `OK: mic n=N peak=P level=L [started=.. ready=.. cfg=.. trg=.. dc=..]` |
 | `MICRAW` (debug)    | dump both mic channels + first raw words — tells a left/right channel-select mismatch (data on the R slot) from a dead data pin (all zero) | `OK: micraw words=N Lpeak=.. Rpeak=.. first: (L,R)…` |
 | `MICPINS` (debug)   | count toggles on the mic's SCK/WS/SD pads while capturing — proves whether the bit clock physically leaves the chip (`sck tog=0` while "capturing" = the pin mux no-ops on that GPIO port; caught the nRF54L "TDM can't drive P2 pads" gotcha) | `OK: micpins pads sck=P… tog=.. ws=… sd=…` |
+| `STORE?` (debug)    | report the autorun store: is it mounted, how many bytes are persisted, and its geometry. Diagnoses a `SAVE` that does not autorun on boot (`saved<0` = nothing stored) | `STORE mounted=0\|1 saved=N sector=WxC` |
 | (boot)              | if a saved program exists, load + run it (PC-unplugged autonomy) | `READY` then `OK: autorun N` |
 
 While a **voice program runs**, the firmware streams edge-AI feedback on the console: a heartbeat
@@ -156,7 +157,10 @@ not part of the machine-parsed reply protocol.
 new save overwrites it); on boot the firmware reloads + runs it, so the board is
 autonomous with no PC attached. The main loop keeps pumping serial during autorun,
 so an IDE can connect and `LOAD`/`STOP` to take over at any time. `CLEAR` returns
-the board to booting idle.
+the board to booting idle. Storage backing is per-board (the HAL detail below the
+contract): the ESP32-S3 uses **NVS** on its NOR flash; the nRF54LM20 DK uses a
+length-prefixed blob written straight to the storage partition via **`flash_area`**
+(its RRAM is byte-writable with no explicit erase, where NVS does not persist).
 
 ---
 

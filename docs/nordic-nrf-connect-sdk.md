@@ -656,3 +656,26 @@ Italian (go/vai, left/sinistra, right/destra, stop/fermo); a wake word or any ot
 For non-command labels (a wake word, or English extras), extend the synonym table in
 `our_class()` if you want them to drive an action; today only the four movement words map to a
 non-zero `VOICE()` class.
+
+## SAVE / boot autorun on the DK — NVS does NOT persist on RRAM (2026-07-16)
+
+Milestone 4 (PC-unplugged autonomy) is now **bench-verified on the DK-B**, but it exposed an
+nRF54L-specific bug. `SAVE` replied `OK: saved`, yet the program **never autoran on boot** — the
+banner showed `READY` with no `OK: autorun N`.
+
+- **Root cause: NVS does not persist on the nRF54L RRAM.** The SoC's non-volatile memory is
+  **RRAM**, which is byte-writable with **no explicit erase** (`CONFIG_FLASH_HAS_NO_EXPLICIT_ERASE=y`).
+  NVS is built around NOR-flash semantics (erase-to-0xFF, page allocation). On this RRAM
+  `nvs_write` returns `>= 0` (looks successful) but `nvs_read` returns **`-EINVAL` immediately
+  after**, and nothing survives a reset. A legacy/garbage storage region confuses NVS's page model.
+- **Diagnosed with the new `STORE?` command** (`hal::storeStatus`, a permanent bench aid like
+  `MIC`/`MICPINS`): right after a "successful" SAVE it reported `saved=-22` (= `-EINVAL`) — proving
+  the write never became readable, no reset involved.
+- **Fix: `flash_area` instead of NVS on the DK.** RRAM is overwrite-capable, so the program is
+  persisted as a **length-prefixed blob** (`[magic u32][len u32][pad to 16][bytes]`) written
+  straight to `storage_partition` via `flash_area_write` (16-byte write-block, no erase). Guarded
+  by `CONFIG_BOARD_NRF54LM20DK` (covers A and B — both RRAM); the ESP32-S3 NOR path keeps NVS.
+  See `zephyr/src/hal_zephyr.cpp`.
+- **Verified end-to-end (DK-B):** `SAVE` → `STORE? saved=51` → J-Link reset (power-cycle) → boot
+  banner **`OK: autorun 6`**, `saved=51` persists. Reset for the bench test was issued over SWD
+  (`JLinkExe -device Cortex-M33`, `r;g`) since `nrfutil device` is not installed here.

@@ -619,3 +619,40 @@ Voice now drives the wheels on the real DK, end to end. The bench lessons, in or
   the `nrf54lm20b` build (`-DEXTRA_ZEPHYR_MODULES=<sdk-edge-ai>`, `&axon` + `NRF_EDGEAI` + `NRF_AXON`
   in the board conf) swaps the classifier behind `VOICE()` with zero change to the bytecode or the
   BASIC programs. Policy: **B chip → Nordic Axon backend; A chip / ESP32 → our TFLM backend.**
+
+### Bringing a CUSTOM model (Italian keywords, "Hey Chip") from Nordic Edge AI Lab
+
+The stock `ww_kws` model spots English words (go/left/right/stop, + others). To spot
+**Italian** commands (vai/sinistra/destra/fermo) or add a **"Hey Chip"** wake word, generate a
+custom model in **Nordic Edge AI Lab** (`ai.lab.nordicsemi.com`) and drop it in. No firmware
+code change is needed on our side — as of `3c32c9f`, `ai_nrf_edgeai.cpp` maps classes by their
+**label NAME string** (`NRF_EDGEAI_USER_LABELS_NAME[]`, which every generated model ships), not
+by the stock model's `MODEL_LABEL_INDEX_*` enum. It recognises the command word in English OR
+Italian (go/vai, left/sinistra, right/destra, stop/fermo); a wake word or any other label maps to
+"none".
+
+1. **Make the model** in Edge AI Lab:
+   - *Wake word* ("Hey Chip"): the **text-to-wake-word** flow needs **no data** — you type the phrase.
+   - *Keyword spotter* (Italian commands): the **keyword-spotting** flow needs a **labeled dataset**.
+     A synthetic Piper-TTS starter set is in `textochip-ml` (`scripts/make_italian_dataset.py` →
+     `data/processed/italian-v1/<label>/*.wav`; a zip was produced for upload). Synthetic-only is
+     out-of-distribution for real accents (bench-proven), so mix in real recordings
+     (`textochip-ml/scripts/record_words_it.sh`) before shipping.
+2. **Download** the compiled bundle: a `nrf_edgeai_generated/` folder (`nrf_edgeai_user_model.c`,
+   `nrf_edgeai_user_model.h`, `nrf_edgeai_user_model_labels.h`, and the Axon-compiled model header).
+3. **Build against it** by pointing `TC_EDGEAI_MODEL_DIR` at the new folder (default is the add-on's
+   `ww_kws/.../kws/nrf_edgeai_generated`):
+   ```bash
+   west build -b nrf54lm20dk/nrf54lm20b/cpuapp zephyr -p always \
+       -- -DEXTRA_ZEPHYR_MODULES=$HOME/projects/sdk-edge-ai \
+          -DTC_EDGEAI_MODEL_DIR=/path/to/your/nrf_edgeai_generated
+   ```
+   If the model's `CONFIG_NRF_AXON_INTERLAYER_BUFFER_SIZE` differs, its Axon header static-asserts
+   the minimum at build time — bump the value in the board `.conf` to match.
+4. **The mic is unchanged.** Nordic's models are streaming/end-to-end (16 kHz int16 in, class out),
+   fed by the SAME INMP441 TDM audio our `aiCapture` already produces — `feed_inputs` is
+   source-agnostic, no PDM mic required.
+
+For non-command labels (a wake word, or English extras), extend the synonym table in
+`our_class()` if you want them to drive an action; today only the four movement words map to a
+non-zero `VOICE()` class.

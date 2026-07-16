@@ -98,6 +98,16 @@ void runtime::feedLine(const std::string& raw) {
     // Forget the saved program — the board boots idle again (no autorun).
     hal::storeClear();
     hal::serialWriteLine("OK: cleared");
+  } else if (line == "STORE?") {
+    // Bench aid: report the autorun store state (is NVS mounted, how many bytes
+    // are persisted, the sector geometry) so a SAVE that doesn't autorun on boot
+    // can be diagnosed without a debugger.
+    bool mounted = false;
+    int bytes = 0, ss = 0, sc = 0;
+    hal::storeStatus(&mounted, &bytes, &ss, &sc);
+    hal::serialWriteLine("STORE mounted=" + std::to_string(mounted ? 1 : 0) +
+                         " saved=" + std::to_string(bytes) + " sector=" +
+                         std::to_string(ss) + "x" + std::to_string(sc));
   } else if (line == "MIC") {
     // Bench aid: sample the microphone over a ~600 ms WINDOW and report its
     // level, so you can confirm the mic is wired + clocking (speak -> the

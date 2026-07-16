@@ -88,6 +88,11 @@ int camCapture(uint8_t* out, int max);
 bool storeSave(const std::string& program);  // persist; false on failure (e.g. too big)
 bool storeLoad(std::string& out);            // true if a program is stored (out = its text)
 void storeClear();                           // forget the saved program (disable autorun)
+// Bench diagnostic for the STORE? command: `mounted` = the backing store is ready;
+// `savedBytes` = bytes currently stored for the autorun program (or <0 if none /
+// not mounted); `sectorSize`/`sectorCount` = the NVS geometry (or -1). Any pointer
+// may be null.
+void storeStatus(bool* mounted, int* savedBytes, int* sectorSize, int* sectorCount);
 
 // Time
 uint32_t nowMs();  // milliseconds since boot

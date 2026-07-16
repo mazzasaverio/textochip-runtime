@@ -179,6 +179,16 @@ bool storeLoad(std::string& out) {
 
 void storeClear() { std::remove(kStorePath); }
 
+void storeStatus(bool* mounted, int* savedBytes, int* sectorSize, int* sectorCount) {
+  if (mounted) *mounted = true;  // the host store is always "mounted" (a file)
+  if (sectorSize) *sectorSize = -1;
+  if (sectorCount) *sectorCount = -1;
+  if (savedBytes) {
+    std::string s;
+    *savedBytes = storeLoad(s) ? (int)s.size() : -1;
+  }
+}
+
 uint32_t nowMs() { return g_now; }
 
 int serialReadChar() { return -1; }  // host demo injects lines via runtime::feedLine

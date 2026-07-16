@@ -147,6 +147,24 @@ static bool g_adc_ready = false;
 // ── Non-volatile storage: NVS on the board's `storage` flash partition (192 KB
 // on the ESP32-S3, defined in its devicetree). One key holds the autorun program
 // text; SAVE writes it, boot reads it (see runtime::init). ──
+#if defined(CONFIG_BOARD_NRF54LM20DK)
+// nRF54L RRAM: NVS reports writes OK but they do NOT read back on this
+// no-explicit-erase RRAM — a legacy/garbage storage region confuses NVS's
+// flash-page model (bench-proven: nvs_write returns >= 0, nvs_read returns
+// -EINVAL immediately after the write, so nothing autoruns on boot). RRAM is
+// byte-writable with overwrite, so persist the program as a length-prefixed blob
+// written straight to the storage partition via flash_area — no NVS, no erase.
+static const struct flash_area* g_fa = nullptr;
+static bool g_nvs_ready = false;  // "store ready" (name shared with the NVS path)
+static constexpr uint32_t kStoreMagic = 0x54430201;  // 'T''C' 0x02 0x01
+static constexpr size_t kStoreWblk = 16;             // RRAM write-block-size (0x10)
+static char g_store_buf[4096 + kStoreWblk];          // 16-byte header block + program
+
+static void store_init() {
+  if (flash_area_open(FIXED_PARTITION_ID(storage_partition), &g_fa) == 0)
+    g_nvs_ready = true;
+}
+#else
 #define NVS_PARTITION storage_partition
 static struct nvs_fs g_nvs;
 static bool g_nvs_ready = false;
@@ -163,6 +181,7 @@ static void store_init() {
   g_nvs.sector_count = 4U;        // a few sectors for wear-levelling headroom
   if (nvs_mount(&g_nvs) == 0) g_nvs_ready = true;
 }
+#endif
 
 #ifdef HAS_MIC
 // INMP441 I2S mic on i2s0 (RX; the ESP32-S3 is master). 16 kHz mono = the model's
@@ -283,6 +302,46 @@ void init() {
   store_init();
 }
 
+#if defined(CONFIG_BOARD_NRF54LM20DK)
+// flash_area store (RRAM). Layout: [magic u32][len u32][pad to 16][program bytes].
+static inline size_t store_align(size_t n) {
+  return (n + (kStoreWblk - 1)) & ~(kStoreWblk - 1);
+}
+bool storeSave(const std::string& program) {
+  if (!g_nvs_ready || program.size() + kStoreWblk > sizeof(g_store_buf)) return false;
+  size_t total = store_align(kStoreWblk + program.size());
+  memset(g_store_buf, 0, total);
+  uint32_t magic = kStoreMagic, len = (uint32_t)program.size();
+  memcpy(g_store_buf, &magic, 4);
+  memcpy(g_store_buf + 4, &len, 4);
+  memcpy(g_store_buf + kStoreWblk, program.data(), program.size());
+  return flash_area_write(g_fa, 0, g_store_buf, total) == 0;  // RRAM: overwrite, no erase
+}
+bool storeLoad(std::string& out) {
+  if (!g_nvs_ready) return false;
+  uint32_t magic = 0, len = 0;
+  if (flash_area_read(g_fa, 0, &magic, 4) != 0 || magic != kStoreMagic) return false;
+  if (flash_area_read(g_fa, 4, &len, 4) != 0) return false;
+  if (len == 0 || len > sizeof(g_store_buf) - kStoreWblk) return false;  // empty / corrupt
+  if (flash_area_read(g_fa, kStoreWblk, g_store_buf, len) != 0) return false;
+  out.assign(g_store_buf, len);
+  return !out.empty();
+}
+void storeClear() {
+  if (!g_nvs_ready) return;
+  memset(g_store_buf, 0, kStoreWblk);  // zero magic = no saved program
+  flash_area_write(g_fa, 0, g_store_buf, kStoreWblk);
+}
+void storeStatus(bool* mounted, int* savedBytes, int* sectorSize, int* sectorCount) {
+  if (mounted) *mounted = g_nvs_ready;
+  if (sectorSize) *sectorSize = (int)kStoreWblk;
+  if (sectorCount) *sectorCount = g_nvs_ready ? (int)g_fa->fa_size : -1;
+  if (savedBytes) {
+    std::string s;
+    *savedBytes = storeLoad(s) ? (int)s.size() : -1;
+  }
+}
+#else
 bool storeSave(const std::string& program) {
   if (!g_nvs_ready) return false;
   ssize_t rc = nvs_write(&g_nvs, kProgramNvsId, program.data(), program.size());
@@ -302,6 +361,22 @@ bool storeLoad(std::string& out) {
 void storeClear() {
   if (g_nvs_ready) nvs_delete(&g_nvs, kProgramNvsId);
 }
+
+void storeStatus(bool* mounted, int* savedBytes, int* sectorSize, int* sectorCount) {
+  if (mounted) *mounted = g_nvs_ready;
+  if (sectorSize) *sectorSize = g_nvs_ready ? (int)g_nvs.sector_size : -1;
+  if (sectorCount) *sectorCount = g_nvs_ready ? (int)g_nvs.sector_count : -1;
+  if (savedBytes) {
+    if (!g_nvs_ready) {
+      *savedBytes = -1;
+    } else {
+      static char b[4096];
+      ssize_t rc = nvs_read(&g_nvs, kProgramNvsId, b, sizeof(b));
+      *savedBytes = (int)rc;  // >0 = bytes stored; <=0 = none / error
+    }
+  }
+}
+#endif
 
 void pinMode(int pin, int mode) {
   gpio_flags_t flags = (mode == 1)   ? GPIO_OUTPUT_INACTIVE

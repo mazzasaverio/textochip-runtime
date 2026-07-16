@@ -34,8 +34,8 @@ third_party/tflite-micro   submodule, only needed for the TFLM backend
 ```
 
 **Voice is live on the Nordic DK.** `IF VOICE()="go" THEN MOVE 180 180` drives the robot's
-wheels from a spoken word — verified end-to-end on the nRF54LM20 DK (INMP441 I2S mic on the TDM
-peripheral). On the **B** chip the classifier is Nordic's Axon-NPU KWS model (~1–12 ms/inference,
+wheels from a spoken word, verified end-to-end on the nRF54LM20 DK (INMP441 I2S mic on the TDM
+peripheral). On the **B** chip the classifier is Nordic's Axon-NPU KWS model (~1-12 ms/inference,
 trained on thousands of speakers); on the A chip / ESP32 it is our own MFCC + TFLite-Micro model.
 Same `VOICE()` bytecode either way. See [`docs/edge-ai.md`](docs/edge-ai.md).
 
@@ -78,15 +78,23 @@ auto-reset: hold BOOT, tap RST, release BOOT, retry. The edge-AI tier is ON here
 ### Nordic nRF54LM20 DK (nRF Connect SDK)
 
 ```bash
+# nRF54LM20A: our own model (MFCC features.c + int8 TFLite Micro), like the ESP32.
 west build -b nrf54lm20dk/nrf54lm20a/cpuapp zephyr
+west flash -r jlink
+
+# nRF54LM20B: voice on the Axon NPU via Nordic's nRF Edge AI Add-on. Check out the
+# add-on (github.com/nrfconnect/sdk-edge-ai, v2.2.0) and pass it as a module:
+west build -b nrf54lm20dk/nrf54lm20b/cpuapp zephyr \
+    -- -DEXTRA_ZEPHYR_MODULES=$HOME/projects/sdk-edge-ai
 west flash -r jlink
 ```
 
 The console is the DK's on-board **J-Link VCOM** (115200, no reset-on-DTR): flash and
 connect on the same USB cable. Use the **jlink runner**: plain `probe-rs` writes this
 chip incompletely at times (upstream [probe-rs#3775](https://github.com/probe-rs/probe-rs/issues/3775));
-the product's user installer works around it with verify + retry. This board currently
-builds with `CONFIG_TEXTOCHIP_AI=n` (voice comes with the I2S mic bring-up). Port notes,
+the product's user installer works around it with verify + retry. Both builds have the
+edge-AI tier ON (`CONFIG_TEXTOCHIP_AI=y`); the B build adds `CONFIG_TEXTOCHIP_NRF_EDGEAI=y`
+to swap the classifier for Nordic's Axon model. Port notes,
 bring-up log and pitfalls: [`docs/nordic-nrf-connect-sdk.md`](docs/nordic-nrf-connect-sdk.md).
 
 ## Status (bench-verified)
@@ -94,8 +102,9 @@ bring-up log and pitfalls: [`docs/nordic-nrf-connect-sdk.md`](docs/nordic-nrf-co
 - **ESP32-S3**: the full product path on real hardware. Serial protocol, LEDs, buzzer
   (LEDC PWM), button, servo, ADC, SAVE + boot autorun, TFLM linked on-device.
 - **Nordic nRF54LM20 DK**: serial protocol (interrupt-driven RX), on-board LEDs and
-  button, buzzer PWM wired, and the **L298N motors drive real wheels** (`MOVE`).
-  Remaining: I2S mic (voice), SAVE bench check.
+  button, buzzer PWM, the **L298N motors drive real wheels** (`MOVE`), and **voice is
+  live**: the INMP441 I2S mic on the TDM peripheral feeds VOICE(), with Nordic's Axon-NPU
+  KWS model on the B chip (~1 to 12 ms per inference). Remaining: SAVE + boot autorun bench check.
 - The VM zeroes motors and buzzer on every stop path (STOP, HALT, end, error): a robot
   must not keep rolling after STOP.
 

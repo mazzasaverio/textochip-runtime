@@ -57,11 +57,12 @@ bool label_eq(const char* a, const char* b) {
 }
 
 // Map a predicted class onto ours (0=none/background, 1=go, 2=left, 3=right,
-// 4=stop — the VOICE_LABELS contract) by the label's NAME, not its enum index.
-// Every generated model ships NRF_EDGEAI_USER_LABELS_NAME[]; matching on the
-// word (English OR Italian) means a custom Edge AI Lab model drops into this
-// build with no code change here — retrain the KWS model with vai/sinistra/
-// destra/fermo (or add a "hey chip" wake word) and this still maps it. Any
+// 4=stop, 5=up/faster, 6=down/slower — the VOICE_LABELS contract) by the label's
+// NAME, not its enum index. Every generated model ships NRF_EDGEAI_USER_LABELS_NAME[];
+// matching on the word (English OR Italian) means a custom Edge AI Lab model drops
+// into this build with no code change here — retrain the KWS model with vai/sinistra/
+// destra/fermo (or add a "hey chip" wake word) and this still maps it. The stock
+// ww_kws model already knows up/down, so speed control needs no retraining. Any
 // unrecognised class (silence/other/an unmapped keyword/a wake word) -> 0.
 int our_class(uint16_t predicted) {
   constexpr int kNames =
@@ -73,9 +74,11 @@ int our_class(uint16_t predicted) {
     int cls;
   };
   static const Syn kSyn[] = {
-      {"go", 1},   {"vai", 1},      {"avanti", 1}, {"forward", 1},
-      {"left", 2}, {"sinistra", 2}, {"right", 3},  {"destra", 3},
-      {"stop", 4}, {"fermo", 4},    {"ferma", 4},  {"alt", 4},   {"halt", 4},
+      {"go", 1},    {"vai", 1},      {"avanti", 1},  {"forward", 1},
+      {"left", 2},  {"sinistra", 2}, {"right", 3},   {"destra", 3},
+      {"stop", 4},  {"fermo", 4},    {"ferma", 4},   {"alt", 4},     {"halt", 4},
+      {"up", 5},    {"su", 5},       {"faster", 5},  {"veloce", 5},  {"accelera", 5},
+      {"down", 6},  {"giu", 6},      {"slower", 6},  {"piano", 6},   {"rallenta", 6},
   };
   for (const Syn& s : kSyn)
     if (label_eq(name, s.word)) return s.cls;

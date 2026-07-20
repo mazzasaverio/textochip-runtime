@@ -13,6 +13,7 @@ deliberate**.
 
 > **Contract version: 2** (Tier-1 + Tier-2 + the `TONE`/`RPIN`/`SERVO`/`AREAD`/`MOVE`
 > + `MODE … INPD` real-hardware extensions + the Tier-4 edge-AI `AISTART`/`INFER`).
+> `DIST` (ultrasonic distance in cm) is defined product-side; its firmware HAL lands with the sensor.
 
 ---
 
@@ -76,6 +77,7 @@ struct; the simulator executes the same instructions directly.
 | `AREAD <pin>`        | push the analog (ADC) reading of `pin` (e.g. 0..4095) onto the value stack |
 | `MODE <pin> INPD`    | `pinMode(pin, INPUT_PULLDOWN)` — active-high sensors (e.g. a PIR) idle LOW when disconnected |
 | `MOVE <left> <right>`| differential drive: set the two wheel speeds, each `-255..255` (sign = direction, magnitude = PWM duty); `0 0` stops. Unlike the others, `MOVE` carries **no pin** — the two motors are a fixed board wiring owned by the HAL (an L298N: per wheel, 2 direction GPIOs + 1 PWM enable), so the bytecode stays board-generic. The browser sim drives a robot from these speeds. |
+| `DIST`               | push the ultrasonic distance in **cm** (an HC-SR04) onto the value stack. Like `MOVE`, carries **no pin** — the HAL owns the trigger/echo. Compiled from `DISTANCE()`. **Product + simulator ready; firmware HAL pending** (lands with the sensor on the bench). A board without it rejects the opcode, so gate real-board use until the HAL ships. |
 
 #### Pin operands: what is baked vs. HAL-owned
 

@@ -222,8 +222,19 @@ src/ai/
   vision_service.cpp the camera service: hal::camCapture -> ai_infer_vision -> class        ✅
   ai_vision_tflm.cpp TFLM person-detection backend (Phase-0 vision stand-in; host proof)    ✅
   ai_vision_stub.cpp no-model vision fallback (0=nothing) — the board build's backend        ▶
+  color_detect.c     COLOUR-blob detector: RGB frame -> colour class (host-tested)          ✅
 third_party/tflite-micro   the TFLM submodule (built into libtensorflow-microlite.a)       ✅
 ```
+
+**Two vision paths, one `SEE()` register.** Object CLASSES (person/ball/hand) come from a trained
+classifier (`ai_infer_vision`, the TFLM stand-in above). COLOURS (yellow/red/green/blue) come from a
+cheap deterministic **colour-blob detector** (`src/ai/color_detect.c`): an RGB frame gives the dominant
+saturated colour via HSV hue ranges + a coverage threshold, mapped to the `SEE()` class matching the
+product's `VISION_LABELS` (yellow=4, red=5, green=6, blue=7, 0=none). It is the near-term Arducam path
+(a request like *"stop at a yellow object"* / *"find the ball"* needs colour, which a classifier does
+not give cheaply), and it is **host-tested** (`make test-color`, 9 synthetic frames) the way `features.c`
+is the tested core of voice. **Remaining (with the camera):** the Arducam SPI capture HAL
+(`hal::camCapture` giving RGB) + a colour vision service that feeds `color_detect` into `vm.setVisionClass`.
 
 **The HAL capability + the service — BUILT:**
 

@@ -16,7 +16,7 @@ in `SPEC.md`) and can persist one to flash and rerun it on boot, PC unplugged.
 ```
 src/        portable core, shared by ALL targets (no hardware calls here)
   hal.h            the HAL interface (the only thing each board implements)
-  isa.{h,cpp}      opcode parsing (31 opcodes)
+  isa.{h,cpp}      opcode parsing (32 opcodes)
   vm.{h,cpp}       the tick-based bytecode VM
   runtime.{h,cpp}  serial protocol + VM driver
   ai/              edge-AI: mic capture -> the ai_service:: interface -> VOICE().

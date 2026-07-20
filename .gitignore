@@ -11,3 +11,4 @@ host/*.o
 build/
 build_*/
 zephyr/build/
+host/test_color

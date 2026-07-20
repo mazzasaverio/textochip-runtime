@@ -79,6 +79,13 @@ test-vision: test_vision.cpp ../src/ai/ai_vision_tflm.cpp ../src/ai/vision_servi
 	./test_vision
 
 clean:
-	rm -f $(BIN) $(AI_BIN) test_ai_infer test_ai_vm test_ai_move test_ai_service test_vision *.o
+	rm -f $(BIN) $(AI_BIN) test_ai_infer test_ai_vm test_ai_move test_ai_service test_vision test_color *.o
 
-.PHONY: run test-ai test-ai-vm test-ai-move tflm-lib ai-infer test-ai-service test-vision clean
+# Colour-blob detector for SEE() (the near-term Arducam vision path): synthetic
+# RGB frames -> the colour class, pinning the contract with the product's
+# VISION_LABELS. Pure C, no TFLM, no camera.
+test-color: test_color.c ../src/ai/color_detect.c ../src/ai/color_detect.h
+	$(CC) $(CFLAGS) -o test_color test_color.c ../src/ai/color_detect.c -lm
+	./test_color
+
+.PHONY: run test-ai test-ai-vm test-ai-move tflm-lib ai-infer test-ai-service test-vision test-color clean

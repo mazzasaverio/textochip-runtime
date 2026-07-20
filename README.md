@@ -53,7 +53,9 @@ make test-ai        # the C MFCC matches textochip-ml's Python golden vectors
 make test-ai-vm     # the VM runs AISTART/INFER and branches on the AI class
 make tflm-lib       # one-time: git submodule update --init --depth 1 third_party/tflite-micro
 make ai-infer       # end-to-end: speech samples in, the right word out
-make test-vision    # same for SEE() with TFLM person-detection
+make test-vision    # same for SEE() with TFLM person-detection (object classes)
+make test-color     # the colour-blob detector: RGB frame -> the SEE() colour class
+make test-color-move # colour vision end-to-end: a yellow frame stops the robot on the VM
 ```
 
 ## Build for hardware

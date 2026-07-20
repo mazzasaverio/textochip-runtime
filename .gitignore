@@ -12,3 +12,4 @@ build/
 build_*/
 zephyr/build/
 host/test_color
+host/test_color_move

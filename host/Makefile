@@ -79,7 +79,7 @@ test-vision: test_vision.cpp ../src/ai/ai_vision_tflm.cpp ../src/ai/vision_servi
 	./test_vision
 
 clean:
-	rm -f $(BIN) $(AI_BIN) test_ai_infer test_ai_vm test_ai_move test_ai_service test_vision test_color test_color_move *.o
+	rm -f $(BIN) $(AI_BIN) test_ai_infer test_ai_vm test_ai_move test_ai_service test_vision test_color test_color_move test_color_service *.o
 
 # Colour-blob detector for SEE() (the near-term Arducam vision path): synthetic
 # RGB frames -> the colour class, pinning the contract with the product's
@@ -96,4 +96,13 @@ test-color-move: test_color_move.cpp ../src/ai/color_detect.c ../src/isa.cpp ../
 	$(CXX) $(CXXFLAGS) -o test_color_move test_color_move.cpp color_detect.o ../src/isa.cpp ../src/vm.cpp ../src/registry.cpp hal_host.cpp -lm
 	./test_color_move
 
-.PHONY: run test-ai test-ai-vm test-ai-move tflm-lib ai-infer test-ai-service test-vision test-color test-color-move clean
+# The colour VISION SERVICE end-to-end (no camera): an RGB frame -> the camera
+# stub (host_feed_rgb) -> vision_service built with TEXTOCHIP_VISION_COLOR (chunked
+# capture + tc_detect_color) -> the SEE() class. One layer above test-color.
+test-color-service: test_color_service.cpp ../src/ai/vision_service.cpp ../src/ai/color_detect.c hal_host.cpp
+	$(CC) $(CFLAGS) -c ../src/ai/color_detect.c -o color_detect.o
+	$(CXX) $(CXXFLAGS) -DTEXTOCHIP_VISION_COLOR -c ../src/ai/vision_service.cpp -o vision_service_color.o
+	$(CXX) $(CXXFLAGS) -o test_color_service test_color_service.cpp vision_service_color.o color_detect.o hal_host.cpp -lm
+	./test_color_service
+
+.PHONY: run test-ai test-ai-vm test-ai-move tflm-lib ai-infer test-ai-service test-vision test-color test-color-move test-color-service clean

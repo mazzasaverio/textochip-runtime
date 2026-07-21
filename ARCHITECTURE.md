@@ -19,10 +19,10 @@ The browser **compiles** BASIC to a flat bytecode list **once**; the MCU only **
 
 ## 2. The HAL is the only per-board file
 
-The VM / ISA / missions are platform-agnostic and only ever call `hal::*` (`src/hal.h`, 18
+The VM / ISA / missions are platform-agnostic and only ever call `hal::*` (`src/hal.h`, 19
 functions: GPIO + ADC, a buzzer tone, a servo, differential-drive motors, an I2S mic + camera
-capture for the edge-AI tier, flash persistence for autorun, a millisecond clock, and a serial
-link). Porting to a new microcontroller = implement **one file**. `host/hal_host.cpp` runs the whole thing on a PC (g++)
+capture (grayscale + RGB) for the edge-AI tier, flash persistence for autorun, a millisecond
+clock, and a serial link). Porting to a new microcontroller = implement **one file**. `host/hal_host.cpp` runs the whole thing on a PC (g++)
 for fast verification; `zephyr/src/hal_zephyr.cpp` is the on-board implementation. This is what
 makes "runs on any microcontroller" true rather than aspirational.
 

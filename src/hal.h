@@ -82,6 +82,16 @@ std::string micPinsProbe();
 // into the class SEE() reads. Mirrors aiCapture (mic), one sense apart.
 int camCapture(uint8_t* out, int max);
 
+// RGB variant for the near-term Arducam COLOUR path (a request like "stop at a
+// yellow object" needs colour, which the grayscale object model above does not
+// give). Fills `out` with up to `max` bytes of an RGB888 frame (3 bytes/pixel,
+// R,G,B in order) at the colour service's input size, and returns how many it
+// wrote (0 if no frame ready). NON-BLOCKING. Board: the Arducam Mega 5MP over SPI
+// (its RGB565 output expanded to RGB888). Host / no camera: returns 0, so SEE()
+// stays 0. The colour vision service (vision_service.cpp built with
+// TEXTOCHIP_VISION_COLOR) turns its frame into a colour class via tc_detect_color.
+int camCaptureRGB(uint8_t* out, int max);
+
 // Non-volatile storage for the autorun program (brief §7). SAVE persists the
 // raw bytecode text to flash; on boot, a saved program is loaded + run with no
 // PC attached (the board's autonomy). One slot — a new save overwrites it.

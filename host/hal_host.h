@@ -15,6 +15,8 @@ void host_feed_audio(const int16_t* samples, int n);
 // service's two-window debounce can see it twice.
 bool host_audio_drained();
 void host_reset_audio();
-void host_feed_image(const unsigned char* pixels, int n);  // camera frame stub
+void host_feed_image(const unsigned char* pixels, int n);  // grayscale camera stub
 void host_reset_image();
+void host_feed_rgb(const unsigned char* pixels, int n);  // RGB camera frame stub
+void host_reset_rgb();
 bool host_get_move(int* left, int* right);  // false if the program never MOVEd

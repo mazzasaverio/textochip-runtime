@@ -56,6 +56,7 @@ make ai-infer       # end-to-end: speech samples in, the right word out
 make test-vision    # same for SEE() with TFLM person-detection (object classes)
 make test-color     # the colour-blob detector: RGB frame -> the SEE() colour class
 make test-color-move # colour vision end-to-end: a yellow frame stops the robot on the VM
+make test-color-service # the colour vision SERVICE: camera stub -> chunked capture -> SEE() class
 ```
 
 ## Build for hardware

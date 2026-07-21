@@ -606,6 +606,12 @@ int aiCaptureRaw(int32_t* out, int n) {
 // the model's 96x96 grayscale is the bench step, like the mic's I2S.
 int camCapture(uint8_t* /*out*/, int /*max*/) { return 0; }
 
+// RGB capture for the colour vision path. Stub (returns 0 = no frame) until the
+// Arducam Mega SPI driver lands at bring-up; see docs/edge-ai.md "Vision (SEE)"
+// and the arducam_mega scaffold. Keeping it here (not #if 0'd out) means the
+// TEXTOCHIP_VISION_COLOR build links today; SEE() simply reads "nothing" so far.
+int camCaptureRGB(uint8_t* /*out*/, int /*max*/) { return 0; }
+
 uint32_t nowMs() { return (uint32_t)k_uptime_get(); }
 
 int serialReadChar() {

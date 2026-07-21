@@ -119,8 +119,12 @@ also starts the listening service, so `AISTART` is optional — the compiler emi
 `.tflite` runs on the ESP32-S3 (TFLM + ESP-NN) and the Nordic nRF54L (TFLM + CMSIS-NN on the M33,
 or the Axon NPU); the on-device feature extractor matches the training MFCC via a shared
 golden-vector contract. **Vision is the same shape, one sense apart:** `SEE()` → `INFER vision`,
-a separate `visionClass` register, and a camera vision service (`src/ai/vision_service.cpp`,
-person-detection today). Full design + status: [`docs/edge-ai.md`](docs/edge-ai.md).
+a separate `visionClass` register, and a camera vision service (`src/ai/vision_service.cpp`) with
+two compile modes on one `SEE()` register: a trained OBJECT classifier (`ai_infer_vision`,
+grayscale, person/ball/hand = 1..3) and the near-term COLOUR detector (`TEXTOCHIP_VISION_COLOR`:
+`tc_detect_color` over an RGB frame, yellow/red/green/blue = 4..7). Both feed one HAL capture
+function per format (`camCapture` / `camCaptureRGB`). Full design + status:
+[`docs/edge-ai.md`](docs/edge-ai.md).
 
 A receiver MUST ignore blank lines and `;` / `#` comments, and MAY ignore unknown
 opcodes (forward-compatibility).
@@ -181,7 +185,8 @@ length-prefixed blob written straight to the storage partition via **`flash_area
 ## 4. The HAL (per-board surface)
 
 Everything above is board-agnostic and only ever calls `hal::*` (`src/hal.h`).
-Porting to a new microcontroller means implementing **one file** (18 functions:
-GPIO + ADC, buzzer tone, a servo, differential-drive motors, an I2S mic + camera capture for the
+Porting to a new microcontroller means implementing **one file** (19 functions:
+GPIO + ADC, buzzer tone, a servo, differential-drive motors, an I2S mic + camera capture
+(grayscale `camCapture` for objects, `camCaptureRGB` for the near-term colour path) for the
 edge-AI tier, flash persistence for autorun, a millisecond clock, and a serial link). See
 `src/hal.h`.

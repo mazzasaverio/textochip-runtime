@@ -25,8 +25,10 @@ bool g_buttonPressed = false;
 // wheel speeds, so a test can assert the robot drove/stopped.
 std::vector<int16_t> g_audio;
 size_t g_audioPos = 0;
-std::vector<unsigned char> g_image;  // camera frame stub (host_feed_image)
+std::vector<unsigned char> g_image;  // grayscale camera frame stub (host_feed_image)
 size_t g_imagePos = 0;
+std::vector<unsigned char> g_rgb;  // RGB camera frame stub (host_feed_rgb)
+size_t g_rgbPos = 0;
 int g_moveL = 0, g_moveR = 0;
 bool g_moved = false;
 }  // namespace
@@ -57,6 +59,13 @@ void host_feed_image(const unsigned char* pixels, int n) {
 void host_reset_image() {
   g_image.clear();
   g_imagePos = 0;
+}
+void host_feed_rgb(const unsigned char* pixels, int n) {
+  g_rgb.insert(g_rgb.end(), pixels, pixels + n);
+}
+void host_reset_rgb() {
+  g_rgb.clear();
+  g_rgbPos = 0;
 }
 bool host_get_move(int* left, int* right) {
   if (left != nullptr) *left = g_moveL;
@@ -149,6 +158,13 @@ int camCapture(unsigned char* out, int max) {
   int avail = (int)(g_image.size() - g_imagePos);
   int k = avail < max ? avail : max;
   for (int i = 0; i < k; i++) out[i] = g_image[g_imagePos++];
+  return k;
+}
+
+int camCaptureRGB(unsigned char* out, int max) {
+  int avail = (int)(g_rgb.size() - g_rgbPos);
+  int k = avail < max ? avail : max;
+  for (int i = 0; i < k; i++) out[i] = g_rgb[g_rgbPos++];
   return k;
 }
 

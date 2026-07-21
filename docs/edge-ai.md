@@ -219,7 +219,9 @@ src/ai/
   models/voice/   the vendored artifact from textochip-ml (model.h, labels.json)           ✅
   ── vision (SEE()) — the same shape, one sense apart ──
   ai_vision.h        the vision interface (int ai_infer_vision(image, n) -> class)         ✅
-  vision_service.cpp the camera service: hal::camCapture -> ai_infer_vision -> class        ✅
+  vision_service.cpp the camera service, two compile modes (one SEE() register):            ✅
+                       default                : hal::camCapture   -> ai_infer_vision -> class
+                       TEXTOCHIP_VISION_COLOR : hal::camCaptureRGB -> tc_detect_color -> class
   ai_vision_tflm.cpp TFLM person-detection backend (Phase-0 vision stand-in; host proof)    ✅
   ai_vision_stub.cpp no-model vision fallback (0=nothing) — the board build's backend        ▶
   color_detect.c     COLOUR-blob detector: RGB frame -> colour class (host-tested)          ✅
@@ -233,8 +235,28 @@ saturated colour via HSV hue ranges + a coverage threshold, mapped to the `SEE()
 product's `VISION_LABELS` (yellow=4, red=5, green=6, blue=7, 0=none). It is the near-term Arducam path
 (a request like *"stop at a yellow object"* / *"find the ball"* needs colour, which a classifier does
 not give cheaply), and it is **host-tested** (`make test-color`, 9 synthetic frames) the way `features.c`
-is the tested core of voice. **Remaining (with the camera):** the Arducam SPI capture HAL
-(`hal::camCapture` giving RGB) + a colour vision service that feeds `color_detect` into `vm.setVisionClass`.
+is the tested core of voice.
+
+**The colour pipeline is now WIRED and host-proven** — `vision_service.cpp` gained a compile mode
+`TEXTOCHIP_VISION_COLOR` that captures an RGB frame via the new `hal::camCaptureRGB` and runs
+`tc_detect_color`, mirroring the voice service one sense apart. `make test-color-service` feeds RGB
+frames through the camera stub and the real service (chunked capture + assembly + detect) and asserts
+the `SEE()` class for yellow/red/green/blue/grey — so everything except the physical camera read is
+built and tested. `runtime::tick` already drives `vision_service` when `vm.visionRequested()`.
+
+**Remaining (bring-up, with the Arducam Mega on the bench):** implement `hal::camCaptureRGB` in
+`zephyr/src/hal_zephyr.cpp` (today a `return 0` stub) against the **Arducam Mega 5MP over SPI**:
+
+- **Format / size:** set the Mega to **RGB565** at a small resolution (96×96, matching the service's
+  `kFramePixels`), so no on-MCU JPEG decode; expand each RGB565 pixel to the RGB888 the service reads.
+- **Flow:** `reg_write(format=RGB565)` → `reg_write(resolution=96×96)` → start capture → poll the
+  capture-done register → burst-read the FIFO → RGB565→RGB888 into `out`, returning bytes written
+  (non-blocking: drain a bounded chunk per call, like the mic). The register map + command bytes come
+  from the **ArduCAM_Mega** library / Arducam's "Mega SPI Camera" application note (confirm on the
+  bench with a logic analyzer — do NOT hand-transcribe register values blind).
+- **Wiring / overlay:** an SPI instance (SCK/MISO/MOSI + a CS GPIO) in the board overlay; pins in
+  `docs/hardware.md` (provisional until wired). The service, the ISA, `SEE()`, and every BASIC program
+  are UNCHANGED — only this one HAL function turns on.
 
 **The HAL capability + the service — BUILT:**
 
@@ -286,11 +308,16 @@ no cloud, no phone app. A simple addition to the serial protocol (planned):
   real TFLM inference** (`west build` green — the model + interpreter in the ELF). *Remaining:* the
   mic bring-up + on-chip validation on **real hardware**, then the nRF54L (CMSIS-NN on the M33; the
   Axon NPU as the optional accelerator).
-- **Phase 2 — vision.** 🚧 Scaffolded + host-proven: `SEE()` (→ `INFER vision`), the camera
-  service (`vision_service.cpp`) + a per-model VM register (`visionClass`), and a real Phase-0
-  model — TFLM **person-detection** (`make test-vision`: a real image → the class → `SEE()`
-  branches, no camera). Next: the ESP32-S3-CAM capture over the DVP camera interface + a trained
-  vision-v1 (person/ball/hand) via MobileNet transfer learning — same contract as voice.
+- **Phase 2 — vision.** 🚧 Two paths built + host-proven, one `SEE()` register:
+  - **Colour (near-term, the Arducam Mega path).** `SEE()="yellow"` etc. from `color_detect.c`,
+    now wired through `vision_service` (`TEXTOCHIP_VISION_COLOR`) fed by `hal::camCaptureRGB`, and
+    proven end-to-end on the host (`make test-color-service`, `make test-color-move` → the robot
+    stops at yellow). *Remaining:* implement `hal::camCaptureRGB` against the Arducam Mega SPI at
+    bring-up (RGB565 96×96 → RGB888) — the ONE stubbed HAL function; see the vision section above.
+  - **Objects (later).** `SEE()="person/ball/hand"` from a trained classifier — `vision_service`
+    default mode + `ai_infer_vision`, with a Phase-0 TFLM **person-detection** stand-in
+    (`make test-vision`: a real image → the class → `SEE()` branches, no camera). Next: a trained
+    vision-v1 via MobileNet transfer learning — same contract as voice.
 
 See [`textochip-ml/docs/pipeline.md`](https://github.com/mazzasaverio/textochip-ml/blob/main/docs/pipeline.md)
 for the training side.

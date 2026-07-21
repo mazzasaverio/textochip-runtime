@@ -2,12 +2,10 @@
 #include <cstdint>
 
 // Host-only controls (not part of the HAL): let main() drive a simulated clock
-// and a simulated button so a whole program can be exercised instantly on the PC.
+// and feed inputs so a whole program can be exercised instantly on the PC.
 void host_advance(uint32_t ms);
-void host_set_button(int pin, bool pressed);
-void host_set_analog(int pin, int value);  // simulated ADC reading for AREAD
-void host_set_distance(int cm);             // simulated ultrasonic distance for DIST
-int host_get_level(int pin);               // last written digital level (for tests)
+void host_set_distance(int cm);  // simulated ultrasonic distance for DIST
+int host_get_level(int pin);     // last written digital level (for tests)
 
 // Edge-AI mic stub (for the voice tests): queue PCM samples that hal::aiCapture
 // will drain, clear the queue, and read back the program's last MOVE wheel speeds.

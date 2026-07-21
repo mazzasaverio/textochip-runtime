@@ -14,12 +14,8 @@
 namespace {
 std::array<int, 128> g_level{};   // last written pin levels
 std::array<int, 128> g_mode{};    // 0=INPUT_PULLUP, 1=OUTPUT, 2=INPUT_PULLDOWN
-std::array<int, 128> g_servo{};   // last servo angle per pin
-std::array<int, 128> g_analog{};  // simulated ADC reading per pin
 int g_distance = 400;             // simulated ultrasonic distance in cm (DIST)
 uint32_t g_now = 0;
-int g_buttonPin = -1;
-bool g_buttonPressed = false;
 
 // Edge-AI mic stub: a queue of PCM samples a test feeds via host_feed_audio();
 // hal::aiCapture drains it (stand-in for the board's I2S mic). Plus the last MOVE
@@ -35,13 +31,6 @@ bool g_moved = false;
 }  // namespace
 
 void host_advance(uint32_t ms) { g_now += ms; }
-void host_set_button(int pin, bool pressed) {
-  g_buttonPin = pin;
-  g_buttonPressed = pressed;
-}
-void host_set_analog(int pin, int value) {
-  if (pin >= 0 && pin < 128) g_analog[pin] = value;
-}
 void host_set_distance(int cm) { g_distance = cm; }
 int host_get_level(int pin) { return (pin >= 0 && pin < 128) ? g_level[pin] : 0; }
 
@@ -92,7 +81,6 @@ void pinWrite(int pin, int level) {
 }
 
 int pinRead(int pin) {
-  if (pin == g_buttonPin) return g_buttonPressed ? 0 : 1;  // active-low: pressed = LOW
   if (pin >= 0 && pin < 128) {
     if (g_mode[pin] == 0) return 1;  // INPUT_PULLUP idle reads HIGH
     if (g_mode[pin] == 2) return 0;  // INPUT_PULLDOWN idle reads LOW
@@ -101,7 +89,8 @@ int pinRead(int pin) {
   return 0;
 }
 
-int analogRead(int pin) { return (pin >= 0 && pin < 128) ? g_analog[pin] : 0; }
+// No ADC on a PC — the host always reads 0 (a program's AREAD path still runs).
+int analogRead(int /*pin*/) { return 0; }
 
 int distanceCm() { return g_distance; }
 
@@ -111,7 +100,6 @@ void toneOff(int pin) { std::printf("    [t=%6ums] buzzer pin%d off\n", g_now, p
 void servo(int pin, int angle) {
   if (angle < 0) angle = 0;
   if (angle > 180) angle = 180;
-  if (pin >= 0 && pin < 128) g_servo[pin] = angle;
   std::printf("    [t=%6ums] servo pin%d -> %d deg\n", g_now, pin, angle);
 }
 

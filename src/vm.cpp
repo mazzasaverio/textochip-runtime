@@ -182,6 +182,9 @@ void VM::step(const Instruction& in) {
     case OP_MOVE:  // MOVE <left> <right> — differential drive (L298N)
       hal::move((int)in.a, (int)in.b);
       break;
+    case OP_DIST:  // DIST — push the ultrasonic distance in cm (HC-SR04)
+      push(hal::distanceCm());
+      break;
 
     // ── Tier 4 — edge-AI ──
     case OP_AISTART:

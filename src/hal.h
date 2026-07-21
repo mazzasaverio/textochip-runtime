@@ -21,6 +21,13 @@ int pinRead(int pin);               // returns 0/1
 // Analog input (ADC) — returns a raw reading (e.g. 0..4095 on the ESP32-S3).
 int analogRead(int pin);
 
+// Ultrasonic distance (HC-SR04) — returns the distance to the nearest object
+// AHEAD in centimetres, or a large "nothing in range" value (~400) when the echo
+// times out or no sensor is wired. HAL-owned trigger/echo pins (like the motors),
+// so DIST carries no pin. A bounded blocking read (~<40 ms worst case, ms in
+// practice). Compiled from DISTANCE().
+int distanceCm();
+
 // Buzzer (square wave)
 void tone(int pin, int hz);  // hz>0 start
 void toneOff(int pin);

@@ -96,6 +96,12 @@ test-color-move: test_color_move.cpp ../src/ai/color_detect.c ../src/isa.cpp ../
 	$(CXX) $(CXXFLAGS) -o test_color_move test_color_move.cpp color_detect.o ../src/isa.cpp ../src/vm.cpp ../src/registry.cpp hal_host.cpp -lm
 	./test_color_move
 
+# DIST (ultrasonic distance) end-to-end on the VM (no sensor): the host stub
+# feeds a distance -> DISTANCE() -> the robot stops within 10 cm, roams otherwise.
+test-dist: test_dist.cpp ../src/isa.cpp ../src/vm.cpp ../src/registry.cpp hal_host.cpp
+	$(CXX) $(CXXFLAGS) -o test_dist test_dist.cpp ../src/isa.cpp ../src/vm.cpp ../src/registry.cpp hal_host.cpp -lm
+	./test_dist
+
 # The colour VISION SERVICE end-to-end (no camera): an RGB frame -> the camera
 # stub (host_feed_rgb) -> vision_service built with TEXTOCHIP_VISION_COLOR (chunked
 # capture + tc_detect_color) -> the SEE() class. One layer above test-color.
@@ -105,4 +111,4 @@ test-color-service: test_color_service.cpp ../src/ai/vision_service.cpp ../src/a
 	$(CXX) $(CXXFLAGS) -o test_color_service test_color_service.cpp vision_service_color.o color_detect.o hal_host.cpp -lm
 	./test_color_service
 
-.PHONY: run test-ai test-ai-vm test-ai-move tflm-lib ai-infer test-ai-service test-vision test-color test-color-move test-color-service clean
+.PHONY: run test-ai test-ai-vm test-ai-move tflm-lib ai-infer test-ai-service test-vision test-color test-color-move test-color-service test-dist clean

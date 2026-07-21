@@ -9,7 +9,7 @@ alternatives we weighed.
 The browser **compiles** BASIC to a flat bytecode list **once**; the MCU only **executes** it.
 
 - **Performance / memory.** Parsing is the expensive part — do it on the PC, not on every run on
-  the microcontroller. A dispatcher over 31 opcodes is small and hard to get wrong; an extended
+  the microcontroller. A dispatcher over 32 opcodes is small and hard to get wrong; an extended
   text tokenizer on a system with no memory protection is a bug source.
 - **Decoupling.** The grammar evolves in the browser without reflashing; the firmware evolves
   without touching the language. The **ISA + serial protocol** ([`SPEC.md`](SPEC.md)) is the only

@@ -6,6 +6,7 @@
 void host_advance(uint32_t ms);
 void host_set_button(int pin, bool pressed);
 void host_set_analog(int pin, int value);  // simulated ADC reading for AREAD
+void host_set_distance(int cm);             // simulated ultrasonic distance for DIST
 int host_get_level(int pin);               // last written digital level (for tests)
 
 // Edge-AI mic stub (for the voice tests): queue PCM samples that hal::aiCapture

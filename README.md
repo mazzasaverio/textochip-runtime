@@ -57,6 +57,7 @@ make test-vision    # same for SEE() with TFLM person-detection (object classes)
 make test-color     # the colour-blob detector: RGB frame -> the SEE() colour class
 make test-color-move # colour vision end-to-end: a yellow frame stops the robot on the VM
 make test-color-service # the colour vision SERVICE: camera stub -> chunked capture -> SEE() class
+make test-dist      # DIST (ultrasonic): a fed distance -> DISTANCE() -> the robot stops within 10 cm
 ```
 
 ## Build for hardware

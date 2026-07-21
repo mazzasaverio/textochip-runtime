@@ -48,6 +48,7 @@ const char* opcodeName(OpCode op) {
     case OP_SERVO: return "SERVO";
     case OP_AREAD: return "AREAD";
     case OP_MOVE: return "MOVE";
+    case OP_DIST: return "DIST";
     case OP_AISTART: return "AISTART";
     case OP_INFER: return "INFER";
     default: return "?";
@@ -66,7 +67,7 @@ OpCode opcodeFromName(const std::string& n) {
       {"LT", OP_LT},     {"EQ", OP_EQ},     {"AND", OP_AND},     {"NOT", OP_NOT},
       {"ABS", OP_ABS},   {"JZ", OP_JZ},     {"GOSUB", OP_GOSUB}, {"RET", OP_RET},
       {"TONE", OP_TONE}, {"RPIN", OP_RPIN}, {"SERVO", OP_SERVO},
-      {"AREAD", OP_AREAD}, {"MOVE", OP_MOVE},
+      {"AREAD", OP_AREAD}, {"MOVE", OP_MOVE}, {"DIST", OP_DIST},
       {"AISTART", OP_AISTART}, {"INFER", OP_INFER},
   };
   for (auto& m : M)

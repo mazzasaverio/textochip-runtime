@@ -16,6 +16,7 @@ std::array<int, 128> g_level{};   // last written pin levels
 std::array<int, 128> g_mode{};    // 0=INPUT_PULLUP, 1=OUTPUT, 2=INPUT_PULLDOWN
 std::array<int, 128> g_servo{};   // last servo angle per pin
 std::array<int, 128> g_analog{};  // simulated ADC reading per pin
+int g_distance = 400;             // simulated ultrasonic distance in cm (DIST)
 uint32_t g_now = 0;
 int g_buttonPin = -1;
 bool g_buttonPressed = false;
@@ -41,6 +42,7 @@ void host_set_button(int pin, bool pressed) {
 void host_set_analog(int pin, int value) {
   if (pin >= 0 && pin < 128) g_analog[pin] = value;
 }
+void host_set_distance(int cm) { g_distance = cm; }
 int host_get_level(int pin) { return (pin >= 0 && pin < 128) ? g_level[pin] : 0; }
 
 // Edge-AI mic stub controls (tests): queue PCM for hal::aiCapture, clear it, and
@@ -100,6 +102,8 @@ int pinRead(int pin) {
 }
 
 int analogRead(int pin) { return (pin >= 0 && pin < 128) ? g_analog[pin] : 0; }
+
+int distanceCm() { return g_distance; }
 
 void tone(int pin, int hz) { std::printf("    [t=%6ums] buzzer pin%d -> %d Hz\n", g_now, pin, hz); }
 void toneOff(int pin) { std::printf("    [t=%6ums] buzzer pin%d off\n", g_now, pin); }

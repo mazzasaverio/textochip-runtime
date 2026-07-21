@@ -13,7 +13,8 @@ deliberate**.
 
 > **Contract version: 2** (Tier-1 + Tier-2 + the `TONE`/`RPIN`/`SERVO`/`AREAD`/`MOVE`
 > + `MODE … INPD` real-hardware extensions + the Tier-4 edge-AI `AISTART`/`INFER`).
-> `DIST` (ultrasonic distance in cm) is defined product-side; its firmware HAL lands with the sensor.
+> `DIST` (ultrasonic distance in cm) is implemented in the firmware VM + HAL (host-tested); the
+> Zephyr HC-SR04 driver ships behind a board-overlay alias — bring-up is wiring the sensor.
 
 ---
 
@@ -77,7 +78,7 @@ struct; the simulator executes the same instructions directly.
 | `AREAD <pin>`        | push the analog (ADC) reading of `pin` (e.g. 0..4095) onto the value stack |
 | `MODE <pin> INPD`    | `pinMode(pin, INPUT_PULLDOWN)` — active-high sensors (e.g. a PIR) idle LOW when disconnected |
 | `MOVE <left> <right>`| differential drive: set the two wheel speeds, each `-255..255` (sign = direction, magnitude = PWM duty); `0 0` stops. Unlike the others, `MOVE` carries **no pin** — the two motors are a fixed board wiring owned by the HAL (an L298N: per wheel, 2 direction GPIOs + 1 PWM enable), so the bytecode stays board-generic. The browser sim drives a robot from these speeds. |
-| `DIST`               | push the ultrasonic distance in **cm** (an HC-SR04) onto the value stack. Like `MOVE`, carries **no pin** — the HAL owns the trigger/echo. Compiled from `DISTANCE()`. **Product + simulator ready; firmware HAL pending** (lands with the sensor on the bench). A board without it rejects the opcode, so gate real-board use until the HAL ships. |
+| `DIST`               | push the ultrasonic distance in **cm** (an HC-SR04) onto the value stack. Like `MOVE`, carries **no pin** — the HAL owns the trigger/echo. Compiled from `DISTANCE()`. **Implemented** in the VM + HAL (`hal::distanceCm`, host-tested via `make test-dist`); the Zephyr driver (10 µs trigger, echo-width timing) is wired behind the `hcsr04-trig`/`hcsr04-echo` board-overlay aliases and returns ~400 ("nothing in range") until the sensor is present — bring-up is wiring it + adding the aliases. |
 
 #### Pin operands: what is baked vs. HAL-owned
 

@@ -144,6 +144,20 @@ static const struct adc_dt_spec g_adc = ADC_DT_SPEC_GET(ADC_NODE);
 static bool g_adc_ready = false;
 #endif
 
+// ── Ultrasonic distance (HC-SR04): a TRIG output + ECHO input, wired via two
+// board-overlay aliases (hcsr04-trig / hcsr04-echo). HAL-owned pins, so the DIST
+// opcode carries none. Absent until the sensor is wired at bring-up, so
+// distanceCm() then reports "nothing in range". The ECHO pin is 5V on a real
+// HC-SR04 — level-shift or use an HC-SR04P/3.3V module (see docs/hardware.md). ──
+#if DT_NODE_EXISTS(DT_ALIAS(hcsr04_trig)) && DT_NODE_EXISTS(DT_ALIAS(hcsr04_echo))
+#define HAS_HCSR04 1
+static const struct gpio_dt_spec g_hc_trig =
+    GPIO_DT_SPEC_GET(DT_ALIAS(hcsr04_trig), gpios);
+static const struct gpio_dt_spec g_hc_echo =
+    GPIO_DT_SPEC_GET(DT_ALIAS(hcsr04_echo), gpios);
+static bool g_hc_ready = false;
+#endif
+
 // ── Non-volatile storage: NVS on the board's `storage` flash partition (192 KB
 // on the ESP32-S3, defined in its devicetree). One key holds the autorun program
 // text; SAVE writes it, boot reads it (see runtime::init). ──
@@ -407,6 +421,45 @@ int analogRead(int /*pin*/) {
   return adc_read_dt(&g_adc, &seq) == 0 ? (int)buf : 0;
 #else
   return 0;  // no ADC channel in the overlay yet
+#endif
+}
+
+// Ultrasonic distance (HC-SR04): a 10 us TRIG pulse, then time the ECHO HIGH
+// width (58 us per cm, round trip). A bounded blocking read (~30 ms timeout =
+// out of range). Returns cm, or 400 ("nothing in range") on timeout / no sensor.
+int distanceCm() {
+#ifdef HAS_HCSR04
+  if (!g_hc_ready) {
+    if (!gpio_is_ready_dt(&g_hc_trig) || !gpio_is_ready_dt(&g_hc_echo)) return 400;
+    gpio_pin_configure_dt(&g_hc_trig, GPIO_OUTPUT_INACTIVE);
+    gpio_pin_configure_dt(&g_hc_echo, GPIO_INPUT);
+    g_hc_ready = true;
+  }
+  // 10 us trigger pulse.
+  gpio_pin_set_dt(&g_hc_trig, 0);
+  k_busy_wait(2);
+  gpio_pin_set_dt(&g_hc_trig, 1);
+  k_busy_wait(10);
+  gpio_pin_set_dt(&g_hc_trig, 0);
+
+  const uint32_t hz = sys_clock_hw_cycles_per_sec();
+  const uint32_t timeout_cyc = (uint32_t)((uint64_t)hz * 30000u / 1000000u);
+  const uint32_t t0 = k_cycle_get_32();
+  while (gpio_pin_get_dt(&g_hc_echo) == 0) {  // wait for the echo to start
+    if (k_cycle_get_32() - t0 > timeout_cyc) return 400;
+  }
+  const uint32_t rise = k_cycle_get_32();
+  while (gpio_pin_get_dt(&g_hc_echo) == 1) {  // time the HIGH width
+    if (k_cycle_get_32() - rise > timeout_cyc) return 400;
+  }
+  const uint32_t width_us =
+      (uint32_t)((uint64_t)(k_cycle_get_32() - rise) * 1000000u / hz);
+  int cm = (int)(width_us / 58u);  // ~58 us per cm (round trip / speed of sound)
+  if (cm < 1) cm = 1;
+  if (cm > 400) cm = 400;
+  return cm;
+#else
+  return 400;  // no HC-SR04 wired -> nothing in range
 #endif
 }
 

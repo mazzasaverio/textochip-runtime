@@ -15,6 +15,7 @@ enum OpCode {
   // Extensions (real hardware)
   OP_TONE, OP_RPIN, OP_SERVO, OP_AREAD,
   OP_MOVE,  // MOVE <left> <right> — differential drive, wheel speeds -255..255
+  OP_DIST,  // DIST — push the ultrasonic distance in cm (HC-SR04; HAL-owned, no pin)
   // Tier 4 — edge-AI
   OP_AISTART,  // AISTART <model> — start the model's background inference service
   OP_INFER,    // INFER <model> — push the latest class index (0 = none), non-blocking

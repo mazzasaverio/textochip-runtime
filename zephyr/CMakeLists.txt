@@ -6,7 +6,8 @@ project(textochip_runtime)
 target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src)
 target_sources(app PRIVATE
   src/main.cpp
-  src/hal_zephyr.cpp        # the ONLY board-specific file
+  src/hal_zephyr.cpp        # the board-specific HAL
+  src/arducam_mega.cpp      # the SEE() camera (SPI); compiles to a no-op with no camera node
   ../src/isa.cpp
   ../src/vm.cpp
   ../src/runtime.cpp
@@ -25,11 +26,20 @@ target_sources(app PRIVATE
 #                         model on the Axon NPU (nrf_edgeai lib, sdk-edge-ai).
 if(CONFIG_TEXTOCHIP_AI)
   target_compile_definitions(app PRIVATE TEXTOCHIP_AI)
-  # Vision tier: the camera service + a placeholder vision backend (both paths).
-  target_sources(app PRIVATE
-    ../src/ai/vision_service.cpp
-    ../src/ai/ai_vision_stub.cpp
-  )
+  # ── Vision tier (SEE()/SEEX()/SEESIZE()) ────────────────────────────────────
+  # The camera service is shared; which BACKEND turns its frame into a class is
+  # decided by the board's devicetree. A board that wires the Arducam Mega gets
+  # the COLOUR path (tc_detect_color_blob over an RGB frame) — the one that
+  # actually works today and needs no trained model. A board with no camera node
+  # keeps the object-model placeholder, so SEE() reads "nothing" and links.
+  target_sources(app PRIVATE ../src/ai/vision_service.cpp)
+  dt_nodelabel(tc_cam_node NODELABEL "arducam")
+  if(DEFINED tc_cam_node)
+    target_compile_definitions(app PRIVATE TEXTOCHIP_VISION_COLOR)
+    target_sources(app PRIVATE ../src/ai/color_detect.c)
+  else()
+    target_sources(app PRIVATE ../src/ai/ai_vision_stub.cpp)
+  endif()
 
 if(CONFIG_TEXTOCHIP_NRF_EDGEAI)
   # ── Nordic nRF Edge AI backend (Axon NPU) ───────────────────────────────────

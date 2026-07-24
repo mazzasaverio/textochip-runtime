@@ -99,3 +99,50 @@
 &axon {
 	status = "okay";
 };
+
+/* ── Camera (SEE()/SEEX()/SEESIZE()): the Arducam Mega on SPI22 ───────────────
+ * Pins were NOT copied from Nordic's person_detection overlay: that one puts
+ * SCK/MISO/MOSI on P1.04-P1.06 with CS on P1.07, and P1.06/P1.07 are already
+ * the two motor enables here (pwm21). D1-D4 are four free, ADJACENT header pins,
+ * so the camera is one contiguous ribbon:
+ *   CS -> D1 (P3.04)  SCK -> D2 (P1.02)  MISO -> D3 (P1.03)  MOSI -> D4 (P1.04)
+ * The three bus signals stay on PORT 1 (one peripheral instance, one port — the
+ * lesson the TDM mic taught); CS is an ordinary GPIO, so it may live on P3.
+ * SPI22 is free: we hold serial instance 20 for the IDE link (uart20), and PWM
+ * 20/21 are separate peripherals from the serial boxes. */
+&pinctrl {
+	tc_spi22_default: tc_spi22_default {
+		group1 {
+			psels = <NRF_PSEL(SPIM_SCK, 1, 2)>,	/* D2 */
+				<NRF_PSEL(SPIM_MISO, 1, 3)>,	/* D3 */
+				<NRF_PSEL(SPIM_MOSI, 1, 4)>;	/* D4 */
+			bias-pull-down;
+		};
+	};
+	tc_spi22_sleep: tc_spi22_sleep {
+		group1 {
+			psels = <NRF_PSEL(SPIM_SCK, 1, 2)>,
+				<NRF_PSEL(SPIM_MISO, 1, 3)>,
+				<NRF_PSEL(SPIM_MOSI, 1, 4)>;
+			bias-pull-down;
+			low-power-enable;
+		};
+	};
+};
+
+&spi22 {
+	compatible = "nordic,nrf-spim";
+	status = "okay";
+	pinctrl-0 = <&tc_spi22_default>;
+	pinctrl-1 = <&tc_spi22_sleep>;
+	pinctrl-names = "default", "sleep";
+	overrun-character = <0x00>;
+	cs-gpios = <&gpio3 4 GPIO_ACTIVE_LOW>;	/* D1 */
+
+	arducam: arducam-mega@0 {
+		compatible = "arducam,mega";
+		reg = <0>;
+		spi-max-frequency = <8000000>;
+		status = "okay";
+	};
+};

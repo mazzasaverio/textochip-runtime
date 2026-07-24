@@ -99,6 +99,12 @@ int camCapture(uint8_t* out, int max);
 // TEXTOCHIP_VISION_COLOR) turns its frame into a colour class via tc_detect_color.
 int camCaptureRGB(uint8_t* out, int max);
 
+// Bench aid behind the CAM serial command (the camera's answer to "are you
+// there?"): the sensor id + firmware date it reports, and how many bytes one
+// frame actually measures — the number that tells a clean 96x96 RGB565 frame
+// from a firmware that pads it. Mirrors micPinsProbe, one sense apart.
+std::string camProbe();
+
 // Non-volatile storage for the autorun program (brief §7). SAVE persists the
 // raw bytecode text to flash; on boot, a saved program is loaded + run with no
 // PC attached (the board's autonomy). One slot — a new save overwrites it.

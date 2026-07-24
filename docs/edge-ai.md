@@ -279,19 +279,48 @@ frames through the camera stub and the real service (chunked capture + assembly 
 the `SEE()` class for yellow/red/green/blue/grey — so everything except the physical camera read is
 built and tested. `runtime::tick` already drives `vision_service` when `vm.visionRequested()`.
 
-**Remaining (bring-up, with the Arducam Mega on the bench):** implement `hal::camCaptureRGB` in
-`zephyr/src/hal_zephyr.cpp` (today a `return 0` stub) against the **Arducam Mega 5MP over SPI**:
+**`hal::camCaptureRGB` IS IMPLEMENTED** — `zephyr/src/arducam_mega.cpp`, a small state machine over
+the Mega's SPI register protocol. Not a port of Zephyr's or Nordic's video-API driver (both are
+streaming drivers wanting `CONFIG_VIDEO`, work queues and buffer FIFOs): the runtime needs the frame
+delivered a chunk at a time from a poll that must never block, and the Mega's **burst read is already
+resumable across SPI transactions**, so "give me the next kilobyte" maps onto the wire protocol
+one-to-one. Waiting for the exposure costs ONE register read per poll instead of a sleep loop.
 
-- **Format / size:** set the Mega to **RGB565** at a small resolution (96×96, matching the service's
-  `kFramePixels`), so no on-MCU JPEG decode; expand each RGB565 pixel to the RGB888 the service reads.
-- **Flow:** `reg_write(format=RGB565)` → `reg_write(resolution=96×96)` → start capture → poll the
-  capture-done register → burst-read the FIFO → RGB565→RGB888 into `out`, returning bytes written
-  (non-blocking: drain a bounded chunk per call, like the mic). The register map + command bytes come
-  from the **ArduCAM_Mega** library / Arducam's "Mega SPI Camera" application note (confirm on the
-  bench with a logic analyzer — do NOT hand-transcribe register values blind).
-- **Wiring / overlay:** an SPI instance (SCK/MISO/MOSI + a CS GPIO) in the board overlay; pins in
-  `docs/hardware.md` (provisional until wired). The service, the ISA, `SEE()`, and every BASIC program
-  are UNCHANGED — only this one HAL function turns on.
+- **Pins (Nordic DK):** `CS -> D1 (P3.04)`, `SCK -> D2 (P1.02)`, `MISO -> D3 (P1.03)`,
+  `MOSI -> D4 (P1.04)`, on `spi22` @8 MHz. Deliberately NOT Nordic's sample pins (P1.04-P1.07): its
+  MOSI/CS land on **our two motor enables**. The three bus signals stay on PORT 1 (one instance, one
+  port — the lesson the TDM mic taught); CS is an ordinary GPIO, so it can live on P3. D1-D4 are four
+  free ADJACENT header pins, so the camera is one contiguous ribbon.
+- **The board picks the vision backend from its devicetree.** A board whose overlay has the camera
+  node builds the COLOUR path (`TEXTOCHIP_VISION_COLOR` + `color_detect.c`); a board without one keeps
+  the object-model placeholder, so `SEE()` reads "nothing" and still links. No new Kconfig to forget.
+- **`CAM` bench command** (mirrors `MIC`/`MICPINS`): prints the sensor id, the firmware date and the
+  measured frame size. `id=0x81 … frame=18432` means the wiring is right and everything downstream is
+  already host-proven; `absent` means nothing answered (check CS/MISO and 3V3). Then point it at
+  something coloured and read `SEE()` from a program.
+- **Built green for both DK targets** (A: FLASH 15.9%, B with the Axon voice model: 24.7%). What is
+  NOT yet proven is the one thing only the bench can prove: that the real sensor answers, and that its
+  frame is exactly 18432 bytes rather than a padded stream. `CAM` prints that number for that reason.
+
+**How it works, and where the protocol came from:**
+
+- **Format / size:** the Mega is set once to **RGB565 at 96×96** — the service's own frame, so nothing
+  is scaled on the MCU and there is no JPEG to decode. Each pixel expands to RGB888 by replicating the
+  high bits, the same expansion `host/color_probe.c` applies, so what the board sees matches what the
+  probe predicted from a photograph.
+- **Flow:** `reg_write(format=RGB565)` → `reg_write(resolution=96×96)` once, then per frame: clear +
+  start the FIFO → poll the capture-done bit (one register read per service poll) → resume the burst
+  FIFO read a chunk at a time → convert into `out`, returning bytes written. A capture that never
+  completes is abandoned after a second, so an unplugged camera reads "nothing" instead of freezing
+  `SEE()`.
+- **Pixel order matters and was NOT guessed:** RGB565 **big-endian** (R in bits 15..11). The register
+  map, the two-byte read latency, the burst-read handshake and that byte order all follow Arducam's
+  own driver and Nordic's Zephyr port of it for this exact camera on this exact DK
+  (`sdk-edge-ai/applications/person_detection/src/drivers/arducam_mega.c`, Apache-2.0) — a working
+  reference beats transcribing an application note by hand.
+- **Wiring / overlay:** `spi22` + a CS GPIO in the board overlay, pins above and in `docs/hardware.md`.
+  The service, the ISA, `SEE()` and every BASIC program are UNCHANGED — only this one HAL function
+  turned on.
 
 **The HAL capability + the service — BUILT:**
 
@@ -346,10 +375,12 @@ no cloud, no phone app. A simple addition to the serial protocol (planned):
 - **Phase 2 — vision.** 🚧 Two paths built + host-proven, one `SEE()` register:
   - **Colour (near-term, the Arducam Mega path).** `SEE()="yellow"` etc. (plus `SEEX()`/`SEESIZE()`
     off the same frame) from `color_detect.c`,
-    now wired through `vision_service` (`TEXTOCHIP_VISION_COLOR`) fed by `hal::camCaptureRGB`, and
-    proven end-to-end on the host (`make test-color-service`, `make test-color-move` → the robot
-    stops at yellow). *Remaining:* implement `hal::camCaptureRGB` against the Arducam Mega SPI at
-    bring-up (RGB565 96×96 → RGB888) — the ONE stubbed HAL function; see the vision section above.
+    wired through `vision_service` (`TEXTOCHIP_VISION_COLOR`) fed by `hal::camCaptureRGB` — now a
+    REAL driver (`zephyr/src/arducam_mega.cpp`, the Arducam Mega over SPI, builds green for both DK
+    targets), no longer a stub. Proven end-to-end on the host (`make test-color-service`,
+    `make test-color-move` → the robot hunts the ball) and on real photographs (`make color-probe`).
+    *Remaining:* the bench — does the real sensor answer (`CAM`), and is its frame exactly 18432
+    bytes? See the vision section above.
   - **Objects (later).** `SEE()="person/ball/hand"` from a trained classifier — `vision_service`
     default mode + `ai_infer_vision`, with a Phase-0 TFLM **person-detection** stand-in
     (`make test-vision`: a real image → the class → `SEE()` branches, no camera). Next: a trained

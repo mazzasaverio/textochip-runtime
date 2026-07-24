@@ -45,6 +45,8 @@
 
 #include "hal.h"
 
+#include "arducam_mega.h"
+
 // ── Serial: the chosen console UART is the link to the IDE (Web Serial) ──
 static const struct device* const uart_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
 
@@ -659,11 +661,14 @@ int aiCaptureRaw(int32_t* out, int n) {
 // the model's 96x96 grayscale is the bench step, like the mic's I2S.
 int camCapture(uint8_t* /*out*/, int /*max*/) { return 0; }
 
-// RGB capture for the colour vision path. Stub (returns 0 = no frame) until the
-// Arducam Mega SPI driver lands at bring-up; see docs/edge-ai.md "Vision (SEE)"
-// and the arducam_mega scaffold. Keeping it here (not #if 0'd out) means the
-// TEXTOCHIP_VISION_COLOR build links today; SEE() simply reads "nothing" so far.
-int camCaptureRGB(uint8_t* /*out*/, int /*max*/) { return 0; }
+// RGB capture for the colour vision path — the Arducam Mega over SPI
+// (src/arducam_mega.cpp). Cooperative by construction: a poll either advances
+// the exposure by one register read or hands over the next slice of the frame,
+// so the VM keeps ticking. With no camera node in the board overlay, or nothing
+// answering on the bus, it reports 0 bytes and SEE() reads "nothing".
+int camCaptureRGB(uint8_t* out, int max) { return arducam_capture_rgb(out, max); }
+
+std::string camProbe() { return arducam_probe(); }
 
 uint32_t nowMs() { return (uint32_t)k_uptime_get(); }
 

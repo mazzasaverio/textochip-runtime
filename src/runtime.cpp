@@ -145,6 +145,13 @@ void runtime::feedLine(const std::string& raw) {
     // (see hal::micPinsProbe). sck tog=0 while MIC happily DMAs zeros = the pin
     // mux points at a pad the peripheral can't drive — firmware, not wiring.
     hal::serialWriteLine("OK: micpins " + hal::micPinsProbe());
+  } else if (line == "CAM") {
+    // Bench aid: does the camera answer, and is one frame the size we expect?
+    // Everything about the colour path is host-tested EXCEPT the SPI read, so
+    // this is the one thing to check first when the Arducam goes on the bench —
+    // "id=0x81 … frame=18432" means the wire is right and the rest is already
+    // proven. Then point it at something coloured and read SEE() in a program.
+    hal::serialWriteLine("OK: cam " + hal::camProbe());
   } else if (line == "MICRAW") {
     // Bench aid: dump BOTH mic channels + the first raw words, to tell a left/right
     // channel-select mismatch (L/R pin not grounded -> the mic drives the R slot,

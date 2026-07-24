@@ -123,7 +123,7 @@ golden-vector contract. **Vision is the same shape, one sense apart:** `SEE()` â
 a separate `visionClass` register, and a camera vision service (`src/ai/vision_service.cpp`) with
 two compile modes on one `SEE()` register: a trained OBJECT classifier (`ai_infer_vision`,
 grayscale, person/ball/hand = 1..3) and the near-term COLOUR detector (`TEXTOCHIP_VISION_COLOR`:
-`tc_detect_color` over an RGB frame, yellow/red/green/blue = 4..7). Both feed one HAL capture
+`tc_detect_color` over an RGB frame, yellow/red/green/blue = 4..7, orange/pink = 8..9). Both feed one HAL capture
 function per format (`camCapture` / `camCaptureRGB`). Full design + status:
 [`docs/edge-ai.md`](docs/edge-ai.md).
 

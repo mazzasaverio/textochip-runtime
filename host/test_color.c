@@ -55,6 +55,13 @@ int main(void) {
   fill(buf, n, 128, 128, 128); check("grey",   tc_detect_color(buf, n), 0);
   fill(buf, n, 0, 0, 0);       check("black",  tc_detect_color(buf, n), 0);
   fill(buf, n, 255, 255, 255); check("white",  tc_detect_color(buf, n), 0);
+  // Orange and pink are their own classes: they used to read "nothing", which a
+  // program cannot tell apart from a covered lens.
+  fill(buf, n, 255, 120, 0);   check("orange", tc_detect_color(buf, n), 8);
+  fill(buf, n, 255, 60, 160);  check("pink",   tc_detect_color(buf, n), 9);
+  // Amber/gold must NOT be red: widening red to swallow orange was measured on
+  // real photos and rejected exactly because it relabels these.
+  fill(buf, n, 212, 160, 23);  check("gold",   tc_detect_color(buf, n), 4);
 
   // Half the frame yellow, half grey -> yellow (covers 50%, above COVER_MIN).
   fill(buf, n, 128, 128, 128);

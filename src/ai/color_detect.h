@@ -27,7 +27,7 @@ typedef struct {
 // Detect the dominant saturated colour in an RGB frame (3 bytes/pixel: R,G,B),
 // laid out row-major, `width` pixels per row. The class MUST match the product's
 // VISION_LABELS (lib/missions/vision.ts): objects person/ball/hand = 1/2/3, then
-//   4 = yellow, 5 = red, 6 = green, 7 = blue, 0 = none
+//   4 = yellow, 5 = red, 6 = green, 7 = blue, 8 = orange, 9 = pink, 0 = none
 // Reports a blob as soon as it is above the noise floor (a few percent of the
 // frame) — NOT only when it fills the view. How close is close enough is the
 // PROGRAM's call, through `size` (SEESIZE()), not a threshold baked in here.

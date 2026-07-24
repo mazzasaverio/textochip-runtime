@@ -233,7 +233,7 @@ third_party/tflite-micro   the TFLM submodule (built into libtensorflow-microlit
 classifier (`ai_infer_vision`, the TFLM stand-in above). COLOURS (yellow/red/green/blue) come from a
 cheap deterministic **colour-blob detector** (`src/ai/color_detect.c`): an RGB frame gives the dominant
 saturated colour via HSV hue ranges + a coverage threshold, mapped to the `SEE()` class matching the
-product's `VISION_LABELS` (yellow=4, red=5, green=6, blue=7, 0=none). It is the near-term Arducam path
+product's `VISION_LABELS` (yellow=4, red=5, green=6, blue=7, orange=8, pink=9, 0=none). It is the near-term Arducam path
 (a request like *"stop at a yellow object"* / *"find the ball"* needs colour, which a classifier does
 not give cheaply), and it is **host-tested** (`make test-color`, 9 synthetic frames) the way `features.c`
 is the tested core of voice.
@@ -248,6 +248,29 @@ anything not already close. It is a **noise floor**, not a "close enough" test �
 enough is a line of BASIC (`IF SEESIZE() >= 45 THEN MOVE 0 0`), not a constant in the firmware.
 `make test-color-move` runs the whole hunt on the real VM with no camera: spin while nothing is in
 view, turn toward a ball off to the right, drive at it when centred, stop when it fills the frame.
+
+**Thresholds validated on real photographs** (`make color-probe IMG=<photo>`, `host/color_probe.c`).
+Synthetic frames prove the contract; only a photo proves the thresholds survive real light. The probe
+runs the REAL detector through the camera pipeline (centre-crop -> 96x96 -> RGB565) over a photo and
+prints `SEE()`/`SEEX()`/`SEESIZE()` plus a coarse map. What the first run established:
+- **Classes and position are right on real photos** — blue PCBs read blue; a red disc on a cardboard
+  robot reads red, on the right, at 5% of the frame, three different photos of it agreeing to ±3 in x.
+- **The 2% floor earns its keep**: that red disc is 5% of the frame, so the old 15% threshold would
+  have been blind to it.
+- **RGB565 costs nothing here** (±1 on size and position vs full 8-bit), so the transport is not a
+  threshold risk.
+- **Light is not the fragile part**: the red disc survives a warm bulb, cold neon, flat contrast and
+  -1 stop; it disappears only at -2 stops, where `VAL_MIN` (0.20) rejects it. That floor stays until
+  the real sensor can be measured — lowering it against a synthetically darkened studio photo would
+  be tuning against the wrong noise.
+- **Coverage does not separate signal from noise**: a highlighter on a page reads green at 6%, the
+  deliberate red target at 5%. That is the evidence for keeping the judgement in BASIC (`SEESIZE()`),
+  not in a firmware constant.
+- **Orange and pink became their own classes** (8, 9 — appended, so 1..7 stay stable): they used to
+  read "nothing", indistinguishable from a covered lens, and a kid's ball is often one of them. The
+  cheaper fix of widening RED to swallow orange was tried on the same photos and **rejected**: it
+  relabels gold and amber as red. Violet (255-285 deg) is still uncovered on purpose — next to pink
+  it would be an unstable pair on a noisy sensor.
 
 **The colour pipeline is now WIRED and host-proven** — `vision_service.cpp` gained a compile mode
 `TEXTOCHIP_VISION_COLOR` that captures an RGB frame via the new `hal::camCaptureRGB` and runs

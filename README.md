@@ -54,8 +54,9 @@ make test-ai-vm     # the VM runs AISTART/INFER and branches on the AI class
 make tflm-lib       # one-time: git submodule update --init --depth 1 third_party/tflite-micro
 make ai-infer       # end-to-end: speech samples in, the right word out
 make test-vision    # same for SEE() with TFLM person-detection (object classes)
-make test-color     # the colour-blob detector: RGB frame -> the SEE() colour class
-make test-color-move # colour vision end-to-end: a yellow frame stops the robot on the VM
+make test-color     # the colour-blob detector: RGB frame -> SEE()/SEEX()/SEESIZE()
+make test-color-move # colour vision end-to-end: the robot hunts a ball on the VM, no camera
+make color-probe IMG=photo.jpg   # what the board would SEE in a REAL photograph
 make test-color-service # the colour vision SERVICE: camera stub -> chunked capture -> SEE() class
 make test-dist      # DIST (ultrasonic): a fed distance -> DISTANCE() -> the robot stops within 10 cm
 ```

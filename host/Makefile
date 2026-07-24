@@ -79,11 +79,24 @@ test-vision: test_vision.cpp ../src/ai/ai_vision_tflm.cpp ../src/ai/vision_servi
 	./test_vision
 
 clean:
-	rm -f $(BIN) $(AI_BIN) test_ai_infer test_ai_vm test_ai_move test_ai_service test_vision test_color test_color_move test_color_service *.o
+	rm -f $(BIN) $(AI_BIN) test_ai_infer test_ai_vm test_ai_move test_ai_service test_vision test_color test_color_move test_color_service color_probe *.o
 
 # Colour-blob detector for SEE() (the near-term Arducam vision path): synthetic
 # RGB frames -> the colour class, pinning the contract with the product's
 # VISION_LABELS. Pure C, no TFLM, no camera.
+# Run the REAL detector over a real photograph, through the camera pipeline
+# (centre-crop -> 96x96 -> RGB565). Synthetic frames prove the contract; a photo
+# proves the thresholds survive real light.
+#   make color-probe IMG=~/Pictures/ball.jpg
+color-probe: color_probe.c ../src/ai/color_detect.c ../src/ai/color_detect.h
+	$(CC) $(CFLAGS) -o color_probe color_probe.c ../src/ai/color_detect.c -lm
+ifdef IMG
+	@python3 tools/img2ppm.py "$(IMG)" /tmp/color_probe.ppm >/dev/null
+	@./color_probe $(PROBE_FLAGS) /tmp/color_probe.ppm
+else
+	@echo "built ./color_probe — run: make color-probe IMG=<photo>"
+endif
+
 test-color: test_color.c ../src/ai/color_detect.c ../src/ai/color_detect.h
 	$(CC) $(CFLAGS) -o test_color test_color.c ../src/ai/color_detect.c -lm
 	./test_color

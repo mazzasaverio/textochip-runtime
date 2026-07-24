@@ -8,7 +8,18 @@ enum {
   CLASS_RED = 5,
   CLASS_GREEN = 6,
   CLASS_BLUE = 7,
+  // Appended, so 1..7 keep the indices saved programs already compiled against.
+  CLASS_ORANGE = 8,
+  CLASS_PINK = 9,
 };
+
+// Hue bands. Orange and pink exist because their absence was a silent hole: a
+// kid's orange or pink ball used to read "nothing", with no way to tell that
+// from "the camera is covered". The obvious cheaper fix — widening RED to
+// swallow orange — was tried and REJECTED on real photos: it relabels gold,
+// amber and warm wood as red, which is worse than saying nothing. Violet
+// (255-285 deg) is still uncovered on purpose: next to pink it would be an
+// unstable pair on a noisy sensor, so it waits for the real camera.
 
 // A pixel counts for a colour only if it is saturated + bright enough (so greys,
 // shadows and washed-out light don't register). COVER_MIN is only a NOISE FLOOR:
@@ -25,8 +36,8 @@ tc_color_blob tc_detect_color_blob(const uint8_t *rgb, int width, int height) {
   if (rgb == 0 || width <= 0 || height <= 0) return out;
   const int n_pixels = width * height;
 
-  long cnt[4] = {0, 0, 0, 0};   // pixels per colour: yellow, red, green, blue
-  long sumx[4] = {0, 0, 0, 0};  // and their summed column, for the centroid
+  long cnt[6] = {0, 0, 0, 0, 0, 0};   // yellow, red, green, blue, orange, pink
+  long sumx[6] = {0, 0, 0, 0, 0, 0};  // and their summed column, for the centroid
   for (int i = 0; i < n_pixels; i++) {
     float r = rgb[i * 3 + 0] / 255.0f;
     float g = rgb[i * 3 + 1] / 255.0f;
@@ -57,22 +68,27 @@ tc_color_blob tc_detect_color_blob(const uint8_t *rgb, int width, int height) {
       c = 2;  // green
     else if (h >= 190.0f && h < 255.0f)
       c = 3;  // blue
+    else if (h >= 20.0f && h < 40.0f)
+      c = 4;  // orange
+    else if (h >= 285.0f && h < 345.0f)
+      c = 5;  // pink (through magenta)
     else
-      continue;
+      continue;  // violet (255-285) — deliberately uncovered, see above
     cnt[c]++;
     sumx[c] += i % width;
   }
 
   int best = -1;
   long bestN = 0;
-  for (int c = 0; c < 4; c++)
+  for (int c = 0; c < 6; c++)
     if (cnt[c] > bestN) {
       bestN = cnt[c];
       best = c;
     }
   if (best < 0 || (float)bestN < COVER_MIN * (float)n_pixels) return out;
 
-  static const int cls[4] = {CLASS_YELLOW, CLASS_RED, CLASS_GREEN, CLASS_BLUE};
+  static const int cls[6] = {CLASS_YELLOW, CLASS_RED, CLASS_GREEN, CLASS_BLUE,
+                             CLASS_ORANGE, CLASS_PINK};
   out.cls = cls[best];
   // Centroid column -> 0..100. A one-pixel-wide frame has no left or right, so
   // it reads as centred rather than dividing by zero.

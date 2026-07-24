@@ -15,3 +15,4 @@ host/test_color
 host/test_color_move
 host/test_color_service
 host/test_dist
+host/color_probe

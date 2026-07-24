@@ -38,6 +38,11 @@ class VM {
   // hear (voice) and see. INFER vision reads visionClass; the camera vision service
   // (src/ai/vision_service.cpp) fills it. Mirrors the voice register, one apart.
   void setVisionClass(long c) { visionClass = c; }
+  // WHERE it is across the frame (0..100) and HOW BIG it looks (0..100), read by
+  // INFER visionx / visionsize (SEEX() / SEESIZE()). One frame answers all three,
+  // so the vision service fills them together with the class.
+  void setVisionX(long x) { visionX = x; }
+  void setVisionSize(long s) { visionSize = s; }
   bool visionRequested() const { return visionActive; }
 
  private:
@@ -58,6 +63,8 @@ class VM {
   long aiClass = 0;       // latest edge-AI (voice) class index (0 = none)
   bool aiActive = false;  // a voice AISTART/INFER has run -> run the mic model
   long visionClass = 0;       // latest vision class index (0 = nothing seen)
+  long visionX = 0;           // its horizontal centroid, 0..100 (0 when nothing seen)
+  long visionSize = 0;        // its share of the frame, 0..100 (0 when nothing seen)
   bool visionActive = false;  // a vision AISTART/INFER has run -> run the camera model
 
   void push(long v);

@@ -295,7 +295,11 @@ void runtime::tick() {
       visionRunning = true;
     }
     int vcls = vision_service::poll();
-    if (vcls >= 0) vm.setVisionClass(vcls);
+    if (vcls >= 0) {
+      vm.setVisionClass(vcls);
+      vm.setVisionX(vision_service::lastX());
+      vm.setVisionSize(vision_service::lastSize());
+    }
   } else if (visionRunning) {
     visionRunning = false;
   }

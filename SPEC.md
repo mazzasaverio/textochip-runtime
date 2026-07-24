@@ -127,6 +127,26 @@ grayscale, person/ball/hand = 1..3) and the near-term COLOUR detector (`TEXTOCHI
 function per format (`camCapture` / `camCaptureRGB`). Full design + status:
 [`docs/edge-ai.md`](docs/edge-ai.md).
 
+**One frame, three reads.** A class alone is not actionable — a robot that must "find the ball"
+needs a direction to steer in and a way to tell near from far. So the same camera frame also
+fills two more registers, read through the same opcode with their own model operand:
+
+| Instruction         | Product | Meaning                                                        |
+|---------------------|---------|----------------------------------------------------------------|
+| `INFER vision`      | `SEE()`     | WHAT is in view: the class index (`0` = nothing)            |
+| `INFER visionx`     | `SEEX()`    | WHERE it is across the frame: `0` = far left … `100` = far right |
+| `INFER visionsize`  | `SEESIZE()` | HOW BIG it looks: `0..100` = the share of the frame it covers (bigger = closer) |
+
+All three come from ONE `vision_service::poll()` (the colour detector returns class + centroid +
+coverage in a `tc_color_blob`), so they always describe the same frame. With nothing in view all
+three read `0`; since size `0` unambiguously means "nothing seen", `SEESIZE() > 0` is the honest
+gate before trusting `SEEX()` (`0` is also a legitimate far-left position). The OBJECT-model build
+returns a class with no blob geometry, so `visionx`/`visionsize` read `0` there.
+
+The detector's coverage threshold is a **noise floor** (a couple of percent), not a "close enough"
+test: it reports a distant object and lets the program decide, because that decision belongs in
+BASIC (`IF SEESIZE() >= 45 THEN MOVE 0 0`), not in the firmware.
+
 A receiver MUST ignore blank lines and `;` / `#` comments, and MAY ignore unknown
 opcodes (forward-compatibility).
 

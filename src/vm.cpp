@@ -21,6 +21,8 @@ void VM::reset() {
   for (int i = 0; i < 26; i++) vars[i] = 0;
   aiClass = 0;
   visionClass = 0;
+  visionX = 0;
+  visionSize = 0;
 }
 
 void VM::clearProgram() {
@@ -203,9 +205,17 @@ void VM::step(const Instruction& in) {
       // model as wanted, so a program that uses VOICE()/SEE() starts its service on
       // its own — the compiler emits NO explicit AISTART. voice -> aiClass (mic),
       // vision -> visionClass (camera); each service fills its own register.
+      // visionx / visionsize read WHERE and HOW BIG off that same camera frame
+      // (SEEX() / SEESIZE()), so they arm the camera service the same way.
       if (in.missionId == "vision") {
         visionActive = true;
         push(visionClass);
+      } else if (in.missionId == "visionx") {
+        visionActive = true;
+        push(visionX);
+      } else if (in.missionId == "visionsize") {
+        visionActive = true;
+        push(visionSize);
       } else {
         aiActive = true;
         push(aiClass);

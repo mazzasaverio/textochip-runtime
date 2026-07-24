@@ -14,11 +14,27 @@
 extern "C" {
 #endif
 
-// Detect the dominant saturated colour in an RGB frame (3 bytes/pixel: R,G,B).
-// Returns the vision class index, which MUST match the product's VISION_LABELS
-// (lib/missions/vision.ts): objects person/ball/hand = 1/2/3, then colours
+// What the frame shows: WHAT, WHERE and HOW BIG — the three reads the product
+// exposes as SEE() / SEEX() / SEESIZE() (lib/missions/vision.ts). Knowing only
+// the class is not actionable: "find the ball" needs a direction to steer in and
+// a way to tell near from far.
+typedef struct {
+  int cls;   // vision class index (0 = nothing recognised)
+  int x;     // horizontal centroid, 0 = far left … 100 = far right (0 if cls == 0)
+  int size;  // share of the frame covered, 0..100 (0 if cls == 0)
+} tc_color_blob;
+
+// Detect the dominant saturated colour in an RGB frame (3 bytes/pixel: R,G,B),
+// laid out row-major, `width` pixels per row. The class MUST match the product's
+// VISION_LABELS (lib/missions/vision.ts): objects person/ball/hand = 1/2/3, then
 //   4 = yellow, 5 = red, 6 = green, 7 = blue, 0 = none
-// "none" when no known colour covers enough of the frame (grey/dark/mixed).
+// Reports a blob as soon as it is above the noise floor (a few percent of the
+// frame) — NOT only when it fills the view. How close is close enough is the
+// PROGRAM's call, through `size` (SEESIZE()), not a threshold baked in here.
+tc_color_blob tc_detect_color_blob(const uint8_t *rgb, int width, int height);
+
+// Class only (the frame's geometry does not change WHAT is seen), for callers
+// that don't care where it is.
 int tc_detect_color(const uint8_t *rgb, int n_pixels);
 
 #ifdef __cplusplus

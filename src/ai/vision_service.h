@@ -21,6 +21,14 @@ void reset();
 // completed THIS call, or -1 when there is no full frame yet. 0 = "nothing".
 int poll();
 
+// WHERE the last classified thing was across the frame (0 = far left … 100 = far
+// right) and HOW BIG it looked (0..100 = the share of the frame it covered). Read
+// after a poll() that returned >= 0; both are 0 when nothing was seen. These feed
+// the VM's SEEX()/SEESIZE() registers. The object-model build has no blob geometry
+// to report, so they stay 0 there (SEE() still works).
+int lastX();
+int lastSize();
+
 }  // namespace vision_service
 
 #endif  // TEXTOCHIP_AI_VISION_SERVICE_H

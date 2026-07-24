@@ -26,18 +26,24 @@ constexpr int kBytesPerPixel = 3;  // RGB888
 constexpr int kBytesPerPixel = 1;  // grayscale
 #endif
 // Both current input contracts are 96x96; a different vision model bumps this.
-constexpr int kFramePixels = 96 * 96;
+constexpr int kFrameWidth = 96;
+constexpr int kFrameHeight = 96;
+constexpr int kFramePixels = kFrameWidth * kFrameHeight;
 constexpr int kFrameBytes = kFramePixels * kBytesPerPixel;
 constexpr int kChunk = 1024;  // bytes drained per poll (bounded, non-blocking)
 
 unsigned char g_frame[kFrameBytes];
 int g_have = 0;
 bool g_ready = false;
+int g_x = 0;     // last blob centroid, 0..100 (SEEX())
+int g_size = 0;  // last blob coverage, 0..100 (SEESIZE())
 
 }  // namespace
 
 void vision_service::reset() {
   g_have = 0;
+  g_x = 0;
+  g_size = 0;
   g_ready = true;
 }
 
@@ -61,10 +67,20 @@ int vision_service::poll() {
 
   // 3. Full frame: classify, then start the next frame from scratch.
 #ifdef TEXTOCHIP_VISION_COLOR
-  int cls = tc_detect_color(g_frame, kFramePixels);
+  tc_color_blob blob = tc_detect_color_blob(g_frame, kFrameWidth, kFrameHeight);
+  int cls = blob.cls;
+  g_x = blob.x;
+  g_size = blob.size;
 #else
   int cls = ai_infer_vision(g_frame, kFramePixels);
+  // The object model returns a class, not a box: nothing to report about where
+  // it is or how big it looks (SEEX()/SEESIZE() read 0 on this build).
+  g_x = 0;
+  g_size = 0;
 #endif
   g_have = 0;
   return cls < 0 ? 0 : cls;
 }
+
+int vision_service::lastX() { return g_x; }
+int vision_service::lastSize() { return g_size; }

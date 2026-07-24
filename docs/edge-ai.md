@@ -221,10 +221,11 @@ src/ai/
   ai_vision.h        the vision interface (int ai_infer_vision(image, n) -> class)         ✅
   vision_service.cpp the camera service, two compile modes (one SEE() register):            ✅
                        default                : hal::camCapture   -> ai_infer_vision -> class
-                       TEXTOCHIP_VISION_COLOR : hal::camCaptureRGB -> tc_detect_color -> class
+                       TEXTOCHIP_VISION_COLOR : hal::camCaptureRGB -> tc_detect_color_blob
+                                                -> class + where + how big
   ai_vision_tflm.cpp TFLM person-detection backend (Phase-0 vision stand-in; host proof)    ✅
   ai_vision_stub.cpp no-model vision fallback (0=nothing) — the board build's backend        ▶
-  color_detect.c     COLOUR-blob detector: RGB frame -> colour class (host-tested)          ✅
+  color_detect.c     COLOUR-blob detector: RGB frame -> class + centroid + coverage           ✅
 third_party/tflite-micro   the TFLM submodule (built into libtensorflow-microlite.a)       ✅
 ```
 
@@ -236,6 +237,17 @@ product's `VISION_LABELS` (yellow=4, red=5, green=6, blue=7, 0=none). It is the 
 (a request like *"stop at a yellow object"* / *"find the ball"* needs colour, which a classifier does
 not give cheaply), and it is **host-tested** (`make test-color`, 9 synthetic frames) the way `features.c`
 is the tested core of voice.
+
+**One frame answers three questions (`SEE()` / `SEEX()` / `SEESIZE()`).** A class alone is not
+actionable: *"find the ball"* needs a direction to steer in and a way to tell near from far. So
+`tc_detect_color_blob` returns the class **plus** the blob's horizontal centroid (`0..100`) and its
+coverage of the frame (`0..100`), the vision service keeps all three, and the VM exposes them through
+the same opcode with their own model operand (`INFER visionx` / `INFER visionsize` — see `SPEC.md`).
+Consequence for the detector: its coverage threshold went 15% -> **2%**, because 15% silently hid
+anything not already close. It is a **noise floor**, not a "close enough" test — how close is close
+enough is a line of BASIC (`IF SEESIZE() >= 45 THEN MOVE 0 0`), not a constant in the firmware.
+`make test-color-move` runs the whole hunt on the real VM with no camera: spin while nothing is in
+view, turn toward a ball off to the right, drive at it when centred, stop when it fills the frame.
 
 **The colour pipeline is now WIRED and host-proven** — `vision_service.cpp` gained a compile mode
 `TEXTOCHIP_VISION_COLOR` that captures an RGB frame via the new `hal::camCaptureRGB` and runs
@@ -309,7 +321,8 @@ no cloud, no phone app. A simple addition to the serial protocol (planned):
   mic bring-up + on-chip validation on **real hardware**, then the nRF54L (CMSIS-NN on the M33; the
   Axon NPU as the optional accelerator).
 - **Phase 2 — vision.** 🚧 Two paths built + host-proven, one `SEE()` register:
-  - **Colour (near-term, the Arducam Mega path).** `SEE()="yellow"` etc. from `color_detect.c`,
+  - **Colour (near-term, the Arducam Mega path).** `SEE()="yellow"` etc. (plus `SEEX()`/`SEESIZE()`
+    off the same frame) from `color_detect.c`,
     now wired through `vision_service` (`TEXTOCHIP_VISION_COLOR`) fed by `hal::camCaptureRGB`, and
     proven end-to-end on the host (`make test-color-service`, `make test-color-move` → the robot
     stops at yellow). *Remaining:* implement `hal::camCaptureRGB` against the Arducam Mega SPI at

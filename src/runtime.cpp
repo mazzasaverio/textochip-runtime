@@ -212,15 +212,37 @@ void runtime::feedLine(const std::string& raw) {
   }
 }
 
+// A real command or ISA line is under ~40 chars; the longest a mission CALL
+// bakes stays well under this. Cap the accumulator so a peer that streams bytes
+// without ever sending a newline (or one absurdly long line) cannot grow inbuf
+// until the heap is exhausted — there is no memory protection on the MCU, so an
+// unbounded std::string is a real crash, not just untidiness.
+static constexpr size_t MAX_LINE = 512;
+
 void runtime::pumpSerial() {
+  // While a line has overflowed MAX_LINE we discard the rest of it up to the
+  // next newline, so the tail of a giant line can't start a bogus command.
+  static bool lineOverflow = false;
   int ci;
   while ((ci = hal::serialReadChar()) >= 0) {
     char c = (char)ci;
     if (c == '\n') {
-      std::string l = inbuf;
-      inbuf.clear();
-      feedLine(l);
+      if (lineOverflow) {
+        lineOverflow = false;
+        inbuf.clear();
+        hal::serialWriteLine("ERROR: line too long");
+      } else {
+        std::string l = inbuf;
+        inbuf.clear();
+        feedLine(l);
+      }
     } else if (c != '\r') {
+      if (lineOverflow) continue;  // swallow the rest of an over-long line
+      if (inbuf.size() >= MAX_LINE) {
+        lineOverflow = true;
+        inbuf.clear();  // drop what we have; a valid line is never this long
+        continue;
+      }
       inbuf.push_back(c);
     }
   }

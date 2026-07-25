@@ -148,7 +148,10 @@ test: it reports a distant object and lets the program decide, because that deci
 BASIC (`IF SEESIZE() >= 45 THEN MOVE 0 0`), not in the firmware.
 
 A receiver MUST ignore blank lines and `;` / `#` comments, and MAY ignore unknown
-opcodes (forward-compatibility).
+opcodes (forward-compatibility). A line is bounded (the firmware caps it at 512
+bytes and answers `ERROR: line too long`, dropping the rest up to the next
+newline) so a peer that never sends a newline cannot exhaust the device's memory;
+a real command or instruction line is well under that.
 
 ---
 

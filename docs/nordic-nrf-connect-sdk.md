@@ -657,6 +657,52 @@ For non-command labels (a wake word, or English extras), extend the synonym tabl
 `our_class()` if you want them to drive an action; today only the four movement words map to a
 non-zero `VOICE()` class.
 
+## Building the DK target on this machine (2026-08-01)
+
+The NCS toolchain bundle is a self-contained rootfs, and its `west` launcher
+does not work from a plain shell: `usr/local/bin/west` has no `west` module on
+its own path. Run west through the bundle's OWN python, with the bundle's SDK:
+
+```bash
+TC=$HOME/ncs/toolchains/fbf7391cab                 # see ~/ncs/toolchains/toolchains.json
+export PATH=$TC/usr/local/bin:$TC/bin:$TC/usr/bin:$PATH
+export ZEPHYR_TOOLCHAIN_VARIANT=zephyr
+export ZEPHYR_SDK_INSTALL_DIR=$TC/opt/zephyr-sdk
+export ZEPHYR_BASE=$HOME/ncs/v3.4.0/zephyr
+export PYTHONPATH=$TC/usr/local/lib/python3.12/site-packages
+
+cd ~/projects/textochip-runtime
+$TC/usr/local/bin/python3.12 -m west build \
+    -b nrf54lm20dk/nrf54lm20b/cpuapp zephyr -p always -d build_dk \
+    -- -DEXTRA_ZEPHYR_MODULES=$HOME/projects/sdk-edge-ai
+```
+
+Expected: **FLASH ~24.7%, RAM ~35.9%** on the B target with the Axon voice model.
+
+`west flash -r jlink` then fails with "one or more Python dependencies were
+missing" (the runner wants `pylink`, absent here). Flash with the SEGGER
+commander directly — same result, one fewer dependency:
+
+```bash
+JLinkExe -CommanderScript - <<'EOF'
+device nRF54LM20A_M33
+si SWD
+speed 4000
+connect
+h
+loadfile ~/projects/textochip-runtime/build_dk/zephyr/zephyr/zephyr.hex
+r
+g
+qc
+EOF
+```
+
+⚠ **`west flash` alone does NOT rebuild your source changes into an old build
+directory** — it flashes whatever is in it. On 2026-08-01 that put a 15-July
+binary on the board, and `CAM` came back "unknown command" for a camera driver
+that had been in the repo for a week. Build first, always with `-p always` when
+the devicetree changed.
+
 ## SAVE / boot autorun on the DK — NVS does NOT persist on RRAM (2026-07-16)
 
 Milestone 4 (PC-unplugged autonomy) is now **bench-verified on the DK-B**, but it exposed an

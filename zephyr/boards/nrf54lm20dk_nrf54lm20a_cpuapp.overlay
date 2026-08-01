@@ -169,7 +169,14 @@
 	pinctrl-1 = <&tc_spi22_sleep>;
 	pinctrl-names = "default", "sleep";
 	overrun-character = <0x00>;
-	cs-gpios = <&gpio3 4 GPIO_ACTIVE_LOW>;	/* D1 */
+	/* CS on P1.01, the hole right before the bus: all four camera signals then
+	 * sit in one block on PORT1 (01 · 02 · 03 · 04) instead of sending a maker
+	 * to a second header whose "04" means something else entirely — the trap
+	 * that cost an evening on 2026-08-01. CS is an ordinary GPIO, so it is free
+	 * to move; only SCK/MISO/MOSI are bound to one port by the SPIM instance.
+	 * P1.01 is claimed by nobody: the board takes P1.16-19 for the console UART,
+	 * we take 13 (buzzer), 14/23/31 (mic TDM) and 05/06/07 (motors). */
+	cs-gpios = <&gpio1 1 GPIO_ACTIVE_LOW>;	/* P1.01, next to SCK/MISO/MOSI */
 
 	arducam: arducam-mega@0 {
 		compatible = "arducam,mega";

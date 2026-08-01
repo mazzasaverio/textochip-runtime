@@ -85,6 +85,10 @@ int g_pixelsDone = 0;        // pixels handed to the service for this frame
 bool g_firstRead = true;     // the burst read's first transaction sends a dummy byte
 uint32_t g_captureStart = 0;
 uint8_t g_sensorId = 0;
+// What the last probe actually read from REG_SENSOR_ID (-2 = the SPI device was
+// never ready, negative = transfer error). A failure that cannot say what it saw
+// sends the maker to check all six wires instead of the one that is wrong.
+int g_lastId = -2;
 uint8_t g_fw[4] = {0, 0, 0, 0};  // year, month, day, fpga version (bench info)
 
 int writeReg(uint8_t reg, uint8_t value) {
@@ -135,12 +139,14 @@ bool awaitIdle(int tries) {
 // One-time setup: reboot the sensor, check something answers, then lock it to
 // the frame the vision service wants (96x96 RGB565).
 bool setup() {
+  g_lastId = -2;  // "the bus was never usable"
   if (!spi_is_ready_dt(&g_bus)) return false;
 
   writeReg(REG_SENSOR_RESET, RESET_ENABLE);
   k_msleep(1000);  // the sensor reboots; the datasheet's own driver waits this long
 
   int id = readReg(REG_SENSOR_ID);
+  g_lastId = id;  // remembered for the bench probe, which must say WHAT it saw
   // 0x81/0x83 = the 5MP variants, 0x82/0x84 = 3MP. Anything else (0x00 / 0xFF)
   // means nothing is answering: no camera, or MISO/CS not wired.
   if (id < 0x81 || id > 0x84) return false;
@@ -252,7 +258,30 @@ std::string arducam_probe() {
   // Force the one-time setup so the answer is about the camera, not about
   // whether a program happens to be running.
   if (g_state == kUninit) g_state = setup() ? kIdle : kFailed;
-  if (g_state == kFailed) return "absent (no answer on SPI — check CS/MISO and 3V3)";
+  if (g_state == kFailed) {
+    // WHAT was read decides which wire to look at, and the difference costs a
+    // maker an hour of checking all six:
+    //   -2   the SPI device itself is not ready — firmware/devicetree, not wiring
+    //   0x00 MISO sits low: the module has no power, or MISO is not connected
+    //        (the pinctrl group pulls down, so an open line reads zero)
+    //   0xFF MISO floats high: powered but never selected — CS on the wrong pin
+    //   else something answered but is not a Mega (0x81..0x84)
+    char why[120];
+    if (g_lastId == -2)
+      snprintf(why, sizeof(why), "absent (SPI device not ready — firmware, not wiring)");
+    else if (g_lastId < 0)
+      snprintf(why, sizeof(why), "absent (SPI transfer failed, err=%d)", g_lastId);
+    else if (g_lastId == 0x00)
+      snprintf(why, sizeof(why),
+               "absent (id=0x00: MISO low — no 3V3 at the module, or MISO not connected)");
+    else if (g_lastId == 0xFF)
+      snprintf(why, sizeof(why),
+               "absent (id=0xFF: MISO floating — powered but never selected, check CS)");
+    else
+      snprintf(why, sizeof(why), "absent (id=0x%02x: answers, but not an Arducam Mega)",
+               (unsigned)g_lastId);
+    return std::string(why);
+  }
 
   char buf[96];
   // Capture one frame synchronously (bounded): this is a bench command, and the

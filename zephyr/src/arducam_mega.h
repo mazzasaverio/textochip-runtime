@@ -18,5 +18,7 @@ int arducam_capture_rgb(uint8_t* out, int max);
 // Bench aid behind the CAM serial command: what the camera says about itself
 // (sensor id, firmware date) and how many bytes one frame actually measures.
 std::string arducam_probe();
+// Bench aid: one register read, to give the pad probe something to watch.
+void arducam_probe_tick();
 
 #endif  // TEXTOCHIP_ARDUCAM_MEGA_H

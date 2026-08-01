@@ -109,6 +109,12 @@ std::string camProbe();
 // is what separates "no power" from "wire not connected", which the id probe
 // reports identically as 0x00.
 std::string camPinsProbe();
+// Reads the camera's id with the SPI peripheral bypassed entirely — the four
+// pads bit-banged as plain GPIO. It answers the one question the register probe
+// cannot: is the silence the bus controller, or the wiring/module?
+std::string camBitbangProbe();
+// Bench: the board's supply rail in millivolts (temporary, see the DK overlay).
+std::string railProbe();
 
 // Non-volatile storage for the autorun program (brief §7). SAVE persists the
 // raw bytecode text to flash; on boot, a saved program is loaded + run with no

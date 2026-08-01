@@ -156,6 +156,10 @@ void runtime::feedLine(const std::string& raw) {
     // The follow-up when CAM reports id=0x00: that answer covers both "no power"
     // and "MISO not connected", and this tells them apart at the pad.
     hal::serialWriteLine("OK: campins " + hal::camPinsProbe());
+  } else if (line == "CAMBB") {
+    hal::serialWriteLine("OK: cambb " + hal::camBitbangProbe());
+  } else if (line == "RAIL") {
+    hal::serialWriteLine("OK: rail " + hal::railProbe());
   } else if (line == "MICRAW") {
     // Bench aid: dump BOTH mic channels + the first raw words, to tell a left/right
     // channel-select mismatch (L/R pin not grounded -> the mic drives the R slot,

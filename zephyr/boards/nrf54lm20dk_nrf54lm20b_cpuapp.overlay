@@ -150,7 +150,48 @@
 	arducam: arducam-mega@0 {
 		compatible = "arducam,mega";
 		reg = <0>;
-		spi-max-frequency = <8000000>;
+		/* 1 MHz while the bus is being brought up (2026-08-01). An Amazon
+		 * reviewer with a logic analyzer reported this exact module reading
+		 * MISO flat 0 at 5 MHz and 1.25 MHz on an ST Nucleo, so speed is a
+		 * suspect worth eliminating cheaply before protocol details. Raise it
+		 * back to 8 MHz once a frame comes through. */
+		spi-max-frequency = <1000000>;
 		status = "okay";
+	};
+};
+
+/* TEMPORARY BENCH DIAGNOSTIC (2026-08-01) — remove once the rail is known.
+ *
+ * The DK's VDD is CONFIGURABLE (Board Configurator), and Nordic's own Arducam
+ * sample says in one line to set it to 3.3V for this camera. A rail at 1.8V
+ * would leave the mic perfectly happy (it works from 1.62V) and the camera
+ * powered-but-mute, which is exactly the symptom on the bench. So rather than
+ * guess: the SAADC can sample VDD internally, with no wire and no instrument.
+ *
+ * It borrows /zephyr,user, which on this board is otherwise unused (there is no
+ * analog sensor node here, so AREAD reads 0 either way) — which is also why this
+ * must not stay: on a board with a real sensor it would collide with AREAD.
+ */
+#include <zephyr/dt-bindings/adc/adc.h>
+#include <zephyr/dt-bindings/adc/nrf-saadc.h>
+
+&adc {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	channel@7 {
+		reg = <7>;
+		zephyr,gain = "ADC_GAIN_1_4";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,input-positive = <NRF_SAADC_VDD>;
+		zephyr,resolution = <12>;
+	};
+};
+
+/ {
+	zephyr,user {
+		io-channels = <&adc 7>;
 	};
 };

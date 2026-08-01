@@ -678,31 +678,154 @@ std::string camProbe() { return arducam_probe(); }
 // DOWN. A line nobody drives follows the pull (1 then 0) and is therefore OPEN;
 // a powered module holds its output stage, so the level does not follow. Same
 // idea as micPinsProbe, one wire instead of three.
-std::string camPinsProbe() {
-#if DT_HAS_CHOSEN(zephyr_camera_spi) || DT_NODE_EXISTS(DT_NODELABEL(arducam))
+#if DT_NODE_EXISTS(DT_NODELABEL(arducam))
 #define TC_SPI_PSEL(i) \
   (DT_PROP_BY_IDX(DT_CHILD(DT_NODELABEL(tc_spi22_default), group1), psels, i) & 0x1FF)
-  const int miso = TC_SPI_PSEL(1);  // SCK, MISO, MOSI — in that order
-  const struct device* port = gpio_port(miso);
-  const gpio_pin_t idx = gpio_index(miso);
+#endif
 
-  gpio_pin_configure(port, idx, GPIO_INPUT | GPIO_PULL_UP);
-  k_msleep(2);
-  int up = gpio_pin_get_raw(port, idx);
-  gpio_pin_configure(port, idx, GPIO_INPUT | GPIO_PULL_DOWN);
-  k_msleep(2);
-  int down = gpio_pin_get_raw(port, idx);
-  gpio_pin_configure(port, idx, GPIO_INPUT);  // leave it to the SPI peripheral
+// BIT-BANG the same read, with the SPI peripheral out of the way.
+//
+// Every other probe here shares one assumption: that the SPIM instance drives
+// the bus the way we asked. This one drops that assumption and clocks the four
+// pads by hand — mode 0, MSB first, exactly the transaction readReg() performs.
+//
+//   0x81..0x84 -> the module and all six wires are FINE, and the fault is in the
+//                 peripheral's configuration (which we can then go and fix).
+//   0x00/0xFF  -> the bus controller was never the problem: it is the wiring or
+//                 the module itself, and no amount of driver work will help.
+//
+// It leaves the pads as GPIO, so the board wants a reset afterwards before the
+// normal camera path is used again. Bench command, not a runtime path.
+// TEMPORARY (2026-08-01): report the board's supply rail in millivolts. See the
+// note in the DK overlay — this exists to settle whether the camera is simply
+// under-powered, and goes away with the answer.
+std::string railProbe() {
+#ifdef HAS_ADC
+  if (!g_adc_ready) return "adc not ready";
+  int16_t buf = 0;
+  struct adc_sequence seq = {};
+  seq.buffer = &buf;
+  seq.buffer_size = sizeof(buf);
+  if (adc_sequence_init_dt(&g_adc, &seq) < 0) return "adc init failed";
+  if (adc_read_dt(&g_adc, &seq) != 0) return "adc read failed";
+  int32_t mv = buf;
+  if (adc_raw_to_millivolts_dt(&g_adc, &mv) < 0) return "adc scale failed";
+  return "VDD = " + std::to_string(mv) + " mV" +
+         (mv < 3200 ? "  <-- the Arducam wants 3.3V and Nordic's own sample for "
+                      "this camera on this DK says to set it there (Board "
+                      "Configurator). The mic does not care, which is why it "
+                      "works and the camera does not"
+                    : "  (3.3V: what the camera asks for)");
+#else
+  return "no adc channel on this board";
+#endif
+}
 
-  std::string where = "P" + std::to_string(miso / 32) + "." + std::to_string(miso % 32);
-  std::string verdict =
-      (up == 1 && down == 0)
-          ? "OPEN — nothing is driving it: no power at the module, or the MISO "
-            "wire is not in its hole"
-          : "held — something IS driving the line, so the module is alive and "
-            "powered; the fault is further along (CS, or the bus itself)";
-  return "miso=" + where + " pullup=" + std::to_string(up) + " pulldown=" +
-         std::to_string(down) + " -> " + verdict;
+std::string camBitbangProbe() {
+#if DT_NODE_EXISTS(DT_NODELABEL(arducam))
+  const int sck = TC_SPI_PSEL(0);
+  const int miso = TC_SPI_PSEL(1);
+  const int mosi = TC_SPI_PSEL(2);
+  // cs-gpios sits on the BUS node, not the device (Zephyr's SPI convention).
+  const struct device* csDev =
+      DEVICE_DT_GET(DT_SPI_DEV_CS_GPIOS_CTLR(DT_NODELABEL(arducam)));
+  const gpio_pin_t csPin = DT_SPI_DEV_CS_GPIOS_PIN(DT_NODELABEL(arducam));
+  if (!device_is_ready(csDev)) return "cs gpio port not ready";
+
+  gpio_pin_configure(gpio_port(sck), gpio_index(sck), GPIO_OUTPUT_INACTIVE);
+  gpio_pin_configure(gpio_port(mosi), gpio_index(mosi), GPIO_OUTPUT_INACTIVE);
+  gpio_pin_configure(gpio_port(miso), gpio_index(miso), GPIO_INPUT);
+  gpio_pin_configure(csDev, csPin, GPIO_OUTPUT);
+  gpio_pin_set_raw(csDev, csPin, 1);  // idle high (active low)
+  k_busy_wait(10);
+
+  auto xfer = [&](uint8_t out) {
+    uint8_t in = 0;
+    for (int b = 7; b >= 0; b--) {
+      gpio_pin_set_raw(gpio_port(mosi), gpio_index(mosi), (out >> b) & 1);
+      k_busy_wait(2);
+      gpio_pin_set_raw(gpio_port(sck), gpio_index(sck), 1);  // sample on rising
+      k_busy_wait(2);
+      in = (uint8_t)((in << 1) | (gpio_pin_get_raw(gpio_port(miso), gpio_index(miso)) & 1));
+      gpio_pin_set_raw(gpio_port(sck), gpio_index(sck), 0);
+      k_busy_wait(2);
+    }
+    return in;
+  };
+
+  gpio_pin_set_raw(csDev, csPin, 0);  // select
+  k_busy_wait(10);
+  xfer(0x40);                          // REG_SENSOR_ID, read (high bit clear)
+  uint8_t b1 = xfer(0x00);
+  uint8_t b2 = xfer(0x00);
+  uint8_t b3 = xfer(0x00);
+  gpio_pin_set_raw(csDev, csPin, 1);
+
+  char buf[48];
+  snprintf(buf, sizeof(buf), "%02x %02x %02x", b1, b2, b3);
+  bool found = (b1 >= 0x81 && b1 <= 0x84) || (b2 >= 0x81 && b2 <= 0x84) ||
+               (b3 >= 0x81 && b3 <= 0x84);
+  return std::string("cs=") + csDev->name + "." + std::to_string(csPin) +
+         " bytes=" + buf +
+         (found ? "  <-- THE MODULE ANSWERS: wiring is good, the fault is in the "
+                  "SPI peripheral setup"
+                : "  <-- silent by hand too: the SPI controller was never the "
+                  "problem — it is the wiring or the module");
+#else
+  return "no camera node in the board overlay";
+#endif
+}
+
+std::string camPinsProbe() {
+#if DT_NODE_EXISTS(DT_NODELABEL(arducam))
+  const int sck = TC_SPI_PSEL(0);
+  const int miso = TC_SPI_PSEL(1);
+  const int mosi = TC_SPI_PSEL(2);
+
+  // 1. Is anything driving MISO? A line nobody drives follows the internal
+  //    pull; a powered module holds its output stage. This is what tells "no
+  //    power" apart from "wire not in its hole", which the id probe reports
+  //    identically as 0x00.
+  const struct device* mp = gpio_port(miso);
+  const gpio_pin_t mi = gpio_index(miso);
+  gpio_pin_configure(mp, mi, GPIO_INPUT | GPIO_PULL_UP);
+  k_msleep(2);
+  int up = gpio_pin_get_raw(mp, mi);
+  gpio_pin_configure(mp, mi, GPIO_INPUT | GPIO_PULL_DOWN);
+  k_msleep(2);
+  int down = gpio_pin_get_raw(mp, mi);
+  gpio_pin_configure(mp, mi, GPIO_INPUT);
+
+  // 2. Does this SPI instance actually own the pads we wired to? The mic taught
+  //    the lesson (a TDM instance that silently no-ops on the wrong port), and
+  //    until it is checked, "the module does not answer" and "we never asked"
+  //    look the same. Ask the PERIPHERAL, not the pads. Reading SCK/MOSI as GPIO inputs (the
+  // first attempt) DETACHES the peripheral output on nRF, so the probe broke
+  // exactly what it was measuring and reported a flat clock for a bus that may
+  // be fine. PSEL says which pads this instance owns; ENABLE says whether it is
+  // switched on at all. Neither touches a thing.
+  uint32_t enable = NRF_SPIM22->ENABLE;
+  uint32_t pselSck = NRF_SPIM22->PSEL.SCK;
+  uint32_t pselMosi = NRF_SPIM22->PSEL.MOSI;
+  uint32_t pselMiso = NRF_SPIM22->PSEL.MISO;
+  auto psel = [](uint32_t v) {
+    if (v & 0x80000000u) return std::string("off");
+    return "P" + std::to_string((v >> 5) & 0x7) + "." + std::to_string(v & 0x1F);
+  };
+
+  (void)sck;
+  (void)mosi;
+  std::string pin = "P" + std::to_string(miso / 32) + "." + std::to_string(miso % 32);
+  std::string verdict = (up == 1 && down == 0)
+                            ? "OPEN — nothing drives it: no power at the module, "
+                              "or the MISO wire is not in its hole"
+                            : "held — the module is alive and powered";
+  return "miso=" + pin + " pullup=" + std::to_string(up) +
+         " pulldown=" + std::to_string(down) + " (" + verdict + ")" +
+         " · spim22 enable=" + std::to_string(enable) + " sck=" + psel(pselSck) +
+         " mosi=" + psel(pselMosi) + " miso=" + psel(pselMiso) +
+         (enable == 0 ? "  <-- the instance is OFF: it never drove the bus"
+                      : "");
 #else
   return "no camera node in the board overlay";
 #endif

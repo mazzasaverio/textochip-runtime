@@ -254,6 +254,11 @@ int arducam_capture_rgb(uint8_t* out, int max) {
   return 0;
 }
 
+// One register read, purely to put traffic on the bus while the pads are being
+// watched (hal's camPinsProbe). Ignores the answer on purpose: the question is
+// whether the CLOCK moves, not what comes back.
+void arducam_probe_tick() { (void)readReg(REG_SENSOR_ID); }
+
 std::string arducam_probe() {
   // Force the one-time setup so the answer is about the camera, not about
   // whether a program happens to be running.
@@ -309,6 +314,8 @@ std::string arducam_probe() {
 #else  // no camera node in this board's overlay
 
 int arducam_capture_rgb(uint8_t*, int) { return 0; }
+void arducam_probe_tick() {}  // no bus to put traffic on
+
 std::string arducam_probe() { return "absent (no camera node in the board overlay)"; }
 
 #endif

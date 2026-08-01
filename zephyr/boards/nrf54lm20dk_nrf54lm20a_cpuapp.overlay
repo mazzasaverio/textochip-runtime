@@ -182,7 +182,12 @@
 	arducam: arducam-mega@0 {
 		compatible = "arducam,mega";
 		reg = <0>;
-		spi-max-frequency = <8000000>;
+		/* 1 MHz while the bus is being brought up (2026-08-01). An Amazon
+		 * reviewer with a logic analyzer reported this exact module reading
+		 * MISO flat 0 at 5 MHz and 1.25 MHz on an ST Nucleo, so speed is a
+		 * suspect worth eliminating cheaply before protocol details. Raise it
+		 * back to 8 MHz once a frame comes through. */
+		spi-max-frequency = <1000000>;
 		status = "okay";
 	};
 };

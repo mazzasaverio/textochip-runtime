@@ -152,6 +152,10 @@ void runtime::feedLine(const std::string& raw) {
     // "id=0x81 … frame=18432" means the wire is right and the rest is already
     // proven. Then point it at something coloured and read SEE() in a program.
     hal::serialWriteLine("OK: cam " + hal::camProbe());
+  } else if (line == "CAMPINS") {
+    // The follow-up when CAM reports id=0x00: that answer covers both "no power"
+    // and "MISO not connected", and this tells them apart at the pad.
+    hal::serialWriteLine("OK: campins " + hal::camPinsProbe());
   } else if (line == "MICRAW") {
     // Bench aid: dump BOTH mic channels + the first raw words, to tell a left/right
     // channel-select mismatch (L/R pin not grounded -> the mic drives the R slot,

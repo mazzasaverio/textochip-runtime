@@ -104,6 +104,11 @@ int camCaptureRGB(uint8_t* out, int max);
 // frame actually measures — the number that tells a clean 96x96 RGB565 frame
 // from a firmware that pads it. Mirrors micPinsProbe, one sense apart.
 std::string camProbe();
+// Bench aid: is anything alive on MISO? Reads the pad with the pull up and then
+// down — a line nobody drives follows the pull, a powered module holds it. This
+// is what separates "no power" from "wire not connected", which the id probe
+// reports identically as 0x00.
+std::string camPinsProbe();
 
 // Non-volatile storage for the autorun program (brief §7). SAVE persists the
 // raw bytecode text to flash; on boot, a saved program is loaded + run with no

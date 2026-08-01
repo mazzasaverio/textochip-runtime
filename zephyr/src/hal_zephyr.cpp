@@ -670,6 +670,44 @@ int camCaptureRGB(uint8_t* out, int max) { return arducam_capture_rgb(out, max);
 
 std::string camProbe() { return arducam_probe(); }
 
+// Is anything ALIVE on the other end of the MISO wire?
+//
+// The id probe says 0x00 for two different worlds — "the module has no power"
+// and "the MISO wire is not in its hole" — and a maker cannot tell them apart by
+// looking. This can: read the pad with the internal pull UP and then with it
+// DOWN. A line nobody drives follows the pull (1 then 0) and is therefore OPEN;
+// a powered module holds its output stage, so the level does not follow. Same
+// idea as micPinsProbe, one wire instead of three.
+std::string camPinsProbe() {
+#if DT_HAS_CHOSEN(zephyr_camera_spi) || DT_NODE_EXISTS(DT_NODELABEL(arducam))
+#define TC_SPI_PSEL(i) \
+  (DT_PROP_BY_IDX(DT_CHILD(DT_NODELABEL(tc_spi22_default), group1), psels, i) & 0x1FF)
+  const int miso = TC_SPI_PSEL(1);  // SCK, MISO, MOSI — in that order
+  const struct device* port = gpio_port(miso);
+  const gpio_pin_t idx = gpio_index(miso);
+
+  gpio_pin_configure(port, idx, GPIO_INPUT | GPIO_PULL_UP);
+  k_msleep(2);
+  int up = gpio_pin_get_raw(port, idx);
+  gpio_pin_configure(port, idx, GPIO_INPUT | GPIO_PULL_DOWN);
+  k_msleep(2);
+  int down = gpio_pin_get_raw(port, idx);
+  gpio_pin_configure(port, idx, GPIO_INPUT);  // leave it to the SPI peripheral
+
+  std::string where = "P" + std::to_string(miso / 32) + "." + std::to_string(miso % 32);
+  std::string verdict =
+      (up == 1 && down == 0)
+          ? "OPEN — nothing is driving it: no power at the module, or the MISO "
+            "wire is not in its hole"
+          : "held — something IS driving the line, so the module is alive and "
+            "powered; the fault is further along (CS, or the bus itself)";
+  return "miso=" + where + " pullup=" + std::to_string(up) + " pulldown=" +
+         std::to_string(down) + " -> " + verdict;
+#else
+  return "no camera node in the board overlay";
+#endif
+}
+
 uint32_t nowMs() { return (uint32_t)k_uptime_get(); }
 
 int serialReadChar() {

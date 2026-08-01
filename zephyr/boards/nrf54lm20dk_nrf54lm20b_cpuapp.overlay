@@ -137,14 +137,15 @@
 	pinctrl-1 = <&tc_spi22_sleep>;
 	pinctrl-names = "default", "sleep";
 	overrun-character = <0x00>;
-	/* CS on P1.01, the hole right before the bus: all four camera signals then
-	 * sit in one block on PORT1 (01 · 02 · 03 · 04) instead of sending a maker
-	 * to a second header whose "04" means something else entirely — the trap
-	 * that cost an evening on 2026-08-01. CS is an ordinary GPIO, so it is free
-	 * to move; only SCK/MISO/MOSI are bound to one port by the SPIM instance.
-	 * P1.01 is claimed by nobody: the board takes P1.16-19 for the console UART,
-	 * we take 13 (buzzer), 14/23/31 (mic TDM) and 05/06/07 (motors). */
-	cs-gpios = <&gpio1 1 GPIO_ACTIVE_LOW>;	/* P1.01, next to SCK/MISO/MOSI */
+	/* CS is back on P3.04 (2026-08-01). Moving it to P1.01 to put all four
+	 * signals in a row was a GUESS about which pads the PORT1 header physically
+	 * breaks out, and the probe still read 0xFF with the wire moved — nothing is
+	 * claiming P1.01 in software, so the likeliest reading is that there is no
+	 * such hole. Every P1 pad we can PROVE is on the header (docs/hardware.md's
+	 * D-map: 02·03·04·05·06·07·13, plus the mic's 14/23/31) is already taken, so
+	 * four-in-a-row was never available. P3.04 is D1 in that same map: proven to
+	 * exist, and free. */
+	cs-gpios = <&gpio3 4 GPIO_ACTIVE_LOW>;	/* P3.04 = D1, hole "04" on PORT3 */
 
 	arducam: arducam-mega@0 {
 		compatible = "arducam,mega";

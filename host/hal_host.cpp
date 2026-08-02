@@ -144,6 +144,7 @@ int aiCaptureRaw(int32_t* out, int n) {
 std::string micPinsProbe() { return "n/a"; }
 std::string camProbe() { return "n/a (host build has no camera)"; }
 std::string camPinsProbe() { return "n/a (host build has no camera)"; }
+std::string camSetWB(int) { return "n/a (host build has no camera)"; }
 std::string camBitbangProbe() { return "n/a (host build has no camera)"; }
 std::string railProbe() { return "n/a (host build has no board)"; }
 std::string padScan() { return "n/a (host build has no board)"; }

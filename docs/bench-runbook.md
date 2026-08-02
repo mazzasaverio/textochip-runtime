@@ -284,7 +284,8 @@ its own cause instead of sending you to check six wires.
 | `MIC` / `MICRAW` | is the microphone capturing, and what do the raw samples look like |
 | `MICPINS` | does the TDM clock actually leave the chip (the P2 lesson above) |
 | `CAM` | does the camera answer (`id=0x81`), its firmware date, and the measured frame size |
-| `SEE` | capture ONE frame and print `class/x/size` — aim the eye without writing a program |
+| `SEE` | capture ONE frame and print `class/x/size` plus WHY pixels were dropped and the hue histogram — aim the eye without writing a program |
+| `CAMWB <0..4>` | set the camera's white-balance mode (0 auto · 1 sunny · 2 office · 3 cloudy · 4 home) LIVE, watching the panel — the middle path between drifting auto WB and the green cast of raw sensor output |
 | `CAMPINS` | what each SPI pad is doing, and which pads the SPI instance owns |
 | `CAMBB` | the same register read **bit-banged in plain GPIO**, peripheral bypassed |
 | `PADS` | drive every P1 pad high and read it back: `ok` / `SHORT-GND` / `short-vdd` |

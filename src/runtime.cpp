@@ -182,6 +182,12 @@ void runtime::feedLine(const std::string& raw) {
       }
       hal::serialWriteLine("OK: hue " + (hs.empty() ? std::string("(none)") : hs));
     }
+  } else if (line.rfind("CAMWB", 0) == 0) {
+    // CAMWB <0..4>: try a white-balance mode LIVE, watching the panel — the only
+    // honest way to pick one, since the right mode depends on the room's light.
+    int mode = -1;
+    if (line.size() > 6) mode = line[6] - '0';
+    hal::serialWriteLine("OK: camwb " + hal::camSetWB(mode));
   } else if (line == "CAMPINS") {
     // The follow-up when CAM reports id=0x00: that answer covers both "no power"
     // and "MISO not connected", and this tells them apart at the pad.

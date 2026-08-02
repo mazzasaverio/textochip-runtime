@@ -26,6 +26,18 @@ static int classify_frame(const uint8_t *rgb, int n_pixels) {
   return -1;
 }
 
+// Drain ONE frame with NO reset: this is what continuous operation looks like,
+// and it is where the temporal confirmation lives (reset() clears the history).
+static int next_frame(const uint8_t *rgb, int n_pixels) {
+  host_reset_rgb();
+  host_feed_rgb(rgb, n_pixels * 3);
+  for (int i = 0; i < 200; i++) {
+    int cls = vision_service::poll();
+    if (cls >= 0) return cls;
+  }
+  return -1;
+}
+
 static void fill(uint8_t *b, int n, int r, int g, int bl) {
   for (int i = 0; i < n; i++) {
     b[i * 3] = (uint8_t)r;
@@ -55,6 +67,29 @@ int main(void) {
     int got = classify_frame(buf, n);
     printf("  %-6s frame -> SEE() class %d (want %d)\n", c.name, got, c.want);
     if (got != c.want) fail = 1;
+  }
+
+  // ── TEMPORAL CONFIRMATION: one noisy frame must not move the wheels ──
+  //
+  // The bench failure this pins: every frame's verdict used to reach the VM
+  // directly, MOVE is sticky, so a single noisy frame lurched the robot. The
+  // reported class now changes only when two consecutive frames agree.
+  {
+    uint8_t *y = (uint8_t *)malloc((size_t)n * 3);
+    uint8_t *g = (uint8_t *)malloc((size_t)n * 3);
+    fill(y, n, 255, 220, 0);  // yellow
+    fill(g, n, 128, 128, 128);  // grey = nothing
+
+    int a = classify_frame(y, n);      // first frame after reset: counts at once
+    int b = next_frame(g, n);          // ONE noisy "nothing" frame
+    int c = next_frame(y, n);          // yellow again
+    int d = next_frame(g, n);          // nothing...
+    int e = next_frame(g, n);          // ...twice in a row: NOW it changes
+    printf("  flicker: %d %d %d %d %d (want 4 4 4 4 0)\n", a, b, c, d, e);
+    if (a != 4 || b != 4 || c != 4 || d != 4 || e != 0) fail = 1;
+
+    free(y);
+    free(g);
   }
 
   free(buf);

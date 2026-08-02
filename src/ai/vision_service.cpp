@@ -38,12 +38,27 @@ bool g_ready = false;
 int g_x = 0;     // last blob centroid, 0..100 (SEEX())
 int g_size = 0;  // last blob coverage, 0..100 (SEESIZE())
 
+// TEMPORAL CONFIRMATION — the piece the voice tier always had and vision lacked.
+//
+// Every frame's verdict used to go straight to the VM, and MOVE is sticky: one
+// noisy frame flipped the class, the wheels fired, and the robot lurched. The
+// voice path never had this problem because its post-processor smooths and
+// debounces before anything fires. Same medicine here, sized for a slow frame
+// rate: the REPORTED class changes only when two consecutive frames agree. The
+// first frame after reset() counts immediately (a program that just started
+// deserves an answer), and a single-frame flicker — to another colour or to
+// nothing — changes nothing.
+int g_confirmed = 0;  // what SEE() actually reads
+int g_lastRaw = -1;   // previous frame's raw verdict; -1 = no history yet
+
 }  // namespace
 
 void vision_service::reset() {
   g_have = 0;
   g_x = 0;
   g_size = 0;
+  g_confirmed = 0;
+  g_lastRaw = -1;
   g_ready = true;
 }
 
@@ -68,18 +83,33 @@ int vision_service::poll() {
   // 3. Full frame: classify, then start the next frame from scratch.
 #ifdef TEXTOCHIP_VISION_COLOR
   tc_color_blob blob = tc_detect_color_blob(g_frame, kFrameWidth, kFrameHeight);
-  int cls = blob.cls;
-  g_x = blob.x;
-  g_size = blob.size;
+  const int raw = blob.cls;
 #else
-  int cls = ai_infer_vision(g_frame, kFramePixels);
-  // The object model returns a class, not a box: nothing to report about where
-  // it is or how big it looks (SEEX()/SEESIZE() read 0 on this build).
+  const int inferred = ai_infer_vision(g_frame, kFramePixels);
+  const int raw = inferred < 0 ? 0 : inferred;
+#endif
+  g_have = 0;
+
+  // Confirm across frames (see the note on g_confirmed above).
+  if (g_lastRaw < 0 || raw == g_lastRaw) g_confirmed = raw;
+  g_lastRaw = raw;
+
+#ifdef TEXTOCHIP_VISION_COLOR
+  // Geometry follows the CONFIRMED class: update it from frames that agree,
+  // hold it through a one-frame flicker, zero it when "nothing" is confirmed.
+  if (raw == g_confirmed) {
+    g_x = blob.x;
+    g_size = blob.size;
+  }
+  if (g_confirmed == 0) {
+    g_x = 0;
+    g_size = 0;
+  }
+#else
   g_x = 0;
   g_size = 0;
 #endif
-  g_have = 0;
-  return cls < 0 ? 0 : cls;
+  return g_confirmed;
 }
 
 void vision_service::lastStats(long* too_dark, long* too_grey, long* no_band,

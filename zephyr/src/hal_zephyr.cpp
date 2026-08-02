@@ -686,6 +686,7 @@ int camCapture(uint8_t* /*out*/, int /*max*/) { return 0; }
 int camCaptureRGB(uint8_t* out, int max) { return arducam_capture_rgb(out, max); }
 
 std::string camProbe() { return arducam_probe(); }
+std::string camSetWB(int mode) { return arducam_set_wb(mode); }
 
 // Is anything ALIVE on the other end of the MISO wire?
 //

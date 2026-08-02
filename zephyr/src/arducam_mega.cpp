@@ -43,6 +43,7 @@ constexpr uint8_t REG_CAPTURE_RESOLUTION = 0x21;
 constexpr uint8_t REG_SENSOR_ID = 0x40;
 // Imaging controls. Bit 7 set = "manual", i.e. the auto loop is OFF for the
 // control selected by the low bits (Arducam's own SDK convention).
+constexpr uint8_t REG_WHITEBALANCE = 0x26;  // mode: 0 auto, 1 sunny, 2 office, 3 cloudy, 4 home
 constexpr uint8_t REG_AUTO_ENABLE = 0x30;
 constexpr uint8_t CTRL_WHITEBALANCE = 0x02;
 constexpr uint8_t AUTO_OFF = 0x80;
@@ -281,6 +282,13 @@ int arducam_capture_rgb(uint8_t* out, int max) {
 // whether the CLOCK moves, not what comes back.
 void arducam_probe_tick() { (void)readReg(REG_SENSOR_ID); }
 
+std::string arducam_set_wb(int mode) {
+  if (mode < 0 || mode > 4) return "wb mode must be 0..4 (auto/sunny/office/cloudy/home)";
+  if (writeReg(REG_WHITEBALANCE, (uint8_t)mode) != 0) return "wb write failed (camera not answering)";
+  static const char* names[5] = {"auto", "sunny", "office", "cloudy", "home"};
+  return std::string("wb = ") + names[mode];
+}
+
 std::string arducam_probe() {
   // Force the one-time setup so the answer is about the camera, not about
   // whether a program happens to be running.
@@ -337,6 +345,7 @@ std::string arducam_probe() {
 
 int arducam_capture_rgb(uint8_t*, int) { return 0; }
 void arducam_probe_tick() {}  // no bus to put traffic on
+std::string arducam_set_wb(int) { return "no camera on this build"; }
 
 std::string arducam_probe() { return "absent (no camera node in the board overlay)"; }
 

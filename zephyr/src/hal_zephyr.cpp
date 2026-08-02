@@ -24,9 +24,18 @@
 #endif
 // Analog input: a `zephyr,user` node with an `io-channels` ADC ref (see overlay).
 #define ADC_NODE DT_PATH(zephyr_user)
+// The rail probe has its OWN devicetree node. It used to share /zephyr,user,
+// which is AREAD()'s: a program calling AREAD() on this board then read the
+// supply rail, and no amount of staring at the BASIC could explain the number.
 #if DT_NODE_HAS_PROP(ADC_NODE, io_channels)
-#include <zephyr/drivers/adc.h>
 #define HAS_ADC 1
+#endif
+#if DT_NODE_EXISTS(DT_NODELABEL(tc_rail)) && \
+    DT_NODE_HAS_PROP(DT_NODELABEL(tc_rail), io_channels)
+#define HAS_RAIL_ADC 1
+#endif
+#if defined(HAS_ADC) || defined(HAS_RAIL_ADC)
+#include <zephyr/drivers/adc.h>
 #endif
 // Digital microphone (I2S) for the edge-AI voice tier — active when a mic node
 // is wired in the board overlay. Portable across chips: the nRF54L has no I2S
@@ -144,6 +153,10 @@ static inline gpio_pin_t gpio_index(int pin) { return (gpio_pin_t)(pin % 32); }
 #ifdef HAS_ADC
 static const struct adc_dt_spec g_adc = ADC_DT_SPEC_GET(ADC_NODE);
 static bool g_adc_ready = false;
+#endif
+#ifdef HAS_RAIL_ADC
+static const struct adc_dt_spec g_rail = ADC_DT_SPEC_GET(DT_NODELABEL(tc_rail));
+static bool g_rail_ready = false;
 #endif
 
 // ── Ultrasonic distance (HC-SR04): a TRIG output + ECHO input, wired via two
@@ -314,6 +327,10 @@ void init() {
 #ifdef HAS_ADC
   if (adc_is_ready_dt(&g_adc) && adc_channel_setup_dt(&g_adc) == 0)
     g_adc_ready = true;
+#endif
+#ifdef HAS_RAIL_ADC
+  if (adc_is_ready_dt(&g_rail) && adc_channel_setup_dt(&g_rail) == 0)
+    g_rail_ready = true;
 #endif
   store_init();
 }
@@ -700,16 +717,16 @@ std::string camProbe() { return arducam_probe(); }
 // note in the DK overlay — this exists to settle whether the camera is simply
 // under-powered, and goes away with the answer.
 std::string railProbe() {
-#ifdef HAS_ADC
-  if (!g_adc_ready) return "adc not ready";
+#ifdef HAS_RAIL_ADC
+  if (!g_rail_ready) return "adc not ready";
   int16_t buf = 0;
   struct adc_sequence seq = {};
   seq.buffer = &buf;
   seq.buffer_size = sizeof(buf);
-  if (adc_sequence_init_dt(&g_adc, &seq) < 0) return "adc init failed";
-  if (adc_read_dt(&g_adc, &seq) != 0) return "adc read failed";
+  if (adc_sequence_init_dt(&g_rail, &seq) < 0) return "adc init failed";
+  if (adc_read_dt(&g_rail, &seq) != 0) return "adc read failed";
   int32_t mv = buf;
-  if (adc_raw_to_millivolts_dt(&g_adc, &mv) < 0) return "adc scale failed";
+  if (adc_raw_to_millivolts_dt(&g_rail, &mv) < 0) return "adc scale failed";
 
   // And again UNDER LOAD. A module that browns out its own supply at power-up
   // is selected, clocked and mute — exactly what the camera looks like — and a
@@ -721,10 +738,10 @@ std::string railProbe() {
     struct adc_sequence sq = {};
     sq.buffer = &b;
     sq.buffer_size = sizeof(b);
-    if (adc_sequence_init_dt(&g_adc, &sq) < 0) break;
-    if (adc_read_dt(&g_adc, &sq) != 0) break;
+    if (adc_sequence_init_dt(&g_rail, &sq) < 0) break;
+    if (adc_read_dt(&g_rail, &sq) != 0) break;
     int32_t v = b;
-    if (adc_raw_to_millivolts_dt(&g_adc, &v) < 0) break;
+    if (adc_raw_to_millivolts_dt(&g_rail, &v) < 0) break;
     if (v < lo) lo = v;
     if (v > hi) hi = v;
   }
@@ -739,7 +756,7 @@ std::string railProbe() {
                       "works and the camera does not"
                     : "  (3.3V: what the camera asks for)");
 #else
-  return "no adc channel on this board";
+  return "no rail channel on this board";
 #endif
 }
 

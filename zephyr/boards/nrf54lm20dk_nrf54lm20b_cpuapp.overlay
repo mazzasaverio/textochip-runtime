@@ -168,7 +168,7 @@
 	};
 };
 
-/* TEMPORARY BENCH DIAGNOSTIC (2026-08-01) — remove once the rail is known.
+/* Rail measurement (2026-08-01, made permanent + FIXED 2026-08-02).
  *
  * The DK's VDD is CONFIGURABLE (Board Configurator), and Nordic's own Arducam
  * sample says in one line to set it to 3.3V for this camera. A rail at 1.8V
@@ -176,9 +176,11 @@
  * powered-but-mute, which is exactly the symptom on the bench. So rather than
  * guess: the SAADC can sample VDD internally, with no wire and no instrument.
  *
- * It borrows /zephyr,user, which on this board is otherwise unused (there is no
- * analog sensor node here, so AREAD reads 0 either way) — which is also why this
- * must not stay: on a board with a real sensor it would collide with AREAD.
+ * It used to borrow /zephyr,user — and that was a real bug, not a tidy shortcut:
+ * /zephyr,user is AREAD()'s node, so on this DK a program calling AREAD() read
+ * the SUPPLY RAIL instead of a sensor. A maker's generated program used
+ * `AREAD() > 2000` as a threshold and got a value that is always high, which is
+ * unexplainable from the BASIC. The rail now has its OWN node.
  */
 #include <zephyr/dt-bindings/adc/adc.h>
 #include <zephyr/dt-bindings/adc/nrf-saadc.h>
@@ -199,7 +201,10 @@
 };
 
 / {
-	zephyr,user {
+	tc_rail: tc-rail {
+		compatible = "voltage-divider";
 		io-channels = <&adc 7>;
+		output-ohms = <1>;
+		full-ohms = <1>;
 	};
 };

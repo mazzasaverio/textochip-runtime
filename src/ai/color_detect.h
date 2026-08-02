@@ -37,6 +37,14 @@ tc_color_blob tc_detect_color_blob(const uint8_t *rgb, int width, int height);
 // that don't care where it is.
 int tc_detect_color(const uint8_t *rgb, int n_pixels);
 
+// Bench diagnostic: run the same pixel loop and report WHY pixels were dropped.
+// A marker that "is not recognised" is one of three different faults — too dark,
+// too washed out, or a hue in no band — and they need opposite fixes, so the
+// bench must be able to tell them apart instead of guessing at thresholds.
+// Writes the four counts; any pointer may be NULL.
+void tc_color_stats(const unsigned char* rgb, int width, int height, long* too_dark,
+                    long* too_grey, long* no_band, long* counted);
+
 #ifdef __cplusplus
 }
 #endif

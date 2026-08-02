@@ -29,6 +29,12 @@ int poll();
 int lastX();
 int lastSize();
 
+// Bench: why the LAST captured frame's pixels were dropped (too dark / too grey
+// / no hue band / counted). Lets the bench tell "the marker is too pale" apart
+// from "too dark" apart from "not a colour we cover" — three faults that look
+// identical from BASIC and need opposite fixes. Zeros on a non-colour build.
+void lastStats(long* too_dark, long* too_grey, long* no_band, long* counted);
+
 }  // namespace vision_service
 
 #endif  // TEXTOCHIP_AI_VISION_SERVICE_H

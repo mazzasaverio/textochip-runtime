@@ -82,5 +82,18 @@ int vision_service::poll() {
   return cls < 0 ? 0 : cls;
 }
 
+void vision_service::lastStats(long* too_dark, long* too_grey, long* no_band,
+                               long* counted) {
+#ifdef TEXTOCHIP_VISION_COLOR
+  tc_color_stats(g_frame, kFrameWidth, kFrameHeight, too_dark, too_grey, no_band,
+                 counted);
+#else
+  if (too_dark) *too_dark = 0;
+  if (too_grey) *too_grey = 0;
+  if (no_band) *no_band = 0;
+  if (counted) *counted = 0;
+#endif
+}
+
 int vision_service::lastX() { return g_x; }
 int vision_service::lastSize() { return g_size; }

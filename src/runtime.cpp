@@ -163,9 +163,14 @@ void runtime::feedLine(const std::string& raw) {
     if (cls < 0) {
       hal::serialWriteLine("OK: see (no frame — camera not answering)");
     } else {
-      hal::serialWriteLine("OK: see class=" + std::to_string(cls) +
-                           " x=" + std::to_string(vision_service::lastX()) +
-                           " size=" + std::to_string(vision_service::lastSize()));
+      long dark = 0, grey = 0, nob = 0, ok = 0;
+      vision_service::lastStats(&dark, &grey, &nob, &ok);
+      hal::serialWriteLine(
+          "OK: see class=" + std::to_string(cls) + " x=" +
+          std::to_string(vision_service::lastX()) + " size=" +
+          std::to_string(vision_service::lastSize()) + " · pixels: colour=" +
+          std::to_string(ok) + " too-dark=" + std::to_string(dark) +
+          " too-pale=" + std::to_string(grey) + " violet=" + std::to_string(nob));
     }
   } else if (line == "CAMPINS") {
     // The follow-up when CAM reports id=0x00: that answer covers both "no power"

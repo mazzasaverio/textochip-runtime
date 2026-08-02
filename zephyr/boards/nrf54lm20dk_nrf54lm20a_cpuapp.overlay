@@ -137,7 +137,7 @@
  * SCK/MISO/MOSI on P1.04-P1.06 with CS on P1.07, and P1.06/P1.07 are already
  * the two motor enables here (pwm21). D1-D4 are four free, ADJACENT header pins,
  * so the camera is one contiguous ribbon:
- *   CS -> D1 (P3.04)  SCK -> P1.08 (hole 08 on PORT1)  MISO -> D3 (P1.03)  MOSI -> D4 (P1.04)
+ *   CS -> D1 (P3.04)  SCK -> P1.10 (hole 10 on PORT1)  MISO -> D3 (P1.03)  MOSI -> D4 (P1.04)
  * The three bus signals stay on PORT 1 (one peripheral instance, one port — the
  * lesson the TDM mic taught); CS is an ordinary GPIO, so it may live on P3.
  * SPI22 is free: we hold serial instance 20 for the IDE link (uart20), and PWM
@@ -154,8 +154,11 @@
 			 * clocks it, which is exactly how it failed. It also
 			 * explains the earlier dead end with CS on P1.01. The SPI
 			 * pins must stay on ONE port (the mic and motor-PWM rule),
-			 * so the replacement is a P1 pad too. */
-			psels = <NRF_PSEL(SPIM_SCK, 1, 8)>,	/* hole 08 on PORT1 */
+			 * so the replacement is a P1 pad too. P1.08 works but is the
+			 * DK's own BTN2 (pull-up, active-low): pressing that button
+			 * would ground the clock, so the camera takes P1.10, which
+			 * carries no on-board function. */
+			psels = <NRF_PSEL(SPIM_SCK, 1, 10)>,	/* hole 10 on PORT1 */
 				<NRF_PSEL(SPIM_MISO, 1, 3)>,	/* D3 */
 				<NRF_PSEL(SPIM_MOSI, 1, 4)>;	/* D4 */
 			bias-pull-down;
@@ -163,7 +166,7 @@
 	};
 	tc_spi22_sleep: tc_spi22_sleep {
 		group1 {
-			psels = <NRF_PSEL(SPIM_SCK, 1, 8)>,
+			psels = <NRF_PSEL(SPIM_SCK, 1, 10)>,
 				<NRF_PSEL(SPIM_MISO, 1, 3)>,
 				<NRF_PSEL(SPIM_MOSI, 1, 4)>;
 			bias-pull-down;

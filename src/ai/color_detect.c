@@ -35,6 +35,7 @@ enum {
 // images, and the sensor is on the desk now.
 #define SAT_MIN 0.28f
 #define VAL_MIN 0.13f
+#define MARGIN 1.3f      // the winner must beat the runner-up by this much
 #define COVER_MIN 0.02f  // 2% of the pixels — noise floor, not a "close enough" test
 
 tc_color_blob tc_detect_color_blob(const uint8_t *rgb, int width, int height) {
@@ -92,13 +93,22 @@ tc_color_blob tc_detect_color_blob(const uint8_t *rgb, int width, int height) {
   }
 
   int best = -1;
-  long bestN = 0;
+  long bestN = 0, secondN = 0;
   for (int c = 0; c < 6; c++)
     if (cnt[c] > bestN) {
+      secondN = bestN;
       bestN = cnt[c];
       best = c;
+    } else if (cnt[c] > secondN) {
+      secondN = cnt[c];
     }
   if (best < 0 || (float)bestN < COVER_MIN * (float)n_pixels) return out;
+  // A NEAR-TIE IS NOT AN ANSWER. Two colours within a few pixels of each other
+  // used to elect a winner by that handful, and the winner could change from
+  // frame to frame — a robot driven by it lurches forward and back while
+  // nothing in front of it moved. Saying "nothing" is the honest reading of an
+  // ambiguous frame, and the program already knows what to do with nothing.
+  if ((float)bestN < MARGIN * (float)secondN) return out;
 
   static const int cls[6] = {CLASS_YELLOW, CLASS_RED, CLASS_GREEN, CLASS_BLUE,
                              CLASS_ORANGE, CLASS_PINK};

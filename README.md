@@ -112,6 +112,12 @@ bring-up log and pitfalls: [`docs/nordic-nrf-connect-sdk.md`](docs/nordic-nrf-co
   KWS model on the B chip, ~1 to 12 ms per inference), and **SAVE + boot autorun** is
   verified (a saved program reruns on power-up, PC unplugged). Note: the DK persists to
   RRAM via `flash_area`, not NVS (NVS does not stick on this no-explicit-erase RRAM).
+  **Vision is live too** (2026-08-02): the Arducam Mega 5MP over SPI answers `id=0x81` with a
+  frame of exactly 18432 bytes (96×96 RGB565), and `SEE()`/`SEEX()`/`SEESIZE()` report a
+  colour with its position and size off a live frame. Two traps found on the way, both worth
+  knowing before wiring anything to this DK: **`P1.01` and `P1.02` are shorted to ground** on
+  it (the `PADS` command drives each pad and reads it back), and the SPI must run at Nordic's
+  **8 MHz** — slowing it to 1 MHz made the peripheral sample two bits out of phase.
 - The VM zeroes motors and buzzer on every stop path (STOP, HALT, end, error): a robot
   must not keep rolling after STOP.
 

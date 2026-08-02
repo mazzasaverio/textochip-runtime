@@ -380,15 +380,18 @@ no cloud, no phone app. A simple addition to the serial protocol (planned):
   real TFLM inference** (`west build` green — the model + interpreter in the ELF). *Remaining:* the
   mic bring-up + on-chip validation on **real hardware**, then the nRF54L (CMSIS-NN on the M33; the
   Axon NPU as the optional accelerator).
-- **Phase 2 — vision.** 🚧 Two paths built + host-proven, one `SEE()` register:
+- **Phase 2 — vision.** ✅ colour LIVE on hardware · 🚧 objects later. Two paths, one `SEE()` register:
   - **Colour (near-term, the Arducam Mega path).** `SEE()="yellow"` etc. (plus `SEEX()`/`SEESIZE()`
     off the same frame) from `color_detect.c`,
     wired through `vision_service` (`TEXTOCHIP_VISION_COLOR`) fed by `hal::camCaptureRGB` — now a
     REAL driver (`zephyr/src/arducam_mega.cpp`, the Arducam Mega over SPI, builds green for both DK
     targets), no longer a stub. Proven end-to-end on the host (`make test-color-service`,
     `make test-color-move` → the robot hunts the ball) and on real photographs (`make color-probe`).
-    *Remaining:* the bench — does the real sensor answer (`CAM`), and is its frame exactly 18432
-    bytes? See the vision section above.
+    ✅ **Bench-verified 2026-08-02** (nRF54LM20 DK-B): `CAM` answers `id=0x81 fw=23-3-3/20
+    frame=18432` — the frame size is exactly 96×96 RGB565 — and the new `SEE` command reports a
+    live colour with its position and size (`class=5 x=57 size=18` on a red object slightly right
+    of centre). So the colour path runs end to end on real hardware; the pin traps that cost the
+    bring-up are in the pin note above.
   - **Objects (later).** `SEE()="person/ball/hand"` from a trained classifier — `vision_service`
     default mode + `ai_infer_vision`, with a Phase-0 TFLM **person-detection** stand-in
     (`make test-vision`: a real image → the class → `SEE()` branches, no camera). Next: a trained

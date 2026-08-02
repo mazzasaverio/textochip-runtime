@@ -49,16 +49,69 @@ Follow it top to bottom. Each stage is a checkpoint — don't move on until it p
 
 ### Microphone — INMP441 → Nordic nRF54LM20 DK  (TDM; the nRF54L has no I2S, so
 the mic hangs off its TDM peripheral, which speaks the I2S API — pins from the
-DK overlay `tc_tdm_default`, all on the **PORT2** header)
+DK overlay `tc_tdm_default`, all on the **PORT1** header)
 
 | INMP441 | DK pin | meaning |
 |---------|--------|---------|
-| VDD | **3V3** (VDD on a power header) | power (NOT 5V) |
-| GND | **GND** | ground |
-| SCK | **P2.00** (PORT2) | TDM bit clock (SCK_M) — the DK is master |
-| WS  | **P2.01** (PORT2) | frame sync / word select (FSYNC_M) |
-| SD  | **P2.02** (PORT2) | mic data out → DK SDIN |
-| L/R | **GND** | LEFT channel (the one the firmware reads) |
+| VDD | **`VDDIO`** (on any PORT header) | power — ⚠️ **never `5V0`**: 5 V destroys the INMP441 |
+| GND | **`GND`** | ground |
+| SCK | **P1.23** (hole `23` on PORT1) | TDM bit clock (SCK_M) — the DK is master |
+| WS  | **P1.14** (hole `14` on PORT1) | frame sync / word select (FSYNC_M) |
+| SD  | **P1.31** (hole `31` on PORT1) | mic data out → DK SDIN |
+| L/R | **`GND`** | LEFT channel (the one the firmware reads) |
+
+> ### ⚠️ PORT 1, and it cannot be moved to PORT 2 (bench-proven 2026-07-14)
+> This table said **P2.00/01/02** until 2026-08-02, and that wiring silently does nothing: on
+> this SoC the TDM **no-ops on P2 pads** — config and trigger both return 0, the DMA fills
+> blocks, and the mic reads a flat zero indistinguishable from a disconnected one. The `MICPINS`
+> probe showed the clock never leaving the pin. Nordic's own i2s tests for this DK use
+> P1.23/P1.14/P1.31, and so does our overlay.
+>
+> On the PORT headers the holes are silkscreened by **GPIO number** (`14`, `23`, `31`); the
+> Arduino-style `D` aliases are a different numbering and are **not printed on this board** —
+> `D14` is `P1.05`, not `P1.14`, and following the alias puts a wire in the mic's word-select.
+
+### Robot — L298N → Nordic nRF54LM20 DK  (bench-verified 2026-07-13)
+
+| L298N | DK pin | wheel |
+|-------|--------|-------|
+| IN1 | **P3.02** (PORT3) | left — direction A |
+| IN2 | **P3.03** (PORT3) | left — direction B |
+| ENA | **P1.07** (PORT1, pwm21 ch0) | left — speed (PWM) |
+| IN3 | **P3.05** (PORT3) | right — direction A |
+| IN4 | **P1.05** (PORT1) | right — direction B |
+| ENB | **P1.06** (PORT1, pwm21 ch1) | right — speed (PWM) |
+
+Both PWM enables are on **pwm21** and both on **port P1**: one nRF54 PWM instance cannot span
+two GPIO ports, and **pwm22 boot-faults the app core** — do not use it. Battery, common ground
+and the ENA/ENB jumper caps: same as the ESP32 table below.
+
+### Camera — Arducam Mega 5MP (SPI) → Nordic nRF54LM20 DK  (bench-verified 2026-08-02)
+
+The module's six wires are one connector and are identified by POSITION, not by a label:
+
+| # on the module | Signal | DK pin |
+|---|---|---|
+| 1 | VCC | **`VDDIO`** (3.3 V) |
+| 2 | GND | **`GND`** |
+| 3 | SCK | **P1.10** (hole `10` on PORT1) |
+| 4 | MISO | **P1.03** (hole `03` on PORT1) |
+| 5 | MOSI | **P1.04** (hole `04` on PORT1) |
+| 6 | **CE** (= CS) | **P3.04** (hole `04` on PORT3) |
+
+The last pad is silkscreened **CE**, not CS — a maker hunting for "CS" finds nothing. The three
+bus signals stay on PORT 1 (one SPI instance, one port); CS is a plain GPIO, so it may sit on P3.
+
+> ### ⚠️ `P1.01` and `P1.02` are SHORTED TO GROUND on this DK
+> Not a wiring mistake and not a dead module: the chip drives those two pads high and the board
+> holds them at 0 (`PADS` bench command). A grounded clock **selects** the camera and never
+> clocks it, which reads exactly like a dead camera — and it is also why an earlier attempt to
+> put CS on `P1.01` went nowhere. `P1.08` is healthy but is the DK's own **BTN2**: pressing that
+> button would ground the clock. Hence `P1.10`.
+>
+> And do **not** "slow the bus down to be safe": at 1 MHz the peripheral sampled the `0x81`
+> stream two bits out (`0x06`) while a bit-banged read of the same wires returned `0x81`.
+> Nordic's **8 MHz** is the right speed.
 
 ### Robot — L298N → ESP32-S3  (differential drive; pins from `zephyr/src/hal_zephyr.cpp`)
 
@@ -214,6 +267,34 @@ wiring (BCK/WS/SD, L/R→GND). Send `MIC` **raw over serial**, not through the I
 | `VOICE()` always "none" | The model is in the firmware — check the I2S mic wiring (BCK/WS/SD, L/R→GND) and that you're speaking a **trained** word (go/left/right/stop). |
 | Robot reacts to **background noise** | The confidence gate is too low: raise `kMinConfidence` in `src/ai/ai_service.cpp` (default 0.6) and rebuild. Too twitchy → ↑, misses clear words → ↓. |
 | `west flash` fails | Hold **BOOT**, tap **RST**, release **BOOT**, retry; flash via the **"USB UART"** port. |
+| `CAM` says `id=0x00` | Nothing on the bus. Run **`PADS`**: a pad reported `SHORT-GND` cannot carry a signal, whatever is plugged into it. Then **`CAMBB`**, which bit-bangs the same read with the SPI peripheral bypassed — if that answers `0x81`, the wiring is right and the fault is the peripheral's setup. |
+| `CAM` answers, but not `0x81` | A timing problem, not a wiring one: the peripheral is sampling out of phase. Check `spi-max-frequency` is Nordic's **8 MHz** (1 MHz produced `0x06`). |
+| `SEE` says `class=0` | The detector saw no saturated colour — that is an honest "nothing", not a failure. Hold something strongly coloured a hand's width from the lens and read again. |
+
+---
+
+## 4b. Bench commands (type them into the serial console)
+
+These are diagnostics, not part of any program. Each answers ONE question, so a failure names
+its own cause instead of sending you to check six wires.
+
+| Command | Answers |
+|---------|---------|
+| `PING` | is the firmware alive (`PONG`) |
+| `MIC` / `MICRAW` | is the microphone capturing, and what do the raw samples look like |
+| `MICPINS` | does the TDM clock actually leave the chip (the P2 lesson above) |
+| `CAM` | does the camera answer (`id=0x81`), its firmware date, and the measured frame size |
+| `SEE` | capture ONE frame and print `class/x/size` — aim the eye without writing a program |
+| `CAMPINS` | what each SPI pad is doing, and which pads the SPI instance owns |
+| `CAMBB` | the same register read **bit-banged in plain GPIO**, peripheral bypassed |
+| `PADS` | drive every P1 pad high and read it back: `ok` / `SHORT-GND` / `short-vdd` |
+| `RAIL` | the board's supply rail in mV, at rest and under load |
+| `STORE?` | is a program saved in flash for autorun |
+
+> **A probe must not be able to lie.** `CAMPINS` used to apply a pull-up and call a low pad
+> "grounded" — but a pull-up loses to any driver, including our own peripheral, so it accused a
+> perfectly good wire for hours. It now DRIVES the pad and reads it back, which is the only
+> measurement that separates "shorted" from "driven by something entitled to drive it".
 
 ---
 
@@ -237,3 +318,4 @@ wiring (BCK/WS/SD, L/R→GND). Send `MIC` **raw over serial**, not through the I
 | The service: audio → class (`make test-ai-service`) | Live **voice → robot** — the physical mic + the on-chip TFLM run |
 | The voice program → `MOVE` per keyword (`make test-ai-move`) | Timing/latency of the rolling window on the real CPU |
 | The whole board firmware **+ on-device TFLM** build (`west build` green) | |
+| The colour pipeline: frame → `tc_detect_color_blob` → `SEE()/SEEX()/SEESIZE()` (`make test-color`, `test-color-service`, `test-color-move`, and `make color-probe` over real photographs) | ✅ **done 2026-08-02** — the real Arducam answers `id=0x81`, `frame=18432`, and `SEE` reports a colour with its position and size off a live frame |

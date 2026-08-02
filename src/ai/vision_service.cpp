@@ -57,6 +57,30 @@ int g_size = 0;  // last blob coverage, 0..100 (SEESIZE())
 // nothing — changes nothing.
 int g_confirmed = 0;  // what SEE() actually reads
 int g_lastRaw = -1;   // previous frame's raw verdict; -1 = no history yet
+bool g_emaValid = false;  // geometry EMA is seeded (see applyGeometry)
+
+// SMOOTHED geometry — the tracking half of what the temporal confirmation does
+// for the class. A detector's box jitters a few percent frame to frame, MOVE is
+// sticky, and a robot steering on raw jitter weaves. Standard practice is an
+// exponential moving average on position and size: the first sample after a
+// target appears is taken as-is (no ramp-up from zero), later ones blend 3:1.
+void applyGeometry(int raw, int nx, int nsize) {
+  if (raw == g_confirmed && g_confirmed != 0) {
+    if (!g_emaValid) {
+      g_x = nx;
+      g_size = nsize;
+      g_emaValid = true;
+    } else {
+      g_x = (g_x * 3 + nx + 2) / 4;
+      g_size = (g_size * 3 + nsize + 2) / 4;
+    }
+  }
+  if (g_confirmed == 0) {
+    g_x = 0;
+    g_size = 0;
+    g_emaValid = false;
+  }
+}
 
 }  // namespace
 
@@ -64,6 +88,7 @@ void vision_service::reset() {
 #ifndef TEXTOCHIP_VISION_NPU
   g_have = 0;
 #endif
+  g_emaValid = false;
   g_x = 0;
   g_size = 0;
   g_confirmed = 0;
@@ -81,14 +106,7 @@ int vision_service::poll() {
   if (raw < 0) return -1;
   if (g_lastRaw < 0 || raw == g_lastRaw) g_confirmed = raw;
   g_lastRaw = raw;
-  if (raw == g_confirmed) {
-    g_x = npu_vision_x();
-    g_size = npu_vision_size();
-  }
-  if (g_confirmed == 0) {
-    g_x = 0;
-    g_size = 0;
-  }
+  applyGeometry(raw, npu_vision_x(), npu_vision_size());
   return g_confirmed;
 #else
   // 1. Drain a bounded chunk of camera bytes into the frame (non-blocking).
@@ -121,16 +139,9 @@ int vision_service::poll() {
   g_lastRaw = raw;
 
 #if defined(TEXTOCHIP_VISION_COLOR)
-  // Geometry follows the CONFIRMED class: update it from frames that agree,
-  // hold it through a one-frame flicker, zero it when "nothing" is confirmed.
-  if (raw == g_confirmed) {
-    g_x = blob.x;
-    g_size = blob.size;
-  }
-  if (g_confirmed == 0) {
-    g_x = 0;
-    g_size = 0;
-  }
+  // Geometry follows the CONFIRMED class — smoothed, held through a one-frame
+  // flicker, zeroed when "nothing" is confirmed (applyGeometry).
+  applyGeometry(raw, blob.x, blob.size);
 #else
   g_x = 0;
   g_size = 0;

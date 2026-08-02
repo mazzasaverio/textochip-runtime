@@ -49,7 +49,23 @@ uint8_t g_chunk[1024];  // raw RGB565 drained per poll (even = whole pixels)
 
 enum class St { kUninit, kFailed, kRun };
 St g_state = St::kUninit;
-int g_pixels = 0;  // camera pixels already converted into g_input
+int g_pixels = 0;       // camera pixels already converted into g_input
+bool g_frameReady = false;  // a full frame is converted, waiting for the NPU
+bool g_pending = false;     // an async inference is in flight
+
+// ASYNC, not sync — for two reasons. infer_sync blocked the VM tick for the
+// whole inference; the async queue hands the work to the driver's own thread
+// and this poll just asks "done yet?". And the queue SERIALIZES every model on
+// the Axon, which is Nordic's designed answer to voice and vision sharing one
+// NPU — with infer_sync the two could collide, with the queue they take turns.
+nrf_axon_nn_model_async_inference_wrapper_s g_wrap;
+volatile bool g_inferDone = false;
+volatile nrf_axon_result_e g_inferResult = NRF_AXON_RESULT_SUCCESS;
+
+void inferDoneCb(nrf_axon_result_e result, void*) {
+  g_inferResult = result;
+  g_inferDone = true;  // driver-thread context: set the flag, nothing else
+}
 int g_x = 0, g_size = 0, g_score = 0;
 float g_deqScale = 1.0f;  // inverse-quantization, captured at init for SNAP
 int g_deqZp = 0;
@@ -64,7 +80,9 @@ int8_t quantize(float value, const nrf_axon_nn_compiled_model_input_s* in) {
 
 bool init() {
   if (nrf_axon_platform_init() != NRF_AXON_RESULT_SUCCESS) return false;
-  if (nrf_axon_nn_model_validate(&model_person_det) != NRF_AXON_RESULT_SUCCESS)
+  // async_init validates the model and binds the wrapper (one-time).
+  if (nrf_axon_nn_model_async_init(&g_wrap, &model_person_det) !=
+      NRF_AXON_RESULT_SUCCESS)
     return false;
   const nrf_axon_nn_compiled_model_input_s* in =
       nrf_axon_nn_model_1st_external_input(&model_person_det);
@@ -83,6 +101,10 @@ bool init() {
 
 }  // namespace
 
+namespace {
+int decodeBoxes();  // defined below — poll's completion path
+}
+
 int npu_vision_poll(void) {
   if (g_state == St::kFailed) return 0;
   if (g_state == St::kUninit) {
@@ -93,32 +115,61 @@ int npu_vision_poll(void) {
     g_state = St::kRun;
   }
 
-  int got = arducam_capture_raw565(g_chunk, sizeof(g_chunk));
-  if (got <= 0) return -1;
-
-  const int px = got / 2;
-  for (int p = 0; p < px && g_pixels + p < kCamPixels; p++) {
-    const int idx = g_pixels + p;
-    const int row = idx / kCamW, col = idx % kCamW;
-    const int dst = row * kModelW + (col + kPadLeft);
-    const uint16_t v =
-        (uint16_t)((uint16_t)g_chunk[p * 2] << 8 | g_chunk[p * 2 + 1]);
-    g_input[0 * kModelW * kModelH + dst] = g_lutRB[(v >> 11) & 0x1F];
-    g_input[1 * kModelW * kModelH + dst] = g_lutG[(v >> 5) & 0x3F];
-    g_input[2 * kModelW * kModelH + dst] = g_lutRB[v & 0x1F];
+  // An inference in flight? g_input must not be touched (the driver reads it
+  // when the model's turn comes), so no camera draining either — the camera
+  // simply holds its FIFO until we come back for it.
+  if (g_pending) {
+    if (!g_inferDone) return -1;
+    g_pending = false;
+    g_frameReady = false;
+    g_pixels = 0;
+    if (g_inferResult != NRF_AXON_RESULT_SUCCESS) {
+      g_x = 0;
+      g_size = 0;
+      g_score = 0;
+      return 0;
+    }
+    return decodeBoxes();
   }
-  g_pixels += px;
-  if (g_pixels < kCamPixels) return -1;
-  g_pixels = 0;
 
-  if (nrf_axon_nn_model_infer_sync(&model_person_det, g_input, g_output) !=
-      NRF_AXON_RESULT_SUCCESS) {
+  if (!g_frameReady) {
+    int got = arducam_capture_raw565(g_chunk, sizeof(g_chunk));
+    if (got <= 0) return -1;
+    const int px = got / 2;
+    for (int p = 0; p < px && g_pixels + p < kCamPixels; p++) {
+      const int idx = g_pixels + p;
+      const int row = idx / kCamW, col = idx % kCamW;
+      const int dst = row * kModelW + (col + kPadLeft);
+      const uint16_t v =
+          (uint16_t)((uint16_t)g_chunk[p * 2] << 8 | g_chunk[p * 2 + 1]);
+      g_input[0 * kModelW * kModelH + dst] = g_lutRB[(v >> 11) & 0x1F];
+      g_input[1 * kModelW * kModelH + dst] = g_lutG[(v >> 5) & 0x3F];
+      g_input[2 * kModelW * kModelH + dst] = g_lutRB[v & 0x1F];
+    }
+    g_pixels += px;
+    if (g_pixels < kCamPixels) return -1;
+    g_frameReady = true;
+  }
+
+  g_inferDone = false;
+  const nrf_axon_result_e r = nrf_axon_nn_model_infer_async(
+      &g_wrap, g_input, g_output, inferDoneCb, nullptr);
+  if (r == NRF_AXON_RESULT_NOT_FINISHED) return -1;  // queue busy — retry next poll
+  if (r != NRF_AXON_RESULT_SUCCESS) {
+    g_frameReady = false;
+    g_pixels = 0;
     g_x = 0;
     g_size = 0;
     g_score = 0;
     return 0;
   }
+  g_pending = true;
+  return -1;
+}
 
+namespace {
+
+int decodeBoxes() {
   struct detection_box boxes[8];
   const size_t n = decode_output(&model_person_det, g_output, boxes, 8);
   if (n == 0) {
@@ -143,6 +194,8 @@ int npu_vision_poll(void) {
   if (g_score > 1000) g_score = 1000;
   return 1;  // person — VISION_LABELS class 1
 }
+
+}  // namespace
 
 int npu_vision_x(void) { return g_x; }
 int npu_vision_score(void) { return g_score; }

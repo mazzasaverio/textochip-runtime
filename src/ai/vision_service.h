@@ -28,6 +28,8 @@ int poll();
 // to report, so they stay 0 there (SEE() still works).
 int lastX();
 int lastSize();
+// NPU build: confidence of the last detection, 0..1000. 0 elsewhere.
+int lastScore();
 
 // Bench: why the LAST captured frame's pixels were dropped (too dark / too grey
 // / no hue band / counted). Lets the bench tell "the marker is too pale" apart

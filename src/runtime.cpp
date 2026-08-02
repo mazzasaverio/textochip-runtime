@@ -175,7 +175,8 @@ void runtime::feedLine(const std::string& raw) {
       hal::serialWriteLine(
           "OK: see class=" + std::to_string(cls) + " x=" +
           std::to_string(vision_service::lastX()) + " size=" +
-          std::to_string(vision_service::lastSize()) + " · pixels: colour=" +
+          std::to_string(vision_service::lastSize()) + " score=" +
+          std::to_string(vision_service::lastScore()) + " · pixels: colour=" +
           std::to_string(ok) + " too-dark=" + std::to_string(dark) +
           " too-pale=" + std::to_string(grey) + " violet=" + std::to_string(nob));
       long hist[12];

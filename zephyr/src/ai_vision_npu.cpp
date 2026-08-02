@@ -50,7 +50,7 @@ uint8_t g_chunk[1024];  // raw RGB565 drained per poll (even = whole pixels)
 enum class St { kUninit, kFailed, kRun };
 St g_state = St::kUninit;
 int g_pixels = 0;  // camera pixels already converted into g_input
-int g_x = 0, g_size = 0;
+int g_x = 0, g_size = 0, g_score = 0;
 
 int8_t quantize(float value, const nrf_axon_nn_compiled_model_input_s* in) {
   const float scale = (float)in->quant_mult / (float)(1u << in->quant_round);
@@ -111,6 +111,7 @@ int npu_vision_poll(void) {
       NRF_AXON_RESULT_SUCCESS) {
     g_x = 0;
     g_size = 0;
+    g_score = 0;
     return 0;
   }
 
@@ -119,6 +120,7 @@ int npu_vision_poll(void) {
   if (n == 0) {
     g_x = 0;
     g_size = 0;
+    g_score = 0;
     return 0;
   }
   // The strongest box (decode sorts by score before NMS keeps the survivors).
@@ -132,10 +134,14 @@ int npu_vision_poll(void) {
   if (size < 1) size = 1;
   if (size > 100) size = 100;
   g_size = size;
+  g_score = (int)(b->score * 1000.0f);
+  if (g_score < 0) g_score = 0;
+  if (g_score > 1000) g_score = 1000;
   return 1;  // person — VISION_LABELS class 1
 }
 
 int npu_vision_x(void) { return g_x; }
+int npu_vision_score(void) { return g_score; }
 int npu_vision_size(void) { return g_size; }
 
 #endif  // TEXTOCHIP_VISION_NPU

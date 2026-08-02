@@ -175,5 +175,13 @@ const unsigned char* vision_service::frameData(int* bytes, int* width, int* heig
 #endif
 }
 
+int vision_service::lastScore() {
+#ifdef TEXTOCHIP_VISION_NPU
+  return npu_vision_score();
+#else
+  return 0;
+#endif
+}
+
 int vision_service::lastX() { return g_x; }
 int vision_service::lastSize() { return g_size; }

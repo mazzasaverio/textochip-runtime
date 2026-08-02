@@ -45,7 +45,13 @@ if TEXTOCHIP_NRF_PERSONDET
 # Names match Nordic's postprocessing.c, which this build compiles by reference.
 config SCORE_THRESHOLD
 	int "Detection score threshold, per mille"
-	default 250
+	default 550
+	help
+	  250 is Nordic's demo default — right for logging boxes to a console,
+	  far too credulous for DRIVING MOTORS: at 250 a wardrobe in the maker's
+	  room read as a person (score ~0.3, size 63) and steered the robot at
+	  nothing. Wheels demand conviction. SEE prints the live score so this
+	  can be tuned against the actual room instead of argued about.
 
 config IOU_THRESHOLD
 	int "NMS IoU threshold, per mille"

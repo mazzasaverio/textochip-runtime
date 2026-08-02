@@ -21,6 +21,10 @@ int npu_vision_poll(void);
 int npu_vision_x(void);
 int npu_vision_size(void);
 
+// Confidence of the last best box, 0..1000 (0 = nothing). The number the score
+// threshold is tuned against — printed by the SEE bench command.
+int npu_vision_score(void);
+
 #ifdef __cplusplus
 }
 #endif

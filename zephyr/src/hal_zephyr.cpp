@@ -710,7 +710,29 @@ std::string railProbe() {
   if (adc_read_dt(&g_adc, &seq) != 0) return "adc read failed";
   int32_t mv = buf;
   if (adc_raw_to_millivolts_dt(&g_adc, &mv) < 0) return "adc scale failed";
-  return "VDD = " + std::to_string(mv) + " mV" +
+
+  // And again UNDER LOAD. A module that browns out its own supply at power-up
+  // is selected, clocked and mute — exactly what the camera looks like — and a
+  // rail measured only at rest would never show it.
+  int32_t lo = mv, hi = mv;
+  for (int n = 0; n < 200; n++) {
+    arducam_probe_tick();
+    int16_t b = 0;
+    struct adc_sequence sq = {};
+    sq.buffer = &b;
+    sq.buffer_size = sizeof(b);
+    if (adc_sequence_init_dt(&g_adc, &sq) < 0) break;
+    if (adc_read_dt(&g_adc, &sq) != 0) break;
+    int32_t v = b;
+    if (adc_raw_to_millivolts_dt(&g_adc, &v) < 0) break;
+    if (v < lo) lo = v;
+    if (v > hi) hi = v;
+  }
+  return "VDD = " + std::to_string(mv) + " mV (under load " + std::to_string(lo) +
+         ".." + std::to_string(hi) + " mV)" +
+         (mv - lo > 150 ? "  <-- THE RAIL SAGS while the camera draws: it is a "
+                          "power problem, not a bus problem"
+                        : "") +
          (mv < 3200 ? "  <-- the Arducam wants 3.3V and Nordic's own sample for "
                       "this camera on this DK says to set it there (Board "
                       "Configurator). The mic does not care, which is why it "
@@ -732,45 +754,90 @@ std::string camBitbangProbe() {
   const gpio_pin_t csPin = DT_SPI_DEV_CS_GPIOS_PIN(DT_NODELABEL(arducam));
   if (!device_is_ready(csDev)) return "cs gpio port not ready";
 
-  gpio_pin_configure(gpio_port(sck), gpio_index(sck), GPIO_OUTPUT_INACTIVE);
-  gpio_pin_configure(gpio_port(mosi), gpio_index(mosi), GPIO_OUTPUT_INACTIVE);
-  gpio_pin_configure(gpio_port(miso), gpio_index(miso), GPIO_INPUT);
-  gpio_pin_configure(csDev, csPin, GPIO_OUTPUT);
-  gpio_pin_set_raw(csDev, csPin, 1);  // idle high (active low)
-  k_busy_wait(10);
+  // Try BOTH pad assignments: the wires being swapped is the commonest bench
+  // mistake, and asking the board is cheaper than asking the maker to re-count
+  // six identical jumpers.
+  auto attempt = [&](int outPin, int inPin, uint8_t* out3) {
+    gpio_pin_configure(gpio_port(sck), gpio_index(sck), GPIO_OUTPUT_INACTIVE);
+    gpio_pin_configure(gpio_port(outPin), gpio_index(outPin), GPIO_OUTPUT_INACTIVE);
+    gpio_pin_configure(gpio_port(inPin), gpio_index(inPin), GPIO_INPUT);
+    gpio_pin_configure(csDev, csPin, GPIO_OUTPUT);
+    gpio_pin_set_raw(csDev, csPin, 1);  // idle high (active low)
+    k_busy_wait(50);
 
-  auto xfer = [&](uint8_t out) {
-    uint8_t in = 0;
-    for (int b = 7; b >= 0; b--) {
-      gpio_pin_set_raw(gpio_port(mosi), gpio_index(mosi), (out >> b) & 1);
-      k_busy_wait(2);
-      gpio_pin_set_raw(gpio_port(sck), gpio_index(sck), 1);  // sample on rising
-      k_busy_wait(2);
-      in = (uint8_t)((in << 1) | (gpio_pin_get_raw(gpio_port(miso), gpio_index(miso)) & 1));
-      gpio_pin_set_raw(gpio_port(sck), gpio_index(sck), 0);
-      k_busy_wait(2);
-    }
-    return in;
+    auto xfer = [&](uint8_t o) {
+      uint8_t in = 0;
+      for (int b = 7; b >= 0; b--) {
+        gpio_pin_set_raw(gpio_port(outPin), gpio_index(outPin), (o >> b) & 1);
+        k_busy_wait(2);
+        gpio_pin_set_raw(gpio_port(sck), gpio_index(sck), 1);  // sample on rising
+        k_busy_wait(2);
+        in = (uint8_t)((in << 1) |
+                       (gpio_pin_get_raw(gpio_port(inPin), gpio_index(inPin)) & 1));
+        gpio_pin_set_raw(gpio_port(sck), gpio_index(sck), 0);
+        k_busy_wait(2);
+      }
+      return in;
+    };
+
+    gpio_pin_set_raw(csDev, csPin, 0);  // select
+    k_busy_wait(50);
+    xfer(0x40);  // REG_SENSOR_ID, read (high bit clear)
+    for (int i = 0; i < 3; i++) out3[i] = xfer(0x00);
+    gpio_pin_set_raw(csDev, csPin, 1);
+    k_busy_wait(50);
   };
 
-  gpio_pin_set_raw(csDev, csPin, 0);  // select
-  k_busy_wait(10);
-  xfer(0x40);                          // REG_SENSOR_ID, read (high bit clear)
-  uint8_t b1 = xfer(0x00);
-  uint8_t b2 = xfer(0x00);
-  uint8_t b3 = xfer(0x00);
-  gpio_pin_set_raw(csDev, csPin, 1);
+  uint8_t asWired[3] = {0, 0, 0}, swapped[3] = {0, 0, 0}, afterReset[3] = {0, 0, 0};
+  attempt(mosi, miso, asWired);
+  attempt(miso, mosi, swapped);  // MOSI/MISO exchanged
 
-  char buf[48];
-  snprintf(buf, sizeof(buf), "%02x %02x %02x", b1, b2, b3);
-  bool found = (b1 >= 0x81 && b1 <= 0x84) || (b2 >= 0x81 && b2 <= 0x84) ||
-               (b3 >= 0x81 && b3 <= 0x84);
-  return std::string("cs=") + csDev->name + "." + std::to_string(csPin) +
-         " bytes=" + buf +
-         (found ? "  <-- THE MODULE ANSWERS: wiring is good, the fault is in the "
-                  "SPI peripheral setup"
-                : "  <-- silent by hand too: the SPI controller was never the "
-                  "problem — it is the wiring or the module");
+  // Third try: RESET first. Arducam's own bring-up writes REG_SENSOR_RESET and
+  // waits before anything else, and a module sitting in a state that needs it
+  // would look exactly like this one — selected, clocked, mute.
+  {
+    gpio_pin_configure(gpio_port(sck), gpio_index(sck), GPIO_OUTPUT_INACTIVE);
+    gpio_pin_configure(gpio_port(mosi), gpio_index(mosi), GPIO_OUTPUT_INACTIVE);
+    gpio_pin_configure(gpio_port(miso), gpio_index(miso), GPIO_INPUT);
+    gpio_pin_configure(csDev, csPin, GPIO_OUTPUT);
+    auto put = [&](uint8_t o) {
+      for (int b = 7; b >= 0; b--) {
+        gpio_pin_set_raw(gpio_port(mosi), gpio_index(mosi), (o >> b) & 1);
+        k_busy_wait(2);
+        gpio_pin_set_raw(gpio_port(sck), gpio_index(sck), 1);
+        k_busy_wait(4);
+        gpio_pin_set_raw(gpio_port(sck), gpio_index(sck), 0);
+        k_busy_wait(2);
+      }
+    };
+    gpio_pin_set_raw(csDev, csPin, 1);
+    k_busy_wait(100);
+    gpio_pin_set_raw(csDev, csPin, 0);
+    k_busy_wait(50);
+    put(0x87);  // REG_SENSOR_RESET with the WRITE bit
+    put(0x40);  // RESET_ENABLE
+    gpio_pin_set_raw(csDev, csPin, 1);
+    k_msleep(800);  // the sensor reboots
+    attempt(mosi, miso, afterReset);
+  }
+
+  char buf[128];
+  snprintf(buf, sizeof(buf),
+           "as-wired=%02x %02x %02x  swapped=%02x %02x %02x  after-reset=%02x %02x %02x",
+           asWired[0], asWired[1], asWired[2], swapped[0], swapped[1], swapped[2],
+           afterReset[0], afterReset[1], afterReset[2]);
+  auto isId = [](uint8_t v) { return v >= 0x81 && v <= 0x84; };
+  bool okWired = isId(asWired[0]) || isId(asWired[1]) || isId(asWired[2]);
+  bool okSwap = isId(swapped[0]) || isId(swapped[1]) || isId(swapped[2]);
+  bool okReset = isId(afterReset[0]) || isId(afterReset[1]) || isId(afterReset[2]);
+  return std::string("cs=") + csDev->name + "." + std::to_string(csPin) + " " +
+         buf +
+         (okWired   ? "  <-- ANSWERS AS WIRED: the fault is the SPI peripheral setup"
+          : okSwap  ? "  <-- ANSWERS SWAPPED: the MOSI and MISO wires are exchanged"
+          : okReset ? "  <-- ANSWERS AFTER RESET: the module needs REG_SENSOR_RESET "
+                      "at start-up"
+                    : "  <-- silent every way: not the controller, not a swap, not "
+                      "a missing reset");
 #else
   return "no camera node in the board overlay";
 #endif

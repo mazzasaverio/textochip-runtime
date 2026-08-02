@@ -115,6 +115,8 @@ std::string camPinsProbe();
 std::string camBitbangProbe();
 // Bench: the board's supply rail in millivolts (temporary, see the DK overlay).
 std::string railProbe();
+// Bench: which P1 pads can actually be driven (see padScan in the Zephyr HAL).
+std::string padScan();
 
 // Non-volatile storage for the autorun program (brief §7). SAVE persists the
 // raw bytecode text to flash; on boot, a saved program is loaded + run with no

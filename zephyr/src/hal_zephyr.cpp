@@ -743,6 +743,36 @@ std::string railProbe() {
 #endif
 }
 
+// Which P1 pads are electrically healthy? P1.02 turned out to be shorted to
+// ground on the board itself, so the camera's clock needs another home — and an
+// nRF SPIM instance cannot spread its pins across two GPIO ports (the same rule
+// the mic and the motor PWM taught us), so the replacement must also be on P1.
+// Pads already spoken for (motors 5/6/7, buzzer 13, mic 14/23/31) are skipped:
+// driving a motor enable to probe it would twitch a wheel.
+std::string padScan() {
+  std::string out;
+  const int used[] = {5, 6, 7, 13, 14, 22, 23, 25, 26, 31};
+  for (int i = 0; i <= 15; i++) {
+    bool skip = false;
+    for (int u : used)
+      if (u == i) skip = true;
+    if (skip) continue;
+    const int pin = 32 + i;  // port 1
+    const struct device* dv = gpio_port(pin);
+    const gpio_pin_t ix = gpio_index(pin);
+    gpio_pin_configure(dv, ix, GPIO_OUTPUT_HIGH | GPIO_INPUT);
+    k_busy_wait(200);
+    int hi = gpio_pin_get_raw(dv, ix);
+    gpio_pin_configure(dv, ix, GPIO_OUTPUT_LOW | GPIO_INPUT);
+    k_busy_wait(200);
+    int lo = gpio_pin_get_raw(dv, ix);
+    gpio_pin_configure(dv, ix, GPIO_INPUT);
+    out += " P1." + std::to_string(i) + "=" +
+           (hi == 0 ? "SHORT-GND" : lo == 1 ? "short-vdd" : "ok");
+  }
+  return out;
+}
+
 std::string camBitbangProbe() {
 #if DT_NODE_EXISTS(DT_NODELABEL(arducam))
   const int sck = TC_SPI_PSEL(0);
@@ -849,19 +879,63 @@ std::string camPinsProbe() {
   const int miso = TC_SPI_PSEL(1);
   const int mosi = TC_SPI_PSEL(2);
 
-  // 1. Is anything driving MISO? A line nobody drives follows the internal
-  //    pull; a powered module holds its output stage. This is what tells "no
-  //    power" apart from "wire not in its hole", which the id probe reports
-  //    identically as 0x00.
-  const struct device* mp = gpio_port(miso);
-  const gpio_pin_t mi = gpio_index(miso);
-  gpio_pin_configure(mp, mi, GPIO_INPUT | GPIO_PULL_UP);
-  k_msleep(2);
-  int up = gpio_pin_get_raw(mp, mi);
-  gpio_pin_configure(mp, mi, GPIO_INPUT | GPIO_PULL_DOWN);
-  k_msleep(2);
-  int down = gpio_pin_get_raw(mp, mi);
-  gpio_pin_configure(mp, mi, GPIO_INPUT);
+  // 1. What is at the far end of each wire? A pad whose level FOLLOWS our own
+  //    pull is looking at either a high-impedance input or nothing at all — the
+  //    two are indistinguishable from here, which is why the bench procedure is
+  //    to move one wire's module end onto the module's GND pad: a wire that
+  //    conducts then reads 0 under a pull-up, and a broken one keeps following
+  //    the pull. A dupont jumper that fails inside its insulation looks perfect.
+  struct Pad {
+    const char* name;
+    int pin;
+  };
+  const Pad pads[] = {{"sck", sck}, {"miso", miso}, {"mosi", mosi}};
+  std::string report;
+  // DETACH the pads from the SPI peripheral first. SCK and MOSI are peripheral
+  // OUTPUTS: a driver holding the pad low beats any pull we apply, so measuring
+  // them while the peripheral owns them reports "grounded" for a perfectly good
+  // wire — which is exactly the wrong answer this probe gave, and it sent a
+  // maker chasing a wire that was never the problem.
+  const uint32_t savedSck = NRF_SPIM22->PSEL.SCK;
+  const uint32_t savedMosi = NRF_SPIM22->PSEL.MOSI;
+  const uint32_t savedMiso = NRF_SPIM22->PSEL.MISO;
+  NRF_SPIM22->PSEL.SCK = 0x80000000u;   // disconnected
+  NRF_SPIM22->PSEL.MOSI = 0x80000000u;
+  NRF_SPIM22->PSEL.MISO = 0x80000000u;
+  for (const Pad& p : pads) {
+    const struct device* dv = gpio_port(p.pin);
+    const gpio_pin_t ix = gpio_index(p.pin);
+    gpio_pin_configure(dv, ix, GPIO_INPUT | GPIO_PULL_UP);
+    k_msleep(2);
+    int u = gpio_pin_get_raw(dv, ix);
+    gpio_pin_configure(dv, ix, GPIO_INPUT | GPIO_PULL_DOWN);
+    k_msleep(2);
+    int d = gpio_pin_get_raw(dv, ix);
+    gpio_pin_configure(dv, ix, GPIO_INPUT);
+    // Then DRIVE it, which settles what a pull cannot: a pad we hold high that
+    // still reads low is fighting a hard short to ground. A pull-up loses that
+    // argument to anything, including our own peripheral, so the pull test
+    // alone can (and did) accuse an innocent wire.
+    gpio_pin_configure(dv, ix, GPIO_OUTPUT_HIGH | GPIO_INPUT);
+    k_busy_wait(200);
+    int drivenHigh = gpio_pin_get_raw(dv, ix);
+    gpio_pin_configure(dv, ix, GPIO_OUTPUT_LOW | GPIO_INPUT);
+    k_busy_wait(200);
+    int drivenLow = gpio_pin_get_raw(dv, ix);
+    gpio_pin_configure(dv, ix, GPIO_INPUT);
+    const char* verdict =
+        (drivenHigh == 0)      ? "SHORTED TO GROUND (held low even when driven high)"
+        : (drivenLow == 1)     ? "shorted to a supply (held high even when driven low)"
+        : (u == 1 && d == 0)   ? "free (follows the pull: open, or a plain input at the far end)"
+        : (u == 0 && d == 0)   ? "pulled low by something (but not a short)"
+                               : "pulled high by something (but not a short)";
+    report += std::string(report.empty() ? "" : " · ") + p.name + "=P" +
+              std::to_string(p.pin / 32) + "." + std::to_string(p.pin % 32) + " " +
+              verdict;
+  }
+  NRF_SPIM22->PSEL.SCK = savedSck;
+  NRF_SPIM22->PSEL.MOSI = savedMosi;
+  NRF_SPIM22->PSEL.MISO = savedMiso;
 
   // 2. Does this SPI instance actually own the pads we wired to? The mic taught
   //    the lesson (a TDM instance that silently no-ops on the wrong port), and
@@ -880,16 +954,8 @@ std::string camPinsProbe() {
     return "P" + std::to_string((v >> 5) & 0x7) + "." + std::to_string(v & 0x1F);
   };
 
-  (void)sck;
-  (void)mosi;
-  std::string pin = "P" + std::to_string(miso / 32) + "." + std::to_string(miso % 32);
-  std::string verdict = (up == 1 && down == 0)
-                            ? "OPEN — nothing drives it: no power at the module, "
-                              "or the MISO wire is not in its hole"
-                            : "held — the module is alive and powered";
-  return "miso=" + pin + " pullup=" + std::to_string(up) +
-         " pulldown=" + std::to_string(down) + " (" + verdict + ")" +
-         " · spim22 enable=" + std::to_string(enable) + " sck=" + psel(pselSck) +
+  return report + " · spim22 enable=" + std::to_string(enable) +
+         " sck=" + psel(pselSck) +
          " mosi=" + psel(pselMosi) + " miso=" + psel(pselMiso) +
          (enable == 0 ? "  <-- the instance is OFF: it never drove the bus"
                       : "");

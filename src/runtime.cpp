@@ -152,12 +152,29 @@ void runtime::feedLine(const std::string& raw) {
     // "id=0x81 … frame=18432" means the wire is right and the rest is already
     // proven. Then point it at something coloured and read SEE() in a program.
     hal::serialWriteLine("OK: cam " + hal::camProbe());
+  } else if (line == "SEE") {
+    // Bench twin of MIC: capture ONE frame and report what the colour detector
+    // makes of it, so the eye can be aimed at something without writing a
+    // program and watching an LED.
+    vision_service::reset();
+    int cls = -1;
+    const uint32_t until = hal::nowMs() + 4000;
+    while (cls < 0 && hal::nowMs() < until) cls = vision_service::poll();
+    if (cls < 0) {
+      hal::serialWriteLine("OK: see (no frame — camera not answering)");
+    } else {
+      hal::serialWriteLine("OK: see class=" + std::to_string(cls) +
+                           " x=" + std::to_string(vision_service::lastX()) +
+                           " size=" + std::to_string(vision_service::lastSize()));
+    }
   } else if (line == "CAMPINS") {
     // The follow-up when CAM reports id=0x00: that answer covers both "no power"
     // and "MISO not connected", and this tells them apart at the pad.
     hal::serialWriteLine("OK: campins " + hal::camPinsProbe());
   } else if (line == "CAMBB") {
     hal::serialWriteLine("OK: cambb " + hal::camBitbangProbe());
+  } else if (line == "PADS") {
+    hal::serialWriteLine("OK: pads" + hal::padScan());
   } else if (line == "RAIL") {
     hal::serialWriteLine("OK: rail " + hal::railProbe());
   } else if (line == "MICRAW") {

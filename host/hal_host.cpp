@@ -146,6 +146,7 @@ std::string camProbe() { return "n/a (host build has no camera)"; }
 std::string camPinsProbe() { return "n/a (host build has no camera)"; }
 std::string camBitbangProbe() { return "n/a (host build has no camera)"; }
 std::string railProbe() { return "n/a (host build has no board)"; }
+std::string padScan() { return "n/a (host build has no board)"; }
 
 // Edge-AI camera stub: drain up to `max` queued grayscale bytes (host_feed_image)
 // into `out`. Stands in for the board's DVP camera (hal_zephyr.cpp) so the whole

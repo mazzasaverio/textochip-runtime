@@ -105,7 +105,7 @@
  * SCK/MISO/MOSI on P1.04-P1.06 with CS on P1.07, and P1.06/P1.07 are already
  * the two motor enables here (pwm21). D1-D4 are four free, ADJACENT header pins,
  * so the camera is one contiguous ribbon:
- *   CS -> D1 (P3.04)  SCK -> D2 (P1.02)  MISO -> D3 (P1.03)  MOSI -> D4 (P1.04)
+ *   CS -> D1 (P3.04)  SCK -> P1.08 (hole 08 on PORT1)  MISO -> D3 (P1.03)  MOSI -> D4 (P1.04)
  * The three bus signals stay on PORT 1 (one peripheral instance, one port — the
  * lesson the TDM mic taught); CS is an ordinary GPIO, so it may live on P3.
  * SPI22 is free: we hold serial instance 20 for the IDE link (uart20), and PWM
@@ -113,7 +113,17 @@
 &pinctrl {
 	tc_spi22_default: tc_spi22_default {
 		group1 {
-			psels = <NRF_PSEL(SPIM_SCK, 1, 2)>,	/* D2 */
+			/* SCK is on P1.08, NOT P1.02 (2026-08-02, bench).
+			 * P1.01 and P1.02 are SHORTED TO GROUND on this DK: the
+			 * chip drives them high and the board holds them at 0
+			 * (runtime's PADS probe; every other P1 pad reads ok, and
+			 * the short does not move when the maker's ground wire
+			 * does). A grounded clock selects the camera and never
+			 * clocks it, which is exactly how it failed. It also
+			 * explains the earlier dead end with CS on P1.01. The SPI
+			 * pins must stay on ONE port (the mic and motor-PWM rule),
+			 * so the replacement is a P1 pad too. */
+			psels = <NRF_PSEL(SPIM_SCK, 1, 8)>,	/* hole 08 on PORT1 */
 				<NRF_PSEL(SPIM_MISO, 1, 3)>,	/* D3 */
 				<NRF_PSEL(SPIM_MOSI, 1, 4)>;	/* D4 */
 			bias-pull-down;
@@ -121,7 +131,7 @@
 	};
 	tc_spi22_sleep: tc_spi22_sleep {
 		group1 {
-			psels = <NRF_PSEL(SPIM_SCK, 1, 2)>,
+			psels = <NRF_PSEL(SPIM_SCK, 1, 8)>,
 				<NRF_PSEL(SPIM_MISO, 1, 3)>,
 				<NRF_PSEL(SPIM_MOSI, 1, 4)>;
 			bias-pull-down;
@@ -150,12 +160,7 @@
 	arducam: arducam-mega@0 {
 		compatible = "arducam,mega";
 		reg = <0>;
-		/* 1 MHz while the bus is being brought up (2026-08-01). An Amazon
-		 * reviewer with a logic analyzer reported this exact module reading
-		 * MISO flat 0 at 5 MHz and 1.25 MHz on an ST Nucleo, so speed is a
-		 * suspect worth eliminating cheaply before protocol details. Raise it
-		 * back to 8 MHz once a frame comes through. */
-		spi-max-frequency = <1000000>;
+		spi-max-frequency = <8000000>;
 		status = "okay";
 	};
 };

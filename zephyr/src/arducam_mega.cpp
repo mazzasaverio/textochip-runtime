@@ -163,19 +163,22 @@ bool setup() {
   g_fw[3] = (uint8_t)(readReg(REG_FPGA_VERSION) & 0xFF);
 
   awaitIdle(3);
-  // TURN OFF AUTO WHITE BALANCE.
+  // AUTO WHITE BALANCE STAYS ON.
   //
-  // It is the root cause of a whole class of colour failures on a real desk:
-  // the camera re-tunes its colour balance as the scene changes, so the yellow
-  // it reported a moment ago is not the yellow it reports now. Caught on the
-  // bench holding a BLUE object up: the object was not detected, and the
-  // BACKGROUND shifted from yellow to orange — the camera warming everything
-  // else to compensate for the blue it was seeing.
+  // It was switched OFF here for one build, to stop the camera re-tuning colour
+  // as the scene changed (holding a blue object up warmed the whole background
+  // from yellow to orange). That trade was a bad one and the bench said so
+  // within minutes: with no white balance the sensor's raw response dominates,
+  // and a Bayer sensor has twice as many green photosites, so EVERYTHING
+  // acquired a green cast and every object was misclassified.
   //
-  // Auto EXPOSURE stays on deliberately: fixing it would leave a dim room black,
-  // and brightness drifting costs far less than hue drifting, because the value
-  // floor is one threshold while hue decides the answer itself.
-  (void)writeReg(REG_AUTO_ENABLE, AUTO_OFF | CTRL_WHITEBALANCE);
+  // Colours that are right and drift beat colours that are stably wrong. The
+  // drift is handled where it belongs — the detector now looks for a compact
+  // REGION, so a background shifting hue no longer wins the vote by sheer area.
+  //
+  // The unexplored middle is a FIXED white-balance MODE (register 0x26 selects
+  // sunny / office / cloudy / home): corrected colour that does not drift. It
+  // needs bench verification per lighting, so it is not enabled blind.
 
   if (writeReg(REG_FORMAT, PIXFMT_RGB565) != 0) return false;
   awaitIdle(30);

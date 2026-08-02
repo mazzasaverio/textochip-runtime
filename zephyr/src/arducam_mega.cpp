@@ -41,6 +41,11 @@ constexpr uint8_t REG_SENSOR_RESET = 0x07;      // write RESET_ENABLE to reboot 
 constexpr uint8_t REG_FORMAT = 0x20;            // pixel format (JPEG / RGB565 / YUV)
 constexpr uint8_t REG_CAPTURE_RESOLUTION = 0x21;
 constexpr uint8_t REG_SENSOR_ID = 0x40;
+// Imaging controls. Bit 7 set = "manual", i.e. the auto loop is OFF for the
+// control selected by the low bits (Arducam's own SDK convention).
+constexpr uint8_t REG_AUTO_ENABLE = 0x30;
+constexpr uint8_t CTRL_WHITEBALANCE = 0x02;
+constexpr uint8_t AUTO_OFF = 0x80;
 constexpr uint8_t REG_YEAR = 0x41, REG_MONTH = 0x42, REG_DAY = 0x43;
 constexpr uint8_t REG_FPGA_VERSION = 0x49;
 constexpr uint8_t REG_SENSOR_STATE = 0x44;      // also ARDUCHIP_TRIG: bit 2 = capture done
@@ -158,6 +163,20 @@ bool setup() {
   g_fw[3] = (uint8_t)(readReg(REG_FPGA_VERSION) & 0xFF);
 
   awaitIdle(3);
+  // TURN OFF AUTO WHITE BALANCE.
+  //
+  // It is the root cause of a whole class of colour failures on a real desk:
+  // the camera re-tunes its colour balance as the scene changes, so the yellow
+  // it reported a moment ago is not the yellow it reports now. Caught on the
+  // bench holding a BLUE object up: the object was not detected, and the
+  // BACKGROUND shifted from yellow to orange — the camera warming everything
+  // else to compensate for the blue it was seeing.
+  //
+  // Auto EXPOSURE stays on deliberately: fixing it would leave a dim room black,
+  // and brightness drifting costs far less than hue drifting, because the value
+  // floor is one threshold while hue decides the answer itself.
+  (void)writeReg(REG_AUTO_ENABLE, AUTO_OFF | CTRL_WHITEBALANCE);
+
   if (writeReg(REG_FORMAT, PIXFMT_RGB565) != 0) return false;
   awaitIdle(30);
   if (writeReg(REG_CAPTURE_RESOLUTION, RES_96X96) != 0) return false;

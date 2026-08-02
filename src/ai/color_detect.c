@@ -50,40 +50,59 @@ enum {
 // anything. So the weighting applies ONLY to which colour wins. Coverage and
 // centroid stay measured over the whole frame, exactly as before, so every
 // threshold a maker has already tuned keeps its meaning.
-#define ROI 0.66f        // central fraction that votes double
-#define ROI_WEIGHT 2
+#define ROI 0.66f        // central fraction; a region overlapping it is preferred
+#define FILL_MIN 0.30f   // a region must fill this much of its bounding box
 #define MARGIN 1.3f      // the winner must beat the runner-up by this much
 #define COVER_MIN 0.02f  // 2% of the pixels — noise floor, not a "close enough" test
 
+// The largest CONNECTED REGION of one colour, not the commonest colour.
+//
+// Counting pixels over the whole frame answers "is there a lot of yellow in this
+// picture", which is not the question. A wooden desk spread across the view
+// produces more warm pixels than a marker held up to the lens, so the desk won
+// every vote and no threshold could change that — an object is a COMPACT REGION
+// with a boundary and a place, and a background is colour scattered everywhere.
+// Bench evidence that forced this: holding a blue object up returned "orange",
+// because the background had merely warmed.
+//
+// So: classify each pixel, flood-fill the regions, and report the biggest one
+// that is actually shaped like an object. SEEX()/SEESIZE() then describe THAT
+// region, which is what a program following something has always meant by them.
+
+#define MAX_PIXELS 16384  // 128x128 — bigger frames are rejected, not truncated
+
+static unsigned char g_mask[MAX_PIXELS];  // 0 = no colour, else 1 + class slot
+static unsigned char g_seen[MAX_PIXELS];
+static int g_stack[MAX_PIXELS];
+
 tc_color_blob tc_detect_color_blob(const uint8_t *rgb, int width, int height) {
-  tc_color_blob out = {CLASS_NONE, 0, 0};
+  tc_color_blob out;
+  out.cls = CLASS_NONE;
+  out.x = 0;
+  out.size = 0;
   if (rgb == 0 || width <= 0 || height <= 0) return out;
-  long cnt[6] = {0, 0, 0, 0, 0, 0};   // yellow, red, green, blue, orange, pink
-  long sumx[6] = {0, 0, 0, 0, 0, 0};  // and their summed column, for the centroid
-
-  // The centre box: pixels inside it count double when electing the colour.
-  const int x0 = (int)(width * (1.0f - ROI) * 0.5f);
-  const int x1 = width - x0;
-  const int y0 = (int)(height * (1.0f - ROI) * 0.5f);
-  const int y1 = height - y0;
   const int n_pixels = width * height;
-  long vote[6] = {0, 0, 0, 0, 0, 0};  // centre-weighted, decides the winner only
+  if (n_pixels > MAX_PIXELS) return out;
 
-  for (int yy = 0; yy < height; yy++)
-   for (int xx = 0; xx < width; xx++) {
-    const int i = yy * width + xx;
-    const int w = (xx >= x0 && xx < x1 && yy >= y0 && yy < y1) ? ROI_WEIGHT : 1;
+  // The centre box: a region overlapping it is preferred, because a robot cares
+  // about what is in FRONT of it. This never CROPS — a target entering at the
+  // edge must still be seen, or a robot spinning to find one never would.
+  const int cx0 = (int)(width * (1.0f - ROI) * 0.5f);
+  const int cx1 = width - cx0;
+  const int cy0 = (int)(height * (1.0f - ROI) * 0.5f);
+  const int cy1 = height - cy0;
+
+  for (int i = 0; i < n_pixels; i++) {
+    g_mask[i] = 0;
+    g_seen[i] = 0;
     float r = rgb[i * 3 + 0] / 255.0f;
     float g = rgb[i * 3 + 1] / 255.0f;
     float b = rgb[i * 3 + 2] / 255.0f;
-
     float mx = r > g ? (r > b ? r : b) : (g > b ? g : b);
     float mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
     float d = mx - mn;
-    if (mx < VAL_MIN) continue;           // too dark
-    if (d < SAT_MIN * mx) continue;       // too grey (S = d/mx below threshold)
-
-    // Hue in degrees (standard RGB->H), no fmod needed: the terms stay in range.
+    if (mx < VAL_MIN) continue;
+    if (d < SAT_MIN * mx) continue;
     float h;
     if (mx == r)
       h = 60.0f * ((g - b) / d);
@@ -92,61 +111,97 @@ tc_color_blob tc_detect_color_blob(const uint8_t *rgb, int width, int height) {
     else
       h = 60.0f * ((r - g) / d + 4.0f);
     if (h < 0.0f) h += 360.0f;
-
     int c;
-    // The bands are CONTIGUOUS. They used to leave gaps — 75..80 between yellow
-    // and green, 165..190 between green and blue — and a hue landing in one was
-    // discarded silently, which is exactly what a yellow-green marker does. A
-    // borderline colour should be classified as the nearer of two neighbours,
-    // never dropped. Violet (255..285) stays uncovered on purpose: beside pink
-    // it is an unstable pair on a noisy sensor, and saying nothing beats saying
-    // the wrong one.
     if (h < 20.0f || h >= 345.0f)
-      c = 1;  // red (wraps around 0/360)
+      c = 1;  // red
     else if (h >= 40.0f && h < 80.0f)
-      c = 0;  // yellow (now meets green)
+      c = 0;  // yellow
     else if (h >= 80.0f && h < 175.0f)
-      c = 2;  // green (now meets blue)
+      c = 2;  // green
     else if (h >= 175.0f && h < 255.0f)
-      c = 3;  // blue (takes the old 165..190 no-man's-land)
+      c = 3;  // blue
     else if (h >= 20.0f && h < 40.0f)
       c = 4;  // orange
     else if (h >= 285.0f && h < 345.0f)
-      c = 5;  // pink (through magenta)
+      c = 5;  // pink
     else
-      continue;  // violet (255..285) — deliberately uncovered, see above
-    cnt[c]++;
-    vote[c] += w;
-    sumx[c] += xx;
+      continue;  // violet — deliberately uncovered
+    g_mask[i] = (unsigned char)(c + 1);
   }
 
-  int best = -1;
-  long bestV = 0, secondV = 0;
-  for (int c = 0; c < 6; c++)
-    if (vote[c] > bestV) {
-      secondV = bestV;
-      bestV = vote[c];
-      best = c;
-    } else if (vote[c] > secondV) {
-      secondV = vote[c];
+  int bestC = -1;
+  long bestN = 0, bestSumX = 0;
+  long bestScore = 0;
+
+  for (int start = 0; start < n_pixels; start++) {
+    if (g_mask[start] == 0 || g_seen[start]) continue;
+    const unsigned char m = g_mask[start];
+    int sp = 0;
+    g_stack[sp++] = start;
+    g_seen[start] = 1;
+    long n = 0, sumx = 0;
+    int minx = width, maxx = -1, miny = height, maxy = -1;
+    long inCentre = 0;
+    while (sp > 0) {
+      const int p = g_stack[--sp];
+      const int px = p % width, py = p / width;
+      n++;
+      sumx += px;
+      if (px < minx) minx = px;
+      if (px > maxx) maxx = px;
+      if (py < miny) miny = py;
+      if (py > maxy) maxy = py;
+      if (px >= cx0 && px < cx1 && py >= cy0 && py < cy1) inCentre++;
+      // 4-connectivity: diagonals would bridge two objects that merely touch
+      // at a corner, and on a noisy sensor they bridge noise into everything.
+      if (px > 0 && g_mask[p - 1] == m && !g_seen[p - 1]) {
+        g_seen[p - 1] = 1;
+        g_stack[sp++] = p - 1;
+      }
+      if (px + 1 < width && g_mask[p + 1] == m && !g_seen[p + 1]) {
+        g_seen[p + 1] = 1;
+        g_stack[sp++] = p + 1;
+      }
+      if (py > 0 && g_mask[p - width] == m && !g_seen[p - width]) {
+        g_seen[p - width] = 1;
+        g_stack[sp++] = p - width;
+      }
+      if (py + 1 < height && g_mask[p + width] == m && !g_seen[p + width]) {
+        g_seen[p + width] = 1;
+        g_stack[sp++] = p + width;
+      }
     }
-  const long bestN = best >= 0 ? cnt[best] : 0;
-  if (best < 0 || (float)bestN < COVER_MIN * (float)n_pixels) return out;
-  // A NEAR-TIE IS NOT AN ANSWER. Two colours within a few pixels of each other
-  // used to elect a winner by that handful, and the winner could change from
-  // frame to frame — a robot driven by it lurches forward and back while
-  // nothing in front of it moved. Saying "nothing" is the honest reading of an
-  // ambiguous frame, and the program already knows what to do with nothing.
-  if ((float)bestV < MARGIN * (float)secondV) return out;
+
+    if ((float)n < COVER_MIN * (float)n_pixels) continue;  // noise floor
+
+    // Is it SHAPED like an object? A real one fills a good part of its bounding
+    // box; a background scattered across the view has a huge box and rattles
+    // around inside it. This is the test that finally separates a marker from a
+    // desk, and no brightness threshold ever could.
+    const long boxArea = (long)(maxx - minx + 1) * (long)(maxy - miny + 1);
+    if (boxArea > 0 && (float)n < FILL_MIN * (float)boxArea) continue;
+
+    // Among the real objects, prefer the biggest — with the part inside the
+    // centre box counted twice, so what the robot faces wins a close call.
+    const long score = n + inCentre;
+    if (score > bestScore) {
+      bestScore = score;
+      bestN = n;
+      bestSumX = sumx;
+      bestC = m - 1;
+    }
+  }
+
+  if (bestC < 0) return out;
 
   static const int cls[6] = {CLASS_YELLOW, CLASS_RED, CLASS_GREEN, CLASS_BLUE,
                              CLASS_ORANGE, CLASS_PINK};
-  out.cls = cls[best];
-  // Centroid column -> 0..100. A one-pixel-wide frame has no left or right, so
-  // it reads as centred rather than dividing by zero.
-  out.x = width > 1 ? (int)((sumx[best] / bestN) * 100 / (width - 1)) : 50;
-  // Coverage -> 0..100. Anything that passed the noise floor is at least 1, so
-  // "size 0" keeps meaning "nothing seen" (the product's honest gate).
+  out.cls = cls[bestC];
+  // Centroid column -> 0..100, across the FULL width: "on my left" has to keep
+  // meaning the left of everything the camera can see.
+  out.x = width > 1 ? (int)((bestSumX / bestN) * 100 / (width - 1)) : 50;
+  // Coverage -> 0..100 of the whole frame, so thresholds already tuned by a
+  // maker keep their meaning.
   out.size = (int)((bestN * 100 + n_pixels / 2) / n_pixels);
   if (out.size < 1) out.size = 1;
   if (out.size > 100) out.size = 100;

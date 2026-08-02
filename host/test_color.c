@@ -91,6 +91,42 @@ int main(void) {
   }
   check("speck", tc_detect_color(buf, n), 0);
 
+  // ── AN OBJECT BEATS A BACKGROUND (the bench failure this exists for) ──
+  //
+  // On a real desk the warm wood and the lamp light produced MORE yellow pixels
+  // than a marker held up to the lens, so counting pixels elected the room every
+  // time and no threshold could fix it. What separates the two is SHAPE: an
+  // object is a compact region, a background is colour scattered everywhere.
+  {
+    const int bw = 48, bh = 48;
+    fill(buf, n, 128, 128, 128);
+    // Background: warm speckle over the whole frame — a LOT of yellow pixels,
+    // ~14% of them, but never touching, so no region is ever an object.
+    for (int y = 0; y < bh; y++)
+      for (int x = 0; x < bw; x++)
+        if (((x + y) % 3) == 0 && (x % 2) == 0) {
+          const int i = y * bw + x;
+          buf[i * 3] = 255;
+          buf[i * 3 + 1] = 220;
+          buf[i * 3 + 2] = 0;
+        }
+    check("speckle-is-not-an-object", tc_detect_color_blob(buf, bw, bh).cls, 0);
+
+    // Now hold a SMALL blue square in the middle: fewer pixels than the warm
+    // speckle, and it must still win, because it is the only thing shaped like
+    // an object.
+    for (int y = 19; y < 29; y++)
+      for (int x = 19; x < 29; x++) {
+        const int i = y * bw + x;
+        buf[i * 3] = 20;
+        buf[i * 3 + 1] = 60;
+        buf[i * 3 + 2] = 220;
+      }
+    tc_color_blob held = tc_detect_color_blob(buf, bw, bh);
+    check("object-beats-background", held.cls, 7);
+    checkNear("held-x", held.x, 50, 10);
+  }
+
   // ── WHERE and HOW BIG (SEEX() / SEESIZE()) ──
   const int w = 48, h = 48;
 

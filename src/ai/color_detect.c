@@ -35,17 +35,44 @@ enum {
 // images, and the sensor is on the desk now.
 #define SAT_MIN 0.28f
 #define VAL_MIN 0.13f
+// The MIDDLE of the frame WEIGHS MORE in the vote — it does not crop it.
+//
+// Bench evidence: with nothing held up, the desk and the warm light won at ~10%
+// of the frame, and a blue object presented to the camera never entered the
+// contest at all — the background merely shifted from yellow to orange (the
+// camera's auto white balance warming everything else to compensate for the
+// blue). A small object at arm's length cannot outvote a table, and it should
+// not have to: a robot cares about what is in FRONT of it.
+//
+// Cropping to the centre was the obvious fix and it is WRONG: a robot spinning
+// to find a target must see it as it ENTERS the frame, at the edge, and SEEX()
+// must keep spanning the whole view or "it is on my left" stops meaning
+// anything. So the weighting applies ONLY to which colour wins. Coverage and
+// centroid stay measured over the whole frame, exactly as before, so every
+// threshold a maker has already tuned keeps its meaning.
+#define ROI 0.66f        // central fraction that votes double
+#define ROI_WEIGHT 2
 #define MARGIN 1.3f      // the winner must beat the runner-up by this much
 #define COVER_MIN 0.02f  // 2% of the pixels — noise floor, not a "close enough" test
 
 tc_color_blob tc_detect_color_blob(const uint8_t *rgb, int width, int height) {
   tc_color_blob out = {CLASS_NONE, 0, 0};
   if (rgb == 0 || width <= 0 || height <= 0) return out;
-  const int n_pixels = width * height;
-
   long cnt[6] = {0, 0, 0, 0, 0, 0};   // yellow, red, green, blue, orange, pink
   long sumx[6] = {0, 0, 0, 0, 0, 0};  // and their summed column, for the centroid
-  for (int i = 0; i < n_pixels; i++) {
+
+  // The centre box: pixels inside it count double when electing the colour.
+  const int x0 = (int)(width * (1.0f - ROI) * 0.5f);
+  const int x1 = width - x0;
+  const int y0 = (int)(height * (1.0f - ROI) * 0.5f);
+  const int y1 = height - y0;
+  const int n_pixels = width * height;
+  long vote[6] = {0, 0, 0, 0, 0, 0};  // centre-weighted, decides the winner only
+
+  for (int yy = 0; yy < height; yy++)
+   for (int xx = 0; xx < width; xx++) {
+    const int i = yy * width + xx;
+    const int w = (xx >= x0 && xx < x1 && yy >= y0 && yy < y1) ? ROI_WEIGHT : 1;
     float r = rgb[i * 3 + 0] / 255.0f;
     float g = rgb[i * 3 + 1] / 255.0f;
     float b = rgb[i * 3 + 2] / 255.0f;
@@ -89,26 +116,28 @@ tc_color_blob tc_detect_color_blob(const uint8_t *rgb, int width, int height) {
     else
       continue;  // violet (255..285) — deliberately uncovered, see above
     cnt[c]++;
-    sumx[c] += i % width;
+    vote[c] += w;
+    sumx[c] += xx;
   }
 
   int best = -1;
-  long bestN = 0, secondN = 0;
+  long bestV = 0, secondV = 0;
   for (int c = 0; c < 6; c++)
-    if (cnt[c] > bestN) {
-      secondN = bestN;
-      bestN = cnt[c];
+    if (vote[c] > bestV) {
+      secondV = bestV;
+      bestV = vote[c];
       best = c;
-    } else if (cnt[c] > secondN) {
-      secondN = cnt[c];
+    } else if (vote[c] > secondV) {
+      secondV = vote[c];
     }
+  const long bestN = best >= 0 ? cnt[best] : 0;
   if (best < 0 || (float)bestN < COVER_MIN * (float)n_pixels) return out;
   // A NEAR-TIE IS NOT AN ANSWER. Two colours within a few pixels of each other
   // used to elect a winner by that handful, and the winner could change from
   // frame to frame — a robot driven by it lurches forward and back while
   // nothing in front of it moved. Saying "nothing" is the honest reading of an
   // ambiguous frame, and the program already knows what to do with nothing.
-  if ((float)bestN < MARGIN * (float)secondN) return out;
+  if ((float)bestV < MARGIN * (float)secondV) return out;
 
   static const int cls[6] = {CLASS_YELLOW, CLASS_RED, CLASS_GREEN, CLASS_BLUE,
                              CLASS_ORANGE, CLASS_PINK};

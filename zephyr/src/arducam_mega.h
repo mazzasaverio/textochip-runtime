@@ -18,6 +18,10 @@ int arducam_capture_rgb(uint8_t* out, int max);
 // Bench aid behind the CAM serial command: what the camera says about itself
 // (sensor id, firmware date) and how many bytes one frame actually measures.
 std::string arducam_probe();
+// Raw RGB565 chunks (big-endian per pixel), whole pixels per call — the NPU
+// person-detection path quantizes these itself; the colour path uses the RGB888
+// variant. Returns bytes written, 0 when nothing is ready.
+int arducam_capture_raw565(uint8_t* out, int max);
 // Set the white-balance MODE: 0=auto, 1=sunny, 2=office, 3=cloudy, 4=home.
 // The middle path between drifting auto WB and the green cast of raw sensor
 // output: a corrected balance that does not re-tune under the program. Bench

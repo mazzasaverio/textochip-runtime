@@ -2,7 +2,9 @@
 
 #include "hal.h"
 
-#ifdef TEXTOCHIP_VISION_COLOR
+#if defined(TEXTOCHIP_VISION_NPU)
+#include "vision_npu.h"  // Nordic person detection on the Axon (zephyr-only impl)
+#elif defined(TEXTOCHIP_VISION_COLOR)
 #include "color_detect.h"  // near-term Arducam COLOUR path
 #else
 #include "ai_vision.h"  // trained OBJECT model (person/ball/…)
@@ -20,6 +22,10 @@
 //                            (VISION_LABELS 1..3). Needs a trained model.
 namespace {
 
+#ifndef TEXTOCHIP_VISION_NPU
+// The NPU backend captures and converts on its own; this frame buffer exists
+// only for the colour / object-model paths (27 KB the NPU build spends on the
+// model instead).
 #ifdef TEXTOCHIP_VISION_COLOR
 constexpr int kBytesPerPixel = 3;  // RGB888
 #else
@@ -34,6 +40,7 @@ constexpr int kChunk = 1024;  // bytes drained per poll (bounded, non-blocking)
 
 unsigned char g_frame[kFrameBytes];
 int g_have = 0;
+#endif
 bool g_ready = false;
 int g_x = 0;     // last blob centroid, 0..100 (SEEX())
 int g_size = 0;  // last blob coverage, 0..100 (SEESIZE())
@@ -54,7 +61,9 @@ int g_lastRaw = -1;   // previous frame's raw verdict; -1 = no history yet
 }  // namespace
 
 void vision_service::reset() {
+#ifndef TEXTOCHIP_VISION_NPU
   g_have = 0;
+#endif
   g_x = 0;
   g_size = 0;
   g_confirmed = 0;
@@ -65,6 +74,23 @@ void vision_service::reset() {
 int vision_service::poll() {
   if (!g_ready) reset();
 
+#ifdef TEXTOCHIP_VISION_NPU
+  // The NPU backend owns its own capture + conversion + inference; this service
+  // adds what every vision backend needs: the temporal confirmation.
+  const int raw = npu_vision_poll();
+  if (raw < 0) return -1;
+  if (g_lastRaw < 0 || raw == g_lastRaw) g_confirmed = raw;
+  g_lastRaw = raw;
+  if (raw == g_confirmed) {
+    g_x = npu_vision_x();
+    g_size = npu_vision_size();
+  }
+  if (g_confirmed == 0) {
+    g_x = 0;
+    g_size = 0;
+  }
+  return g_confirmed;
+#else
   // 1. Drain a bounded chunk of camera bytes into the frame (non-blocking).
   int room = kFrameBytes - g_have;
   if (room > 0) {
@@ -94,7 +120,7 @@ int vision_service::poll() {
   if (g_lastRaw < 0 || raw == g_lastRaw) g_confirmed = raw;
   g_lastRaw = raw;
 
-#ifdef TEXTOCHIP_VISION_COLOR
+#if defined(TEXTOCHIP_VISION_COLOR)
   // Geometry follows the CONFIRMED class: update it from frames that agree,
   // hold it through a one-frame flicker, zero it when "nothing" is confirmed.
   if (raw == g_confirmed) {
@@ -110,11 +136,12 @@ int vision_service::poll() {
   g_size = 0;
 #endif
   return g_confirmed;
+#endif  // TEXTOCHIP_VISION_NPU
 }
 
 void vision_service::lastStats(long* too_dark, long* too_grey, long* no_band,
                                long* counted) {
-#ifdef TEXTOCHIP_VISION_COLOR
+#if defined(TEXTOCHIP_VISION_COLOR) && !defined(TEXTOCHIP_VISION_NPU)
   tc_color_stats(g_frame, kFrameWidth, kFrameHeight, too_dark, too_grey, no_band,
                  counted);
 #else
@@ -126,7 +153,7 @@ void vision_service::lastStats(long* too_dark, long* too_grey, long* no_band,
 }
 
 void vision_service::lastHueHist(long* hist12) {
-#ifdef TEXTOCHIP_VISION_COLOR
+#if defined(TEXTOCHIP_VISION_COLOR) && !defined(TEXTOCHIP_VISION_NPU)
   tc_color_hist(g_frame, kFrameWidth, kFrameHeight, hist12);
 #else
   if (hist12)
@@ -135,7 +162,7 @@ void vision_service::lastHueHist(long* hist12) {
 }
 
 const unsigned char* vision_service::frameData(int* bytes, int* width, int* height) {
-#ifdef TEXTOCHIP_VISION_COLOR
+#if defined(TEXTOCHIP_VISION_COLOR) && !defined(TEXTOCHIP_VISION_NPU)
   if (bytes) *bytes = kFrameBytes;
   if (width) *width = kFrameWidth;
   if (height) *height = kFrameHeight;

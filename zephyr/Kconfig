@@ -25,3 +25,31 @@ config TEXTOCHIP_NRF_EDGEAI
 	  runtime.cpp is unchanged; CMake compiles exactly one. Needs the
 	  sdk-edge-ai add-on as a module (EXTRA_ZEPHYR_MODULES) — see the board
 	  .conf. The bytecode ISA / VOICE() semantics are identical.
+
+config TEXTOCHIP_NRF_PERSONDET
+	bool "SEE() person detection on the Axon NPU (Nordic pretrained model)"
+	depends on TEXTOCHIP_AI
+	select NRF_AXON
+	help
+	  Replace the colour-blob vision backend with Nordic's pretrained
+	  person-detection model running on the Axon NPU (nRF54LM20B): the camera
+	  captures 128x128 RGB565, the model returns bounding boxes, and the best
+	  box becomes SEE()="person" with SEEX()/SEESIZE() from its centre and
+	  area. Model + decoder are referenced from the sdk-edge-ai add-on
+	  (EXTRA_ZEPHYR_MODULES), never copied here. The same shortcut the voice
+	  tier took with ww_kws: prove the path with a professionally trained
+	  model before training our own.
+
+if TEXTOCHIP_NRF_PERSONDET
+
+# Names match Nordic's postprocessing.c, which this build compiles by reference.
+config SCORE_THRESHOLD
+	int "Detection score threshold, per mille"
+	default 250
+
+config IOU_THRESHOLD
+	int "NMS IoU threshold, per mille"
+	default 450
+
+endif
+

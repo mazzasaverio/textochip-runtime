@@ -50,7 +50,21 @@ if(CONFIG_TEXTOCHIP_AI)
   # keeps the object-model placeholder, so SEE() reads "nothing" and links.
   target_sources(app PRIVATE ../src/ai/vision_service.cpp)
   dt_nodelabel(tc_cam_node NODELABEL "arducam")
-  if(DEFINED tc_cam_node)
+  if(CONFIG_TEXTOCHIP_NRF_PERSONDET)
+    # Nordic's pretrained person detector on the Axon. Model + box decoder are
+    # compiled BY REFERENCE from the sdk-edge-ai add-on (Nordic-5-Clause),
+    # never copied into this Apache-2.0 tree — the ww_kws arrangement.
+    target_compile_definitions(app PRIVATE TEXTOCHIP_VISION_NPU)
+    target_sources(app PRIVATE src/ai_vision_npu.cpp)
+    set(TC_PERSONDET_DIR "$ENV{HOME}/projects/sdk-edge-ai/applications/person_detection/src"
+        CACHE PATH "Nordic person-detection sources (from sdk-edge-ai)")
+    if(NOT EXISTS "${TC_PERSONDET_DIR}/postprocessing.c")
+      message(FATAL_ERROR "TEXTOCHIP_NRF_PERSONDET: sources not found at ${TC_PERSONDET_DIR} "
+                          "— clone github.com/nrfconnect/sdk-edge-ai and/or set -DTC_PERSONDET_DIR=")
+    endif()
+    target_sources(app PRIVATE ${TC_PERSONDET_DIR}/postprocessing.c)
+    target_include_directories(app PRIVATE ${TC_PERSONDET_DIR})
+  elseif(DEFINED tc_cam_node)
     target_compile_definitions(app PRIVATE TEXTOCHIP_VISION_COLOR)
     target_sources(app PRIVATE ../src/ai/color_detect.c)
   else()

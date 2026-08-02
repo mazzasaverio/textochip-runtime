@@ -444,3 +444,24 @@ centred in the 160-wide input with neutral-grey padding, quantized through two
 LUTs (one for red/blue 5-bit, one for green 6-bit). Inference is
 `nrf_axon_nn_model_infer_sync(model, input_buf, output_buf)`; decoding gives
 `{x1,y1,x2,y2,score}` per box across three heads (stride 32/16/8) plus NMS.
+
+### Person detection on the Axon — LIVE on hardware (2026-08-02, same night it was scoped)
+
+Bench-verified on the DK-B: the maker stood in front of the camera and three
+consecutive `SEE` reads answered `person` with position and size tracking his
+movement (`x=58 size=28` → `x=45 size=32` → `x=59 size=18`). Camera 128×128
+RGB565 → LUT-quantized planar int8 → one synchronous Axon inference → box
+decode + NMS → the best box becomes `SEE()="person"` / `SEEX()` / `SEESIZE()`.
+
+Both scoping obstacles resolved as designed: RAM fits at **469 of 511 KB** (the
+colour path's frame buffer compiled out, the interlayer buffer raised to
+Nordic's 229376), and the model + decoder are **compiled by reference** from the
+sdk-edge-ai add-on (`CONFIG_TEXTOCHIP_NRF_PERSONDET`, `TC_PERSONDET_DIR`) —
+never copied into this Apache-2.0 tree, the ww_kws arrangement.
+
+Honest boundaries: person detection REPLACES the colour path at build time (one
+vision backend per image — `SNAP`/hue tools read empty on this variant); voice
+and vision share the Axon and have not been exercised CONCURRENTLY (a program
+using only `SEE()` never starts the voice service); and this is a bench build,
+not the published hex (the published A target keeps colour — an A chip has no
+NPU).

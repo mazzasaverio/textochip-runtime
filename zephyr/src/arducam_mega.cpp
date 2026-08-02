@@ -62,11 +62,18 @@ constexpr uint8_t BURST_FIFO_READ = 0x3C;
 
 constexpr uint8_t PIXFMT_RGB565 = 0x02;
 constexpr uint8_t RES_96X96 = 0x0A;
+constexpr uint8_t RES_128X128 = 0x0B;
 
-// The vision service's frame (src/ai/vision_service.cpp). The camera is asked
-// for exactly this, so no scaling is needed on our side.
+// The vision service's frame. The colour path classifies 96x96 RGB888; the NPU
+// person-detection path feeds Nordic's model 128x128 RGB565 raw. The camera is
+// asked for exactly the size the active backend wants, so nothing scales.
+#ifdef TEXTOCHIP_VISION_NPU
+constexpr int kWidth = 128;
+constexpr int kHeight = 128;
+#else
 constexpr int kWidth = 96;
 constexpr int kHeight = 96;
+#endif
 constexpr int kPixels = kWidth * kHeight;
 
 // A capture that never reports "done" must not wedge the vision service: after
@@ -183,7 +190,11 @@ bool setup() {
 
   if (writeReg(REG_FORMAT, PIXFMT_RGB565) != 0) return false;
   awaitIdle(30);
+#ifdef TEXTOCHIP_VISION_NPU
+  if (writeReg(REG_CAPTURE_RESOLUTION, RES_128X128) != 0) return false;
+#else
   if (writeReg(REG_CAPTURE_RESOLUTION, RES_96X96) != 0) return false;
+#endif
   awaitIdle(10);
   return true;
 }
@@ -200,8 +211,10 @@ void startCapture() {
 
 }  // namespace
 
-int arducam_capture_rgb(uint8_t* out, int max) {
-  if (out == nullptr || max < 3) return 0;
+// Shared capture core: `raw` copies RGB565 bytes untouched (the NPU path
+// quantizes them itself); otherwise expand to RGB888 for the colour detector.
+static int captureCore(uint8_t* out, int max, bool raw) {
+  if (out == nullptr || max < (raw ? 2 : 3)) return 0;
 
   switch (g_state) {
     case kFailed:
@@ -242,7 +255,7 @@ int arducam_capture_rgb(uint8_t* out, int max) {
     }
 
     case kReading: {
-      int wantPixels = max / 3;
+      int wantPixels = raw ? max / 2 : max / 3;
       if (wantPixels > kScratch / 2) wantPixels = kScratch / 2;
       if (wantPixels > (int)(g_fifoLeft / 2)) wantPixels = (int)(g_fifoLeft / 2);
       if (wantPixels > kPixels - g_pixelsDone) wantPixels = kPixels - g_pixelsDone;
@@ -257,6 +270,11 @@ int arducam_capture_rgb(uint8_t* out, int max) {
       g_firstRead = false;
       g_fifoLeft -= (uint32_t)(wantPixels * 2);
       g_pixelsDone += wantPixels;
+
+      if (raw) {
+        memcpy(out, g_scratch, (size_t)wantPixels * 2);
+        return wantPixels * 2;
+      }
 
       // RGB565, big-endian per pixel (R in bits 15..11), expanded to RGB888 by
       // replicating the high bits — the same expansion the IDE's colour probe
@@ -276,6 +294,9 @@ int arducam_capture_rgb(uint8_t* out, int max) {
   }
   return 0;
 }
+
+int arducam_capture_rgb(uint8_t* out, int max) { return captureCore(out, max, false); }
+int arducam_capture_raw565(uint8_t* out, int max) { return captureCore(out, max, true); }
 
 // One register read, purely to put traffic on the bus while the pads are being
 // watched (hal's camPinsProbe). Ignores the answer on purpose: the question is
@@ -344,6 +365,7 @@ std::string arducam_probe() {
 #else  // no camera node in this board's overlay
 
 int arducam_capture_rgb(uint8_t*, int) { return 0; }
+int arducam_capture_raw565(uint8_t*, int) { return 0; }
 void arducam_probe_tick() {}  // no bus to put traffic on
 std::string arducam_set_wb(int) { return "no camera on this build"; }
 

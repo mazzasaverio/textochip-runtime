@@ -399,3 +399,48 @@ no cloud, no phone app. A simple addition to the serial protocol (planned):
 
 See [`textochip-ml/docs/pipeline.md`](https://github.com/mazzasaverio/textochip-ml/blob/main/docs/pipeline.md)
 for the training side.
+
+## Person detection on the Axon NPU — scoped, not started (2026-08-02)
+
+`SEE()="person"` on hardware is the natural next step for vision, and Nordic's
+add-on already ships the hard part: `applications/person_detection` runs a
+compiled person model **on the Axon NPU, on this DK, with this Arducam**, and
+returns BOUNDING BOXES — which map onto our contract for free, since a box gives
+position and size, i.e. `SEEX()` and `SEESIZE()`, with no language change at all.
+The same shortcut we took for voice (`ww_kws`): prove the path with someone
+else's model, train ours after.
+
+**Two obstacles found while scoping it. Both are decisions, not details.**
+
+**1. It does not currently fit in RAM.** Measured, not estimated:
+
+| | |
+|---|---|
+| B build today | 188 KB of 511 KB used → **~323 KB free** |
+| Axon interlayer buffer | 225 KB |
+| model input (160×128×3 int8, planar) | 60 KB |
+| packed output | 17 KB |
+| camera frame (128×128 RGB565) | 32 KB |
+| **needed** | **~334 KB** |
+
+Eleven KB over, before any stack headroom. So it needs either buffers SHARED
+between vision and voice (the camera frame and the model input can be the same
+memory, converted in place — the LUT conversion in Nordic's `main.c` reads 5/6/5
+and writes planar int8, so it can be done as a streaming pass), or a build in
+which vision replaces the voice model — a robot that follows people and cannot
+hear. Decide this BEFORE writing code.
+
+**2. The box decoder is Nordic application source, not a library.**
+`postprocessing.c` is `LicenseRef-Nordic-5-Clause`, and unlike the voice path
+there is no library to reference from the add-on module: it lives inside their
+sample. Copying it into this Apache-2.0 tree is permitted (clause 1: keep the
+notice) but mixes licences in the open core. Options: keep it in a clearly
+separated directory with its own notice, or write our own decoder against the
+documented head/stride layout.
+
+**Input shape, for whoever picks this up:** camera 128×128 RGB565 → model input
+160×128×3, **planar** (R plane, G plane, B plane) int8, the 128-wide image
+centred in the 160-wide input with neutral-grey padding, quantized through two
+LUTs (one for red/blue 5-bit, one for green 6-bit). Inference is
+`nrf_axon_nn_model_infer_sync(model, input_buf, output_buf)`; decoding gives
+`{x1,y1,x2,y2,score}` per box across three heads (stride 32/16/8) plus NMS.

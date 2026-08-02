@@ -25,6 +25,13 @@ int npu_vision_size(void);
 // threshold is tuned against — printed by the SEE bench command.
 int npu_vision_score(void);
 
+// The frame AS THE MODEL SEES IT, dequantized back to RGB888 one row at a time
+// (the camera's 128x128 crop of the padded input). This is SNAP's eye on the
+// NPU build: when the detector calls a wardrobe a person, the only honest next
+// step is to look at the exact pixels it judged. Returns bytes written.
+void npu_vision_dims(int* w, int* h);
+int npu_vision_row(int y, unsigned char* rgb888, int maxBytes);
+
 #ifdef __cplusplus
 }
 #endif

@@ -175,6 +175,35 @@ const unsigned char* vision_service::frameData(int* bytes, int* width, int* heig
 #endif
 }
 
+void vision_service::frameDims(int* w, int* h) {
+#if defined(TEXTOCHIP_VISION_NPU)
+  npu_vision_dims(w, h);
+#elif defined(TEXTOCHIP_VISION_COLOR)
+  if (w) *w = kFrameWidth;
+  if (h) *h = kFrameHeight;
+#else
+  if (w) *w = 0;
+  if (h) *h = 0;
+#endif
+}
+
+int vision_service::frameRow(int y, unsigned char* rgb888, int maxBytes) {
+#if defined(TEXTOCHIP_VISION_NPU)
+  return npu_vision_row(y, rgb888, maxBytes);
+#elif defined(TEXTOCHIP_VISION_COLOR)
+  if (!rgb888 || y < 0 || y >= kFrameHeight || maxBytes < kFrameWidth * 3)
+    return 0;
+  for (int i = 0; i < kFrameWidth * 3; i++)
+    rgb888[i] = g_frame[y * kFrameWidth * 3 + i];
+  return kFrameWidth * 3;
+#else
+  (void)y;
+  (void)rgb888;
+  (void)maxBytes;
+  return 0;
+#endif
+}
+
 int vision_service::lastScore() {
 #ifdef TEXTOCHIP_VISION_NPU
   return npu_vision_score();

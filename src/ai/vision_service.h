@@ -47,6 +47,12 @@ void lastHueHist(long* hist12);
 // real-object vs colour-cast vs byte-order bug at a glance.
 const unsigned char* frameData(int* bytes, int* width, int* height);
 
+// Row-based frame access for SNAP, working on EVERY vision build: the colour
+// path serves its RGB888 frame, the NPU path serves the model input dequantized
+// (the pixels the detector actually judged). Returns bytes written, 0 = no eye.
+void frameDims(int* w, int* h);
+int frameRow(int y, unsigned char* rgb888, int maxBytes);
+
 }  // namespace vision_service
 
 #endif  // TEXTOCHIP_AI_VISION_SERVICE_H

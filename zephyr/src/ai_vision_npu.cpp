@@ -51,6 +51,8 @@ enum class St { kUninit, kFailed, kRun };
 St g_state = St::kUninit;
 int g_pixels = 0;  // camera pixels already converted into g_input
 int g_x = 0, g_size = 0, g_score = 0;
+float g_deqScale = 1.0f;  // inverse-quantization, captured at init for SNAP
+int g_deqZp = 0;
 
 int8_t quantize(float value, const nrf_axon_nn_compiled_model_input_s* in) {
   const float scale = (float)in->quant_mult / (float)(1u << in->quant_round);
@@ -66,6 +68,8 @@ bool init() {
     return false;
   const nrf_axon_nn_compiled_model_input_s* in =
       nrf_axon_nn_model_1st_external_input(&model_person_det);
+  g_deqScale = (float)in->quant_mult / (float)(1u << in->quant_round);
+  g_deqZp = in->quant_zp;
   // Grey padding everywhere first (the side bars keep it for good), then the
   // two 5/6-bit -> symmetric-float -> int8 lookup tables.
   memset(g_input, quantize(0.0f, in), sizeof(g_input));
@@ -142,6 +146,29 @@ int npu_vision_poll(void) {
 
 int npu_vision_x(void) { return g_x; }
 int npu_vision_score(void) { return g_score; }
+
+void npu_vision_dims(int* w, int* h) {
+  if (w) *w = kCamW;
+  if (h) *h = kCamH;
+}
+
+int npu_vision_row(int y, unsigned char* rgb888, int maxBytes) {
+  if (!rgb888 || y < 0 || y >= kCamH || maxBytes < kCamW * 3) return 0;
+  if (g_state != St::kRun || g_deqScale <= 0.0f) return 0;
+  for (int x = 0; x < kCamW; x++) {
+    const int src = y * kModelW + (x + kPadLeft);
+    for (int c = 0; c < 3; c++) {
+      const int8_t q = g_input[c * kModelW * kModelH + src];
+      // Invert the LUT quantization: int8 -> symmetric float -> 0..255.
+      float sym = ((float)q - (float)g_deqZp) / g_deqScale;
+      float v = (sym + 1.0f) * 0.5f * 255.0f;
+      if (v < 0) v = 0;
+      if (v > 255) v = 255;
+      rgb888[x * 3 + c] = (unsigned char)v;
+    }
+  }
+  return kCamW * 3;
+}
 int npu_vision_size(void) { return g_size; }
 
 #endif  // TEXTOCHIP_VISION_NPU

@@ -203,19 +203,21 @@ void runtime::feedLine(const std::string& raw) {
     int cls = -1;
     const uint32_t until = hal::nowMs() + 4000;
     while (cls < 0 && hal::nowMs() < until) cls = vision_service::poll();
-    int nb = 0, w = 0, h = 0;
-    const unsigned char* f = vision_service::frameData(&nb, &w, &h);
-    if (!f || cls < 0 || nb < w * h * 3) {
+    int w = 0, h = 0;
+    vision_service::frameDims(&w, &h);
+    static unsigned char rowBuf[3 * 160];  // widest supported frame row
+    if (cls < 0 || w <= 0 || w * 3 > (int)sizeof(rowBuf)) {
       hal::serialWriteLine("ERROR: no frame");
     } else {
       hal::serialWriteLine("SNAP " + std::to_string(w) + " " + std::to_string(h));
       static const char* hexd = "0123456789abcdef";
       for (int y = 0; y < h; y++) {
+        const int n = vision_service::frameRow(y, rowBuf, sizeof(rowBuf));
         std::string row;
-        row.reserve((size_t)w * 6);
-        for (int i = y * w * 3; i < (y + 1) * w * 3; i++) {
-          row += hexd[f[i] >> 4];
-          row += hexd[f[i] & 0xF];
+        row.reserve((size_t)n * 2);
+        for (int i = 0; i < n; i++) {
+          row += hexd[rowBuf[i] >> 4];
+          row += hexd[rowBuf[i] & 0xF];
         }
         hal::serialWriteLine(row);
       }

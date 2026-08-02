@@ -2,6 +2,22 @@ cmake_minimum_required(VERSION 3.20.0)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(textochip_runtime)
 
+# The firmware knows WHICH BUILD IT IS (the runtime repo's short git hash),
+# reported by the VER serial command. This is what lets the IDE tell a maker
+# "your board's firmware is older than the published one — one command updates
+# it" instead of leaving them to discover missing features one by one.
+execute_process(
+  COMMAND git rev-parse --short HEAD
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  OUTPUT_VARIABLE TEXTOCHIP_BUILD_ID
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+  ERROR_QUIET
+)
+if(NOT TEXTOCHIP_BUILD_ID)
+  set(TEXTOCHIP_BUILD_ID "unknown")
+endif()
+target_compile_definitions(app PRIVATE TEXTOCHIP_BUILD="${TEXTOCHIP_BUILD_ID}")
+
 # The portable core lives in ../src and is shared with the host build verbatim.
 target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src)
 target_sources(app PRIVATE

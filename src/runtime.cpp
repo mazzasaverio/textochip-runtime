@@ -70,7 +70,14 @@ void runtime::feedLine(const std::string& raw) {
 
   if (line.empty()) return;
 
-  if (line == "PING") {
+  if (line == "VER") {
+    // The build id (runtime git hash). The IDE compares it with the published
+    // firmware's id and offers the one-command update when they differ.
+#ifndef TEXTOCHIP_BUILD
+#define TEXTOCHIP_BUILD "dev"
+#endif
+    hal::serialWriteLine("VER " TEXTOCHIP_BUILD);
+  } else if (line == "PING") {
     hal::serialWriteLine("PONG");
   } else if (line == "LOAD") {
     vm.stop();  // a boot-autorun program may be running — take over cleanly

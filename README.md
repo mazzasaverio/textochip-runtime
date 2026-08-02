@@ -61,6 +61,16 @@ make test-color-service # the colour vision SERVICE: camera stub -> chunked capt
 make test-dist      # DIST (ultrasonic): a fed distance -> DISTANCE() -> the robot stops within 10 cm
 ```
 
+## Publishing firmware to makers
+
+`scripts/publish-hex.sh` is THE way firmware reaches makers: it builds the A
+target (runs on both DK chip variants), copies the hex + its build id into the
+product repo, and pushes — the site deploy serves it to `install-nordic.sh` and
+the IDE's install card. A pre-push hook (`scripts/hooks/pre-push`; activate with
+`git config core.hooksPath scripts/hooks`) refuses to push firmware changes that
+were not published, and the firmware answers `VER` with its build id so the IDE
+can tell a maker their board is behind. Do not copy hexes by hand.
+
 ## Build for hardware
 
 Both boards build from this folder with `west`. Per-board work lives only in

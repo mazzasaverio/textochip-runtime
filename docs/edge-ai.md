@@ -286,11 +286,19 @@ delivered a chunk at a time from a poll that must never block, and the Mega's **
 resumable across SPI transactions**, so "give me the next kilobyte" maps onto the wire protocol
 one-to-one. Waiting for the exposure costs ONE register read per poll instead of a sleep loop.
 
-- **Pins (Nordic DK):** `CS -> D1 (P3.04)`, `SCK -> D2 (P1.02)`, `MISO -> D3 (P1.03)`,
-  `MOSI -> D4 (P1.04)`, on `spi22` @8 MHz. Deliberately NOT Nordic's sample pins (P1.04-P1.07): its
-  MOSI/CS land on **our two motor enables**. The three bus signals stay on PORT 1 (one instance, one
-  port — the lesson the TDM mic taught); CS is an ordinary GPIO, so it can live on P3. D1-D4 are four
-  free ADJACENT header pins, so the camera is one contiguous ribbon.
+- **Pins (Nordic DK):** `CS -> P3.04`, `SCK -> P1.10`, `MISO -> P1.03`, `MOSI -> P1.04`, on
+  `spi22` @8 MHz — bench-verified 2026-08-02 (`id=0x81`, `frame=18432`). Deliberately NOT Nordic's
+  sample pins (P1.04-P1.07): its MOSI/CS land on **our two motor enables**. The three bus signals
+  stay on PORT 1 (one instance, one port — the lesson the TDM mic taught); CS is an ordinary GPIO,
+  so it can live on P3.
+  - The clock is **not** on `P1.02`, which the first version of this doc specified: `P1.01` and
+    `P1.02` are **shorted to ground on this DK** (the `PADS` bench command drives each pad high and
+    reads it back). A grounded clock selects the camera and never clocks it, which is exactly how it
+    failed — and it is also why CS on `P1.01` had been a dead end earlier.
+  - Nor on `P1.08`, which works but is the DK's own **BTN2**: pressing that button would ground the
+    clock.
+  - **Do not "slow the bus down to be safe".** 1 MHz made the peripheral sample the `0x81` stream
+    two bits out (`0x06`) while a bit-banged read of the same wires returned `0x81`. 8 MHz is right.
 - **The board picks the vision backend from its devicetree.** A board whose overlay has the camera
   node builds the COLOUR path (`TEXTOCHIP_VISION_COLOR` + `color_detect.c`); a board without one keeps
   the object-model placeholder, so `SEE()` reads "nothing" and still links. No new Kconfig to forget.

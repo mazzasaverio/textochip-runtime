@@ -353,6 +353,21 @@ void runtime::tick() {
       vm.setVisionClass(vcls);
       vm.setVisionX(vision_service::lastX());
       vm.setVisionSize(vision_service::lastSize());
+      // Say what the eye saw, so the IDE can show it while the program runs.
+      // Only on CHANGE: this is the debugging channel for a vision robot, and a
+      // line every frame would bury the replies it shares the link with. The
+      // maker could otherwise only guess why the wheels did what they did —
+      // which cost a whole bench session before this line existed.
+      static int lastCls = -1, lastX = -1, lastSize = -1;
+      const int vx = vision_service::lastX();
+      const int vsz = vision_service::lastSize();
+      if (vcls != lastCls || vx != lastX || vsz != lastSize) {
+        lastCls = vcls;
+        lastX = vx;
+        lastSize = vsz;
+        hal::serialWriteLine("VISION " + std::to_string(vcls) + " " +
+                             std::to_string(vx) + " " + std::to_string(vsz));
+      }
     }
   } else if (visionRunning) {
     visionRunning = false;

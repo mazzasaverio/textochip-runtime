@@ -134,5 +134,19 @@ void vision_service::lastHueHist(long* hist12) {
 #endif
 }
 
+const unsigned char* vision_service::frameData(int* bytes, int* width, int* height) {
+#ifdef TEXTOCHIP_VISION_COLOR
+  if (bytes) *bytes = kFrameBytes;
+  if (width) *width = kFrameWidth;
+  if (height) *height = kFrameHeight;
+  return g_frame;
+#else
+  if (bytes) *bytes = 0;
+  if (width) *width = 0;
+  if (height) *height = 0;
+  return nullptr;
+#endif
+}
+
 int vision_service::lastX() { return g_x; }
 int vision_service::lastSize() { return g_size; }

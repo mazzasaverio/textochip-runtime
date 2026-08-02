@@ -38,6 +38,13 @@ void lastStats(long* too_dark, long* too_grey, long* no_band, long* counted);
 // Bench: hue histogram of the last frame, 12 buckets of 30 degrees.
 void lastHueHist(long* hist12);
 
+// Bench: the last captured frame (colour build: RGB888). Returns null on the
+// object-model build. Exists because an eye was being debugged all evening
+// WITHOUT EVER LOOKING THROUGH IT — every hypothesis about what the camera saw
+// was inference from three numbers, when a dump of the actual pixels settles
+// real-object vs colour-cast vs byte-order bug at a glance.
+const unsigned char* frameData(int* bytes, int* width, int* height);
+
 }  // namespace vision_service
 
 #endif  // TEXTOCHIP_AI_VISION_SERVICE_H

@@ -195,6 +195,31 @@ void runtime::feedLine(const std::string& raw) {
     int mode = -1;
     if (line.size() > 6) mode = line[6] - '0';
     hal::serialWriteLine("OK: camwb " + hal::camSetWB(mode));
+  } else if (line == "SNAP") {
+    // Dump ONE camera frame as hex rows, so the bench can LOOK through the eye
+    // instead of inferring the scene from class/x/size. ~5 s at 115200 baud.
+    vision_service::reset();
+    int cls = -1;
+    const uint32_t until = hal::nowMs() + 4000;
+    while (cls < 0 && hal::nowMs() < until) cls = vision_service::poll();
+    int nb = 0, w = 0, h = 0;
+    const unsigned char* f = vision_service::frameData(&nb, &w, &h);
+    if (!f || cls < 0 || nb < w * h * 3) {
+      hal::serialWriteLine("ERROR: no frame");
+    } else {
+      hal::serialWriteLine("SNAP " + std::to_string(w) + " " + std::to_string(h));
+      static const char* hexd = "0123456789abcdef";
+      for (int y = 0; y < h; y++) {
+        std::string row;
+        row.reserve((size_t)w * 6);
+        for (int i = y * w * 3; i < (y + 1) * w * 3; i++) {
+          row += hexd[f[i] >> 4];
+          row += hexd[f[i] & 0xF];
+        }
+        hal::serialWriteLine(row);
+      }
+      hal::serialWriteLine("SNAP END");
+    }
   } else if (line == "CAMPINS") {
     // The follow-up when CAM reports id=0x00: that answer covers both "no power"
     // and "MISO not connected", and this tells them apart at the pad.

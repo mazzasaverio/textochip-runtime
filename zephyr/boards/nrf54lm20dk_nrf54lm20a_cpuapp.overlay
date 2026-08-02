@@ -240,3 +240,34 @@
 		full-ohms = <1>;
 	};
 };
+
+/* HC-SR04 ultrasonic — DISTANCE(), the honest "only react to NEAR things".
+ *
+ * A single camera cannot measure distance: apparent size is a proxy, and a
+ * big-far cupboard subtends the same area as a small-near marker (a whole bench
+ * evening proved it). This sensor measures centimetres, so `DISTANCE() < 30`
+ * means exactly what the maker asked for.
+ *
+ * Pins P1.11 (TRIG, our output) and P1.12 (ECHO, our input) — both verified
+ * electrically healthy by the PADS probe on this DK (P1.01/P1.02 are shorted to
+ * ground; camera, mic, motors and buzzer own their pads already).
+ *
+ * ⚠ A classic HC-SR04 runs on 5 V and its ECHO answers at 5 V: level-shift or
+ * divide ECHO down (or use an HC-SR04P at 3.3 V) — 5 V on this pad kills it.
+ * Unwired, ECHO never rises and DISTANCE() honestly reads 400 ("nothing in
+ * range"), so this costs nothing until the sensor lands.
+ */
+/ {
+	aliases {
+		hcsr04-trig = &tc_hcsr04_trig;
+		hcsr04-echo = &tc_hcsr04_echo;
+	};
+	tc_hcsr04_trig: tc-hcsr04-trig {
+		compatible = "textochip,gpio-pin";
+		gpios = <&gpio1 11 GPIO_ACTIVE_HIGH>;
+	};
+	tc_hcsr04_echo: tc-hcsr04-echo {
+		compatible = "textochip,gpio-pin";
+		gpios = <&gpio1 12 GPIO_ACTIVE_HIGH>;
+	};
+};

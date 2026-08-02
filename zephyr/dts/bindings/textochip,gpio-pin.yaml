@@ -1,0 +1,10 @@
+# A single GPIO owned by the textochip HAL (HC-SR04 TRIG/ECHO and the like):
+# the alias names the role, this binding only says "it is one pin".
+description: One GPIO pin referenced by a textochip HAL alias
+
+compatible: "textochip,gpio-pin"
+
+properties:
+  gpios:
+    type: phandle-array
+    required: true

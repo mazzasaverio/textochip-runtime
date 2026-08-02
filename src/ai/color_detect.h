@@ -45,6 +45,13 @@ int tc_detect_color(const uint8_t *rgb, int n_pixels);
 void tc_color_stats(const unsigned char* rgb, int width, int height, long* too_dark,
                     long* too_grey, long* no_band, long* counted);
 
+// Bench: the HUE HISTOGRAM of the pixels that passed the floors — 12 buckets of
+// 30 degrees, hist[0] = 0..30, hist[11] = 330..360. Two objects that "look the
+// same to the camera" are two hues a boundary happens to sit between, and the
+// only way to place that boundary honestly is to measure the actual objects
+// rather than argue about what yellow means. Writes 12 longs.
+void tc_color_hist(const unsigned char* rgb, int width, int height, long* hist12);
+
 #ifdef __cplusplus
 }
 #endif

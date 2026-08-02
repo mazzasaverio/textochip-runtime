@@ -171,6 +171,16 @@ void runtime::feedLine(const std::string& raw) {
           std::to_string(vision_service::lastSize()) + " · pixels: colour=" +
           std::to_string(ok) + " too-dark=" + std::to_string(dark) +
           " too-pale=" + std::to_string(grey) + " violet=" + std::to_string(nob));
+      long hist[12];
+      vision_service::lastHueHist(hist);
+      std::string hs;
+      for (int i = 0; i < 12; i++) {
+        if (hist[i] == 0) continue;
+        if (!hs.empty()) hs += " ";
+        hs += std::to_string(i * 30) + "-" + std::to_string(i * 30 + 30) + "=" +
+              std::to_string(hist[i]);
+      }
+      hal::serialWriteLine("OK: hue " + (hs.empty() ? std::string("(none)") : hs));
     }
   } else if (line == "CAMPINS") {
     // The follow-up when CAM reports id=0x00: that answer covers both "no power"

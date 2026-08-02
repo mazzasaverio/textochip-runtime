@@ -95,5 +95,14 @@ void vision_service::lastStats(long* too_dark, long* too_grey, long* no_band,
 #endif
 }
 
+void vision_service::lastHueHist(long* hist12) {
+#ifdef TEXTOCHIP_VISION_COLOR
+  tc_color_hist(g_frame, kFrameWidth, kFrameHeight, hist12);
+#else
+  if (hist12)
+    for (int i = 0; i < 12; i++) hist12[i] = 0;
+#endif
+}
+
 int vision_service::lastX() { return g_x; }
 int vision_service::lastSize() { return g_size; }

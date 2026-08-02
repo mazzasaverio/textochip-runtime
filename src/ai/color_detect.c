@@ -160,3 +160,32 @@ void tc_color_stats(const unsigned char* rgb, int width, int height, long* too_d
   if (counted) *counted = ok;
 }
 
+void tc_color_hist(const unsigned char* rgb, int width, int height, long* hist12) {
+  if (!hist12) return;
+  for (int i = 0; i < 12; i++) hist12[i] = 0;
+  if (!rgb || width <= 0 || height <= 0) return;
+  const int n_pixels = width * height;
+  for (int i = 0; i < n_pixels; i++) {
+    float r = rgb[i * 3 + 0] / 255.0f;
+    float g = rgb[i * 3 + 1] / 255.0f;
+    float b = rgb[i * 3 + 2] / 255.0f;
+    float mx = r > g ? (r > b ? r : b) : (g > b ? g : b);
+    float mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
+    float d = mx - mn;
+    if (mx < VAL_MIN) continue;
+    if (d < SAT_MIN * mx) continue;
+    float h;
+    if (mx == r)
+      h = 60.0f * ((g - b) / d);
+    else if (mx == g)
+      h = 60.0f * ((b - r) / d + 2.0f);
+    else
+      h = 60.0f * ((r - g) / d + 4.0f);
+    if (h < 0.0f) h += 360.0f;
+    int bucket = (int)(h / 30.0f);
+    if (bucket < 0) bucket = 0;
+    if (bucket > 11) bucket = 11;
+    hist12[bucket]++;
+  }
+}
+

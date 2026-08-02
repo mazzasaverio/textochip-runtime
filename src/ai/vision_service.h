@@ -35,6 +35,9 @@ int lastSize();
 // identical from BASIC and need opposite fixes. Zeros on a non-colour build.
 void lastStats(long* too_dark, long* too_grey, long* no_band, long* counted);
 
+// Bench: hue histogram of the last frame, 12 buckets of 30 degrees.
+void lastHueHist(long* hist12);
+
 }  // namespace vision_service
 
 #endif  // TEXTOCHIP_AI_VISION_SERVICE_H

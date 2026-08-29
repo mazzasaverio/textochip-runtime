@@ -6,8 +6,19 @@ SRC = main.cpp hal_host.cpp ../src/isa.cpp ../src/vm.cpp ../src/runtime.cpp ../s
 BIN = textochip_vm_host
 AI_BIN = test_ai_features
 
-$(BIN): $(SRC)
-	$(CXX) $(CXXFLAGS) -o $(BIN) $(SRC)
+# runtime.cpp's bench commands (SEE/SNAP/…) call vision_service unconditionally,
+# so every link of runtime.cpp needs the colour vision service + detector (the
+# same pair test-color-service builds). VISION_OBJS is that set, shared below.
+VISION_OBJS = vision_service_color.o color_detect.o
+
+color_detect.o: ../src/ai/color_detect.c ../src/ai/color_detect.h
+	$(CC) $(CFLAGS) -c ../src/ai/color_detect.c -o color_detect.o
+
+vision_service_color.o: ../src/ai/vision_service.cpp
+	$(CXX) $(CXXFLAGS) -DTEXTOCHIP_VISION_COLOR -c ../src/ai/vision_service.cpp -o vision_service_color.o
+
+$(BIN): $(SRC) $(VISION_OBJS)
+	$(CXX) $(CXXFLAGS) -o $(BIN) $(SRC) $(VISION_OBJS) -lm
 
 run: $(BIN)
 	./$(BIN)
@@ -78,8 +89,14 @@ test-vision: test_vision.cpp ../src/ai/ai_vision_tflm.cpp ../src/ai/vision_servi
 	$(CXX) $(CXXFLAGS) $(TFLM_INC) -I$(TFLM_GEN) -o test_vision test_vision.cpp ../src/ai/vision_service.cpp ../src/isa.cpp ../src/vm.cpp ../src/registry.cpp hal_host.cpp ai_vision_tflm.o $(PERSON_DATA) $(TFLM_LIB) -lm
 	./test_vision
 
+# The power hook: VM::idleForMs / runtime::idleMs — what the Zephyr main loop
+# sleeps on instead of spinning at 1 kHz through an hours-long WAIT.
+test-idle: test_idle.cpp ../src/isa.cpp ../src/vm.cpp ../src/runtime.cpp ../src/registry.cpp hal_host.cpp $(VISION_OBJS)
+	$(CXX) $(CXXFLAGS) -o test_idle test_idle.cpp ../src/isa.cpp ../src/vm.cpp ../src/runtime.cpp ../src/registry.cpp hal_host.cpp $(VISION_OBJS) -lm
+	./test_idle
+
 clean:
-	rm -f $(BIN) $(AI_BIN) test_ai_infer test_ai_vm test_ai_move test_ai_service test_vision test_color test_color_move test_color_service color_probe *.o
+	rm -f $(BIN) $(AI_BIN) test_ai_infer test_ai_vm test_ai_move test_ai_service test_vision test_color test_color_move test_color_service test_idle color_probe *.o
 
 # Colour-blob detector for SEE() (the near-term Arducam vision path): synthetic
 # RGB frames -> the colour class, pinning the contract with the product's
@@ -124,4 +141,4 @@ test-color-service: test_color_service.cpp ../src/ai/vision_service.cpp ../src/a
 	$(CXX) $(CXXFLAGS) -o test_color_service test_color_service.cpp vision_service_color.o color_detect.o hal_host.cpp -lm
 	./test_color_service
 
-.PHONY: run test-ai test-ai-vm test-ai-move tflm-lib ai-infer test-ai-service test-vision test-color test-color-move test-color-service test-dist clean
+.PHONY: run test-ai test-ai-vm test-ai-move tflm-lib ai-infer test-ai-service test-vision test-color test-color-move test-color-service test-dist test-idle clean

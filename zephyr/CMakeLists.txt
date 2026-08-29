@@ -56,7 +56,7 @@ if(CONFIG_TEXTOCHIP_AI)
     # never copied into this Apache-2.0 tree — the ww_kws arrangement.
     target_compile_definitions(app PRIVATE TEXTOCHIP_VISION_NPU)
     target_sources(app PRIVATE src/ai_vision_npu.cpp)
-    set(TC_PERSONDET_DIR "$ENV{HOME}/projects/sdk-edge-ai/applications/person_detection/src"
+    set(TC_PERSONDET_DIR "$ENV{HOME}/projects/labs/sdk-edge-ai/applications/person_detection/src"
         CACHE PATH "Nordic person-detection sources (from sdk-edge-ai)")
     if(NOT EXISTS "${TC_PERSONDET_DIR}/postprocessing.c")
       message(FATAL_ERROR "TEXTOCHIP_NRF_PERSONDET: sources not found at ${TC_PERSONDET_DIR} "
@@ -81,7 +81,7 @@ if(CONFIG_TEXTOCHIP_NRF_EDGEAI)
   # open repo). Override TC_EDGEAI_MODEL_DIR with -D if the add-on is elsewhere.
   target_sources(app PRIVATE ../src/ai/ai_nrf_edgeai.cpp)
   target_compile_definitions(app PRIVATE TEXTOCHIP_NRF_EDGEAI)
-  set(TC_EDGEAI_MODEL_DIR "$ENV{HOME}/projects/sdk-edge-ai/applications/ww_kws/src/kws/nrf_edgeai_generated"
+  set(TC_EDGEAI_MODEL_DIR "$ENV{HOME}/projects/labs/sdk-edge-ai/applications/ww_kws/src/kws/nrf_edgeai_generated"
       CACHE PATH "Nordic KWS generated-model directory (from sdk-edge-ai)")
   if(NOT EXISTS "${TC_EDGEAI_MODEL_DIR}/nrf_edgeai_user_model.c")
     message(FATAL_ERROR "TEXTOCHIP_NRF_EDGEAI: model not found at ${TC_EDGEAI_MODEL_DIR} "

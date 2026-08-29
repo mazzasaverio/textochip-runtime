@@ -28,6 +28,17 @@ class VM {
 
   VmState getState() const { return state; }
 
+  /** How many ms the VM will NOT need the CPU: the remaining time of a plain
+   *  WAIT, and 0 in every other state (a running mission and the AI services
+   *  are polled every tick; IDLE/STOPPED report 0 and let the caller pick its
+   *  own idle cadence). This is the hook the power story hangs on: a scheduled
+   *  program (`WAIT 6h` between pump runs) spends its life in VM_WAITING, and
+   *  the main loop can hand that time to the kernel instead of spinning. */
+  uint32_t idleForMs(uint32_t now) const {
+    if (state != VM_WAITING) return 0;
+    return resumeAt > now ? resumeAt - now : 0;
+  }
+
   // Edge-AI (Tier 4). `INFER` pushes `aiClass` (0 = none), `AISTART` flags that
   // the program wants the model running. The background inference service (mic ->
   // features.c -> ai_infer) updates aiClass via setAiClass(); on the host or a

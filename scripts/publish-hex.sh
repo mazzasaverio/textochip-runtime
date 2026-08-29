@@ -22,7 +22,7 @@
 set -eu
 
 RUNTIME_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-PRODUCT_DIR="${TEXTOCHIP_PRODUCT_DIR:-$HOME/projects/textochip}"
+PRODUCT_DIR="${TEXTOCHIP_PRODUCT_DIR:-$HOME/projects/products/textochip}"
 TC="${TEXTOCHIP_NCS_TOOLCHAIN:-$HOME/ncs/toolchains/fbf7391cab}"
 
 [ -d "$PRODUCT_DIR/public/firmware" ] || {
@@ -54,7 +54,7 @@ DEST="$PRODUCT_DIR/public/firmware/textochip-nrf54lm20dk.hex"
 cp "$HEX" "$DEST"
 
 echo "-> Building the B target (person detection on the Axon, $HASH)..."
-EDGEAI_DIR="${TEXTOCHIP_EDGEAI_DIR:-$HOME/projects/sdk-edge-ai}"
+EDGEAI_DIR="${TEXTOCHIP_EDGEAI_DIR:-$HOME/projects/labs/sdk-edge-ai}"
 [ -d "$EDGEAI_DIR" ] || {
   echo "sdk-edge-ai not found at $EDGEAI_DIR (set TEXTOCHIP_EDGEAI_DIR)"; exit 1; }
 "$TC/usr/local/bin/python3.12" -m west build --cmake -b nrf54lm20dk/nrf54lm20b/cpuapp \

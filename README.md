@@ -100,7 +100,7 @@ west flash -r jlink
 # nRF54LM20B: voice on the Axon NPU via Nordic's nRF Edge AI Add-on. Check out the
 # add-on (github.com/nrfconnect/sdk-edge-ai, v2.2.0) and pass it as a module:
 west build -b nrf54lm20dk/nrf54lm20b/cpuapp zephyr \
-    -- -DEXTRA_ZEPHYR_MODULES=$HOME/projects/sdk-edge-ai
+    -- -DEXTRA_ZEPHYR_MODULES=$HOME/projects/labs/sdk-edge-ai
 west flash -r jlink
 ```
 

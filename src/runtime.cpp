@@ -432,6 +432,17 @@ void runtime::tick() {
   vm.tick();
 }
 
+uint32_t runtime::idleMs() {
+  if (loading) return 0;  // a LOAD is streaming lines — stay hot on serial
+#ifdef TEXTOCHIP_AI
+  // The inference services capture between VM ticks; sleeping through a WAIT
+  // would starve the mic DMA / camera polling, so a listening or seeing
+  // program never idles (its power budget is the model's, not the VM's).
+  if (aiRunning || visionRunning) return 0;
+#endif
+  return vm.idleForMs(hal::nowMs());
+}
+
 namespace {
 // Parse a multi-line bytecode blob into the VM (used by boot autorun). Returns
 // the number of instructions loaded. Mirrors the LOAD path, line by line.

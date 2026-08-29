@@ -80,7 +80,23 @@ in; the simulator reads them; a native mission re-clamps them (defense in depth)
 stays generic — the `CALL` carries the resolved params. (Future: generate the C++ clamp tables
 from the same manifest so the ranges live in exactly one place.)
 
-## 6. Open core
+## 6. The VM declares its idle — the battery hook
+
+A scheduled program (`WAIT 6h` between pump runs) spends its life in `VM_WAITING`, and the main
+loop used to spin through it at ~1 kHz. The VM now says how long it will not need the CPU
+(`VM::idleForMs`), `runtime::idleMs()` gates that behind everything that DOES need per-tick
+polling (a LOAD in progress, the mic/camera inference services), and the Zephyr loop sleeps on
+the answer in ≤ 50 ms chunks (`IDLE_CHUNK_MS`) so a `STOP`/`OVERRIDE` arriving mid-sleep still
+feels immediate. Host-tested (`make -C host test-idle`), no ISA or protocol change.
+
+Deliberately NOT here yet, in order: **measured** light-sleep residencies (`CONFIG_PM` is bench
+work — enabling it blind is how a working serial console dies); true deep sleep for hours-long
+waits, which resets the chip and so needs a resume story (a rebooted autorun restarts at pc = 0 —
+correct for a loop-shaped schedule, wrong in general); and any battery-life claim in the IDE,
+which waits for a bench current measurement, not an estimate. The product-side ADR (its
+`docs/decisions.md`, 2026-08-29) carries the staged plan.
+
+## 7. Open core
 
 This repo (the **runtime + reference missions + the ISA/protocol contract**) is the open part,
 Apache-2.0 when public. The commercial product is the browser **IDE + compiler + simulator**, the

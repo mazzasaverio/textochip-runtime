@@ -73,7 +73,12 @@ enum {
 
 static unsigned char g_mask[MAX_PIXELS];  // 0 = no colour, else 1 + class slot
 static unsigned char g_seen[MAX_PIXELS];
-static int g_stack[MAX_PIXELS];
+// The flood-fill stack holds PIXEL INDICES, so its values are bounded by
+// MAX_PIXELS (16383 max) and 16 bits are two bytes more than enough. As `int`
+// this single array was 64 KB — on a DK image already at 92% of RAM, the
+// largest object in the build and 32 KB of pure padding. Widening back to int
+// on pop is free.
+static uint16_t g_stack[MAX_PIXELS];
 
 tc_color_blob tc_detect_color_blob(const uint8_t *rgb, int width, int height) {
   tc_color_blob out;

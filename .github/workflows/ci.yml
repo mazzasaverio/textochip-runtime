@@ -1,0 +1,58 @@
+name: CI
+
+# The host build IS the firmware's test rig: the VM, the ISA parser, the
+# missions and the colour-vision path are all platform-agnostic C/C++ that
+# hal_host.cpp fakes the hardware for, so a plain g++ box can prove them.
+#
+# It exists because this build stopped linking and nobody noticed for weeks
+# (the SEE/SNAP bench commands call vision_service outside the AI ifdef, so
+# every binary that links runtime.cpp needs the colour service). A compile
+# error in the one thing that can be checked without a board should never
+# survive a push again.
+#
+# Deliberately NOT here: the Zephyr firmware build. It needs the nRF Connect
+# SDK toolchain (multi-GB) and the proprietary sdk-edge-ai add-on, which is
+# not ours to fetch in CI. Board builds stay a local step, gated by
+# scripts/hooks/pre-push + scripts/publish-hex.sh. Also skipped: test-vision
+# and ai-infer, which need the TFLite Micro submodule built (~minutes).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the host demo (links the whole runtime)
+        run: make -C host textochip_vm_host
+
+      # Each target answers one question and needs no model or submodule.
+      - name: VM — power hook (idle declaration, what the loop sleeps on)
+        run: make -C host test-idle
+
+      - name: VM — DIST (ultrasonic distance drives the robot)
+        run: make -C host test-dist
+
+      - name: VM — AISTART/INFER opcodes (class injected, no TFLM)
+        run: make -C host test-ai-vm
+
+      - name: VM — VOICE() drives MOVE (the configurator's program)
+        run: make -C host test-ai-move
+
+      - name: Vision — colour detector contract
+        run: make -C host test-color
+
+      - name: Vision — colour drives the wheels end to end
+        run: make -C host test-color-move
+
+      - name: Vision — the camera service (chunked capture -> SEE())
+        run: make -C host test-color-service
+
+      # The C MFCC must still match textochip-ml's golden vectors: a drift here
+      # silently degrades voice recognition on every board.
+      - name: Edge AI — MFCC feature parity
+        run: make -C host test-ai

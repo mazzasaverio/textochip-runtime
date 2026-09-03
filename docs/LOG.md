@@ -9,4 +9,6 @@
   suspicious credential files; none were found.
 - Verified the complete host suite, including TFLite voice and vision paths; the
   public GitHub Actions run passed and private vulnerability reporting is active.
+- Updated the CI checkout action to its Node 24 release after the first public
+  run exposed GitHub's Node 20 deprecation warning.
 - Next: prove clean community hardware builds, then cut a versioned release.

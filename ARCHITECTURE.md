@@ -99,21 +99,13 @@ which waits for a bench current measurement, not an estimate. The product-side A
 ## 7. Open core
 
 This repo (the **runtime + reference missions + the ISA/protocol contract**) is the open part,
-Apache-2.0 when public. The commercial product is the browser **IDE + compiler + simulator**, the
+licensed under [Apache-2.0](LICENSE). The commercial product is the browser **IDE + compiler + simulator**, the
 **AI assistant** ([textochip-api](https://github.com/mazzasaverio/textochip-api)), the **curated
 mission catalog** (which missions ship, the manifest), and the **hardware kits**. Open-core: an
 open runtime others can audit, port, and contribute missions to, without giving away the IDE/AI
 moat. Edit the firmware **only here** — the product no longer carries a copy.
 
-## Roadmap
-
-- Done (2026-07-13): the **Nordic nRF54LM20 DK** port — serial protocol, on-board
-  LEDs/button, buzzer PWM, and `MOVE` driving real wheels, all bench-verified (the
-  per-board work was indeed just the HAL pin map + `zephyr/boards/` files). Remaining
-  on the DK: the I2S mic (voice) and a SAVE bench check.
-- **Edge-AI on the nRF54L** (voice keyword on the M33 via CMSIS-NN; the Axon NPU as an
-  optional accelerator) — the long-term differentiator.
-
-Done: **flash persistence + boot autorun** (`SAVE`/`CLEAR`, run-on-boot) for
-PC-unplugged autonomy — NVS on the board's `storage` partition (see `runtime.cpp`
-+ `hal_zephyr.cpp`; `SPEC.md` documents the protocol).
+The public-release decision and rejected alternatives are recorded in
+[`docs/DECISIONS.md`](docs/DECISIONS.md). Current work belongs in
+[`docs/ROADMAP.md`](docs/ROADMAP.md); the old roadmap here was removed after its Nordic voice,
+vision and persistence items shipped.

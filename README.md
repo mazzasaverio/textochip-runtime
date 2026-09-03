@@ -1,6 +1,6 @@
 # textochip-runtime
 
-**A tiny, portable bytecode VM for microcontrollers, built on Zephyr.** The open runtime
+**A tiny, portable bytecode VM for microcontrollers, built on Zephyr.** The Apache-2.0 open runtime
 behind [Text to Chip](https://textochip.com): it runs today on the **ESP32-S3** and the
 **Nordic nRF54LM20 DK**, and ports to other boards through a small **HAL** (`src/hal.h`,
 the only interface each board implements).
@@ -133,12 +133,23 @@ bring-up log and pitfalls: [`docs/nordic-nrf-connect-sdk.md`](docs/nordic-nrf-co
 
 ## The four repos
 
-| Repo | What it is |
-|---|---|
-| [`textochip`](https://github.com/mazzasaverio/textochip) | The product: Next.js IDE, Chip BASIC compiler, simulator, landing |
-| **`textochip-runtime`** (this one) | The firmware: bytecode VM on Zephyr. Open core (Apache-2.0 when public) |
-| [`textochip-api`](https://github.com/mazzasaverio/textochip-api) | The AI assistant backend: natural language to Chip BASIC |
-| [`textochip-ml`](https://github.com/mazzasaverio/textochip-ml) | The edge-AI model lifecycle: trains the int8 models this runtime executes |
+- **`textochip-runtime`** is this Apache-2.0 open-core firmware repository.
+- [`textochip`](https://github.com/mazzasaverio/textochip) is the product: Next.js IDE,
+  Chip BASIC compiler, simulator and landing page.
+- [`textochip-api`](https://github.com/mazzasaverio/textochip-api) is the internal AI
+  assistant backend for natural language to Chip BASIC.
+- [`textochip-ml`](https://github.com/mazzasaverio/textochip-ml) is the private model
+  lifecycle that trains the int8 artifacts consumed here.
+
+## Contributing and licence
+
+Contributions are welcome. Start with [`CONTRIBUTING.md`](CONTRIBUTING.md), and report
+security-sensitive problems through the private process in [`SECURITY.md`](SECURITY.md).
+
+Text to Chip Runtime is licensed under the
+[Apache License 2.0](LICENSE). External SDKs, the TFLite Micro submodule, datasets and
+data-derived artifacts are identified in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+The licence does not grant rights to the Text to Chip name or logos.
 
 ## Documentation
 
@@ -148,6 +159,10 @@ entries.
 
 - [`SPEC.md`](SPEC.md): the bytecode ISA + serial protocol, the contract with the product repo. Keep them in sync.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md): how the core, HAL and boards fit together.
+- [`docs/VISION.md`](docs/VISION.md): purpose, audience, open-core boundary and durable advantage.
+- [`docs/ROADMAP.md`](docs/ROADMAP.md): the current outcome-based execution sequence.
+- [`docs/DECISIONS.md`](docs/DECISIONS.md): append-only policy and architecture decisions.
+- [`docs/LOG.md`](docs/LOG.md): concise project and verification history.
 - [`docs/bench-runbook.md`](docs/bench-runbook.md): wiring + stage-by-stage bring-up of the voice robot.
 - [`docs/edge-ai.md`](docs/edge-ai.md): the VOICE()/SEE() inference design.
 - [`docs/nordic-nrf-connect-sdk.md`](docs/nordic-nrf-connect-sdk.md): the Nordic port, living notes.

@@ -1,0 +1,59 @@
+name: Runtime bug
+description: Report reproducible VM, protocol, HAL, build, or hardware behaviour.
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Do not disclose vulnerabilities here. Use the private security-reporting
+        link in the issue chooser.
+  - type: input
+    id: revision
+    attributes:
+      label: Runtime revision
+      description: Commit hash, tag, or firmware VER response.
+      placeholder: f8d7186
+    validations:
+      required: true
+  - type: dropdown
+    id: target
+    attributes:
+      label: Target
+      options:
+        - Host build
+        - ESP32-S3
+        - Nordic nRF54LM20A
+        - Nordic nRF54LM20B
+        - Other board
+    validations:
+      required: true
+  - type: textarea
+    id: program
+    attributes:
+      label: Bytecode or command sequence
+      description: Provide the smallest input that reproduces the problem.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behaviour
+      description: Include exact logs and whether this was host-, build-, or bench-tested.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Toolchain and hardware
+      description: Compiler or SDK versions, board revision, peripherals, and wiring details.
+    validations:
+      required: true

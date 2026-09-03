@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security report
+    url: https://github.com/mazzasaverio/textochip-runtime/security/advisories/new
+    about: Report vulnerabilities and safety-sensitive flaws privately.
+  - name: Text to Chip product
+    url: https://textochip.com
+    about: Use the product site for the browser IDE and general product information.

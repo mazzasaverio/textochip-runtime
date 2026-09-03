@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CC-BY-SA-4.0
 // Auto-generated TTS test samples (Piper en_US-amy-low, float @16kHz). Raw word
 // audio; the test pads it into the 1s window before features.c.
 #pragma once

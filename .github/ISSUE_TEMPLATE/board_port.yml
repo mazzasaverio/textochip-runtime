@@ -1,0 +1,45 @@
+name: Board port proposal
+description: Propose or track a port to another microcontroller board.
+title: "port: "
+labels:
+  - enhancement
+body:
+  - type: input
+    id: board
+    attributes:
+      label: Board and MCU
+      placeholder: Board name, MCU, memory and Zephyr board target
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Maker outcome
+      description: Who benefits from this port and which real project it enables.
+    validations:
+      required: true
+  - type: textarea
+    id: support
+    attributes:
+      label: Required capabilities
+      description: GPIO, storage, serial, PWM, ADC, motors, audio, camera, or intentional stubs.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Current evidence
+      description: Note whether the target is only scoped, builds, flashes, or is bench-verified.
+    validations:
+      required: true
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Port constraints
+      options:
+        - label: The portable core will remain free of board-specific calls.
+          required: true
+        - label: The port can be built without committing proprietary SDK files.
+          required: true
+        - label: I can document a physical smoke test or clearly mark it as outstanding.
+          required: true

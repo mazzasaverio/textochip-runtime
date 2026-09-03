@@ -1,5 +1,7 @@
 # textochip-runtime
 
+[![CI](https://github.com/mazzasaverio/textochip-runtime/actions/workflows/ci.yml/badge.svg)](https://github.com/mazzasaverio/textochip-runtime/actions/workflows/ci.yml)
+
 **A tiny, portable bytecode VM for microcontrollers, built on Zephyr.** The Apache-2.0 open runtime
 behind [Text to Chip](https://textochip.com): it runs today on the **ESP32-S3** and the
 **Nordic nRF54LM20 DK**, and ports to other boards through a small **HAL** (`src/hal.h`,

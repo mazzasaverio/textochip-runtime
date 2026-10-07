@@ -79,3 +79,17 @@ If a reference is unavailable, stop only the affected operation, report the miss
 source, and continue independent work. Network access requires a separate explicit
 permission and version check; installing or verifying this bundle is offline.
 <!-- END:ops-agent-kernel -->
+
+## Related repositories
+
+Text to Chip is one product split into four repos, cloned side by side in
+`~/workspace/products/` (the `p`/`px` picker gives the agent the siblings as `--add-dir`).
+Before changing a shared contract, read the other side and update both in the same task.
+
+- `textochip`: Next.js IDE, Chip BASIC compiler (`lib/compiler/`) and simulator. They
+  implement this repo's `SPEC.md` (ISA and serial protocol): an opcode or protocol change
+  lands in both repos.
+- `textochip-api`: internal FastAPI service, natural language to Chip BASIC.
+- `textochip-runtime` (this repo): Zephyr bytecode VM firmware.
+- `textochip-ml`: edge AI models; its int8 `model.h` is consumed by `src/ai/`, and
+  `src/ai/features.c` must match its training feature extraction.

@@ -48,8 +48,8 @@ Free for later: D0, D1 (upstream's console UART, disabled here), D13 (on-board
 inputs expect up to 5 V. 3.3 V-only parts (the INMP441 mic, the Arducam) must not
 be wired straight to it. An HC-SR04 works without a level shifter here.
 
-**Bench checklist** for the first flash: `west flash` through the USB-C port
-(pyOCD via the bridge's CMSIS-DAP), the IDE connects over the same port, `PING`,
+**Bench checklist** for the first flash: the IDE's in-browser install through the
+USB-C port (Arduino bootloader, see the README), the IDE connects over the same port, `PING`,
 LED on D2/D3/D4, button on D7, `TONE` on D5, `SERVO` on D6, `AREAD` on A0, relay
 on D9, `DIST` with an HC-SR04 on D10/D11, `SAVE` then a power cycle to check
 autorun, and the main stack (4 KB) under a long program.

@@ -16,10 +16,11 @@ Spec: `docs/DECISIONS.md`, entry 2026-10-07. Pinout: `docs/hardware.md`.
 
 ## To do
 
-1. Bench (board arrives 2026-10-08): run the checklist in `docs/hardware.md`.
-   First unknown: does `west flash` (pyOCD over the bridge's CMSIS-DAP) work?
-2. Decide how a maker flashes the R4 without a toolchain, then replace the IDE's
-   "pending" flash card.
+1. Bench (board arrived 2026-10-07): run the checklist in `docs/hardware.md`.
+   First unknown: does the IDE's in-browser install work on a factory board?
+2. Done 2026-10-07: a maker flashes the R4 from the IDE through the Arduino
+   bootloader over Web Serial (`textochip/lib/flash/unoR4.ts`, image built as in
+   the README). The IDE serves the image built from `eb71ca0`.
 3. After the bench: drop `provisionalWiring` and set status `ready` in the IDE.
 4. Rebuild and publish the Nordic hex at the next bench session with the DK.
 5. ESP32-S3 DRAM overflow on upstream Zephyr main: find which Zephyr revision the
@@ -27,4 +28,5 @@ Spec: `docs/DECISIONS.md`, entry 2026-10-07. Pinout: `docs/hardware.md`.
 
 ## Next step
 
-Flash the board and run `PING` from the IDE's serial connect.
+The owner installs from the IDE's flash popup on a factory board, then runs
+`PING` from the IDE's serial connect.

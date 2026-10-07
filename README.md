@@ -118,9 +118,19 @@ bring-up log and pitfalls: [`docs/nordic-nrf-connect-sdk.md`](docs/nordic-nrf-co
 
 ```bash
 west build -b arduino_uno_r4@wifi zephyr
-pyocd pack install r7fa4m1ab   # once
-west flash                     # pyOCD over the USB-C port (to confirm on the bench)
+# The image the IDE installs: the sketch area only (from 0x4000), without the
+# option-setting section at 0x01010018 that would blow the .bin up to 16 MB.
+arm-zephyr-eabi-objcopy -O binary -R .option_setting_osis \
+    build/zephyr/zephyr.elf textochip-unor4wifi.bin
 ```
+
+Makers install it from the IDE's flash popup: the browser resets the board into
+its Arduino bootloader (1200-baud touch on the USB bridge) and writes the image
+with the SAM-BA commands `bossac` uses (`textochip/lib/flash/unoR4.ts`). The
+bootloader keeps its first 16 KB, so a failed install is always retried safely.
+From a terminal, the same route is Arduino's `bossac -p <port> -U -e -w
+textochip-unor4wifi.bin -R` after the 1200-baud touch. `west flash` (pyOCD over
+the bridge's CMSIS-DAP) also works in principle but needs a udev rule on Linux.
 
 Build-proven on 2026-10-07 (Zephyr 4.4.99): 90.2 KB of 240 KB flash, 31.1 KB of
 32 KB RAM, all of it static (VM, heap, stacks). Not yet flashed or smoke-tested.

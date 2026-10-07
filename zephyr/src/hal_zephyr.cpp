@@ -462,6 +462,14 @@ void storeStatus(bool* mounted, int* savedBytes, int* sectorSize, int* sectorCou
 }
 #endif
 
+#if defined(CONFIG_BOARD_ARDUINO_UNO_R4)
+// The on-board "L" LED (D13) lights together with the red LED (logical 4), so a
+// bare board shows a running program before anything is wired. Red only: a
+// program alternating two LEDs would otherwise keep "L" on all the time.
+static constexpr int kMirrorLogical = 4;
+static constexpr int kMirrorPin = 13;
+#endif
+
 void pinMode(int pin, int mode) {
   gpio_flags_t flags = (mode == 1)   ? GPIO_OUTPUT_INACTIVE
                        : (mode == 2) ? (GPIO_INPUT | GPIO_PULL_DOWN)   // active-high sensor
@@ -469,11 +477,19 @@ void pinMode(int pin, int mode) {
   int p = map_pin(pin);
   if (p < 0) return;  // no such pin on this board
   gpio_pin_configure(gpio_port(p), gpio_index(p), flags);
+#if defined(CONFIG_BOARD_ARDUINO_UNO_R4)
+  if (pin == kMirrorLogical && mode == 1)
+    gpio_pin_configure(gpio_port(kMirrorPin), gpio_index(kMirrorPin), flags);
+#endif
 }
 void pinWrite(int pin, int level) {
   int p = map_pin(pin);
   if (p < 0) return;
   gpio_pin_set(gpio_port(p), gpio_index(p), level);
+#if defined(CONFIG_BOARD_ARDUINO_UNO_R4)
+  if (pin == kMirrorLogical)
+    gpio_pin_set(gpio_port(kMirrorPin), gpio_index(kMirrorPin), level);
+#endif
 }
 int pinRead(int pin) {
   int p = map_pin(pin);

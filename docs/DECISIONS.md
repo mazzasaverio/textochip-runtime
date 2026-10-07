@@ -4,6 +4,23 @@ Non-obvious project decisions are recorded newest first. Earlier technical
 rationale remains in [ARCHITECTURE.md](../ARCHITECTURE.md); new or changed
 policy belongs here.
 
+## 2026-10-07: The UNO R4's "L" LED mirrors the red LED
+
+**Decision:** on the UNO R4 WiFi, every `MODE`/`SET` on logical pin 4 (red LED,
+D4) also drives D13, the on-board "L" LED. Other pins are not mirrored.
+
+**Why:** on the first end-to-end test the owner ran a program on a bare board and
+saw nothing: the program was running, and nothing was wired to its pins. A maker's
+first program usually lights the red LED (the bundled examples start with
+`LED red, on`), so mirroring it shows life with no parts. Mirroring every LED would
+keep "L" lit through any program that alternates two LEDs.
+
+**Cost:** D13 is no longer free for other uses; SPI (which owns D13 as its clock)
+was already disabled in the overlay.
+
+**Verification:** the R4 build passes (90.3 KB flash, RAM unchanged); bench check
+is the owner reinstalling from the IDE and watching "L" follow the red LED.
+
 ## 2026-10-07: Port the runtime to the Arduino UNO R4 WiFi (no AI tier)
 
 **Decision:** Add `arduino_uno_r4@wifi` as a third reference board, built from

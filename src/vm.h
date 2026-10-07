@@ -7,7 +7,12 @@
 // Tick-based bytecode VM — brief §7. Hardware access goes through hal:: (see
 // vm.cpp), so the same logic runs on the host and on any board. NO blocking delay.
 
+// Program capacity. Each Instruction is ~90 bytes of RAM, so small-RAM boards
+// lower it from their board .conf (CONFIG_TEXTOCHIP_MAX_PROGRAM); the IDE must
+// warn at the same cap (lib/boards.ts maxInstructions).
+#ifndef MAX_PROGRAM
 #define MAX_PROGRAM 256
+#endif
 #define STEPS_PER_TICK 64
 #define VALUE_STACK_SIZE 32
 #define CALL_STACK_SIZE 16

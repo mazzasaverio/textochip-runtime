@@ -159,6 +159,7 @@ void runtime::feedLine(const std::string& raw) {
     // "id=0x81 … frame=18432" means the wire is right and the rest is already
     // proven. Then point it at something coloured and read SEE() in a program.
     hal::serialWriteLine("OK: cam " + hal::camProbe());
+#ifndef TEXTOCHIP_NO_VISION
   } else if (line == "SEE") {
     // Bench twin of MIC: capture ONE frame and report what the colour detector
     // makes of it, so the eye can be aimed at something without writing a
@@ -190,12 +191,14 @@ void runtime::feedLine(const std::string& raw) {
       }
       hal::serialWriteLine("OK: hue " + (hs.empty() ? std::string("(none)") : hs));
     }
+#endif
   } else if (line.rfind("CAMWB", 0) == 0) {
     // CAMWB <0..4>: try a white-balance mode LIVE, watching the panel — the only
     // honest way to pick one, since the right mode depends on the room's light.
     int mode = -1;
     if (line.size() > 6) mode = line[6] - '0';
     hal::serialWriteLine("OK: camwb " + hal::camSetWB(mode));
+#ifndef TEXTOCHIP_NO_VISION
   } else if (line == "SNAP") {
     // Dump ONE camera frame as hex rows, so the bench can LOOK through the eye
     // instead of inferring the scene from class/x/size. ~5 s at 115200 baud.
@@ -223,6 +226,7 @@ void runtime::feedLine(const std::string& raw) {
       }
       hal::serialWriteLine("SNAP END");
     }
+#endif
   } else if (line == "CAMPINS") {
     // The follow-up when CAM reports id=0x00: that answer covers both "no power"
     // and "MISO not connected", and this tells them apart at the pad.

@@ -11,6 +11,21 @@ config TEXTOCHIP_AI
 	  yet (e.g. the Nordic DK phase-1 bring-up) to keep the image small —
 	  AISTART/INFER still execute, VOICE() just reads "none".
 
+config TEXTOCHIP_MAX_PROGRAM
+	int "Maximum program length, in instructions"
+	default 256
+	help
+	  The VM's program array (vm.h MAX_PROGRAM). Each instruction costs about
+	  90 bytes of RAM, so boards with little RAM lower it. The IDE warns at
+	  the same per-board cap (lib/boards.ts maxInstructions).
+
+config TEXTOCHIP_STORE_BYTES
+	int "Largest program text SAVE can persist, in bytes"
+	default 4096
+	help
+	  Size of the RAM buffer the flash_area store (nRF54L, UNO R4) uses to
+	  write and read the saved program.
+
 config TEXTOCHIP_NRF_EDGEAI
 	bool "Use Nordic's nRF Edge AI (Axon NPU) as the VOICE() classifier"
 	depends on TEXTOCHIP_AI

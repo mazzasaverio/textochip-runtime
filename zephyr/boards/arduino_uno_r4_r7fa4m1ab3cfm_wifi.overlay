@@ -1,0 +1,196 @@
+/*
+ * Board overlay for the textochip runtime on the Arduino UNO R4 WiFi.
+ *
+ * Phase 1: serial link to the IDE, GPIO on the Arduino header, SAVE/autorun,
+ * buzzer, servo and AREAD. Motors, the 12x8 LED matrix and Wi-Fi come later
+ * (docs/DECISIONS.md 2026-10-07). I/O on this board is 5 V.
+ */
+#include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/gpio/arduino-header-r3.h>
+#include <zephyr/dt-bindings/adc/adc.h>
+#include <zephyr/dt-bindings/pwm/ra_pwm.h>
+
+/ {
+	chosen {
+		/* The USB-C port is an ESP32-S3 USB bridge wired to the RA4M1 on
+		 * P109/P110 (SCI9), the Arduino core's `Serial`. Upstream Zephyr puts
+		 * the console on SCI2 (D0/D1), where the IDE's Web Serial cannot see it.
+		 */
+		zephyr,console = &uart9;
+		zephyr,shell-uart = &uart9;
+	};
+
+	aliases {
+		/* Servo on its own GPT: a GPT instance has one period for both of its
+		 * channels, so sharing the buzzer's would detune the 50 Hz frame. */
+		tc-pwm-servo = &pwm3;
+		hcsr04-trig = &tc_hcsr04_trig;
+		hcsr04-echo = &tc_hcsr04_echo;
+	};
+
+	/* HC-SR04 for DIST: TRIG on D10, ECHO on D11. The I/O is 5 V here, so a
+	 * classic 5 V module needs no level shifter on ECHO. */
+	tc_hcsr04_trig: tc-hcsr04-trig {
+		compatible = "textochip,gpio-pin";
+		gpios = <&arduino_header ARDUINO_HEADER_R3_D10 GPIO_ACTIVE_HIGH>;
+	};
+
+	tc_hcsr04_echo: tc-hcsr04-echo {
+		compatible = "textochip,gpio-pin";
+		gpios = <&arduino_header ARDUINO_HEADER_R3_D11 GPIO_ACTIVE_HIGH>;
+	};
+
+	zephyr,user {
+		/* AREAD on A0 (P014 = AN009). */
+		io-channels = <&adc0 9>;
+		/* The HAL's pin table: index = Arduino pin number printed on the
+		 * board (D0..D13, then A0..A5 = 14..19). The arduino_header nexus
+		 * resolves each entry to its RA4M1 ioport at build time. */
+		tc-gpios = <&arduino_header ARDUINO_HEADER_R3_D0 0>,
+			   <&arduino_header ARDUINO_HEADER_R3_D1 0>,
+			   <&arduino_header ARDUINO_HEADER_R3_D2 0>,
+			   <&arduino_header ARDUINO_HEADER_R3_D3 0>,
+			   <&arduino_header ARDUINO_HEADER_R3_D4 0>,
+			   <&arduino_header ARDUINO_HEADER_R3_D5 0>,
+			   <&arduino_header ARDUINO_HEADER_R3_D6 0>,
+			   <&arduino_header ARDUINO_HEADER_R3_D7 0>,
+			   <&arduino_header ARDUINO_HEADER_R3_D8 0>,
+			   <&arduino_header ARDUINO_HEADER_R3_D9 0>,
+			   <&arduino_header ARDUINO_HEADER_R3_D10 0>,
+			   <&arduino_header ARDUINO_HEADER_R3_D11 0>,
+			   <&arduino_header ARDUINO_HEADER_R3_D12 0>,
+			   <&arduino_header ARDUINO_HEADER_R3_D13 0>,
+			   <&arduino_header ARDUINO_HEADER_R3_A0 0>,
+			   <&arduino_header ARDUINO_HEADER_R3_A1 0>,
+			   <&arduino_header ARDUINO_HEADER_R3_A2 0>,
+			   <&arduino_header ARDUINO_HEADER_R3_A3 0>,
+			   <&arduino_header ARDUINO_HEADER_R3_A4 0>,
+			   <&arduino_header ARDUINO_HEADER_R3_A5 0>;
+	};
+};
+
+&pinctrl {
+	tc_sci9_default: tc_sci9_default {
+		group1 {
+			/* tx */
+			psels = <RA_PSEL(RA_PSEL_SCI_9, 1, 9)>;
+			drive-strength = "medium";
+		};
+		group2 {
+			/* rx */
+			psels = <RA_PSEL(RA_PSEL_SCI_9, 1, 10)>;
+		};
+	};
+
+	/* Buzzer on D5 (P107 = GTIOC0A). */
+	tc_pwm0_default: tc_pwm0_default {
+		group1 {
+			psels = <RA_PSEL(RA_PSEL_GPT1, 1, 7)>;
+		};
+	};
+
+	/* Servo on D6 (P111 = GTIOC3A). */
+	tc_pwm3_default: tc_pwm3_default {
+		group1 {
+			psels = <RA_PSEL(RA_PSEL_GPT1, 1, 11)>;
+		};
+	};
+
+	/* A0 is P014 (AN009). The upstream group enables P009 instead. */
+	tc_adc0_default: tc_adc0_default {
+		group1 {
+			psels = <RA_PSEL(RA_PSEL_ADC, 0, 14)>;
+			renesas,analog-enable;
+		};
+	};
+};
+
+/* Upstream enables these on header pins the VM drives as plain GPIO: SCI2 on
+ * D0/D1, SPI0 on D10-D13, PWM7 on D8/D9, IIC1 on A4/A5, IIC0 on the Qwiic
+ * connector. Nothing in the runtime uses them, and on 32 KB of RAM every
+ * driver instance counts. */
+&sci2 {
+	status = "disabled";
+};
+
+&uart2 {
+	status = "disabled";
+};
+
+&spi0 {
+	status = "disabled";
+};
+
+&pwm7 {
+	status = "disabled";
+};
+
+&iic0 {
+	status = "disabled";
+};
+
+&iic1 {
+	status = "disabled";
+};
+
+/* ICU event slots 4-7 belong to SCI1, which is disabled on this board. */
+&sci9 {
+	status = "okay";
+	pinctrl-0 = <&tc_sci9_default>;
+	pinctrl-names = "default";
+	interrupts = <4 1>, <5 1>, <6 1>, <7 1>;
+	interrupt-names = "rxi", "txi", "tei", "eri";
+
+	uart9: uart {
+		current-speed = <115200>;
+		status = "okay";
+	};
+};
+
+/* GPT0 is 32-bit: the full tone range fits without a prescaler. */
+&pwm0 {
+	status = "okay";
+	pinctrl-0 = <&tc_pwm0_default>;
+	pinctrl-names = "default";
+	interrupts = <18 1>, <19 1>;
+	interrupt-names = "gtioca", "overflow";
+};
+
+/* GPT3 is 16-bit: at 48 MHz it overflows in 1.4 ms. /16 gives 3 MHz, so the
+ * 20 ms servo frame fits (21.8 ms max) at 0.33 us resolution. */
+&pwm3 {
+	status = "okay";
+	divider = <RA_PWM_SOURCE_DIV_16>;
+	pinctrl-0 = <&tc_pwm3_default>;
+	pinctrl-names = "default";
+	interrupts = <21 1>, <22 1>;
+	interrupt-names = "gtioca", "overflow";
+};
+
+&adc0 {
+	pinctrl-0 = <&tc_adc0_default>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	channel@9 {
+		reg = <9>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+	};
+};
+
+/* SAVE + boot autorun: NVS on the 8 KB data flash (1 KB erase blocks). */
+&flash1 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		storage_partition: partition@0 {
+			label = "storage";
+			reg = <0x0 DT_SIZE_K(8)>;
+		};
+	};
+};

@@ -64,8 +64,9 @@ static const struct device* const uart_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_cons
 // bring-up: `LOAD` streamed 6 instructions, the board counted 2-3). The
 // ESP32-S3 keeps the bench-verified plain polling (its CDC-ACM console
 // selects UART_INTERRUPT_DRIVEN too, so gating on that alone would silently
-// change its behavior).
-#if defined(CONFIG_UART_INTERRUPT_DRIVEN) && defined(CONFIG_BOARD_NRF54LM20DK)
+// change its behavior). The UNO R4's SCI9 has no receive FIFO either.
+#if defined(CONFIG_UART_INTERRUPT_DRIVEN) && \
+    (defined(CONFIG_BOARD_NRF54LM20DK) || defined(CONFIG_BOARD_ARDUINO_UNO_R4))
 #define TC_UART_IRQ_RX 1
 #endif
 
@@ -132,10 +133,41 @@ static int map_pin(int logical) {
     default: return logical;      // unmapped: raw port*32+pin passthrough
   }
 }
+#elif defined(CONFIG_BOARD_ARDUINO_UNO_R4)
+// Arduino UNO R4 WiFi map (keep in sync with the IDE's lib/boards.ts UNO_R4_PINS
+// + docs/hardware.md). The result is the Arduino pin printed on the board
+// (D0..D13, A0..A5 = 14..19), an index into the overlay's zephyr,user tc-gpios
+// table. Motors are not wired in phase 1: -1 makes them no-ops. The HC-SR04
+// (D10/D11) is HAL-owned through the overlay's hcsr04 aliases.
+#define TC_ARDUINO_PINS 1
+static const struct gpio_dt_spec g_arduino_pins[] = {
+    DT_FOREACH_PROP_ELEM_SEP(DT_PATH(zephyr_user), tc_gpios, GPIO_DT_SPEC_GET_BY_IDX, (,))};
+static int map_pin(int logical) {
+  switch (logical) {
+    case 1:  return 2;   // green LED  -> D2
+    case 2:  return 3;   // yellow LED -> D3
+    case 4:  return 4;   // red LED    -> D4
+    case 5:  return 5;   // buzzer     -> D5 (GPT0, see the overlay)
+    case 6:  return 7;   // button A   -> D7
+    case 7:  return 8;   // PIR        -> D8
+    case 8:  return 6;   // servo      -> D6 (GPT3, see the overlay)
+    case 9:  return 14;  // analog in  -> A0
+    case 38: return 15;  // line left   -> A1
+    case 39: return 16;  // line center -> A2
+    case 40: return 17;  // line right  -> A3
+    case 41: return 12;  // obstacle    -> D12
+    case 42: return 9;   // relay       -> D9
+    default: return -1;  // not on this board
+  }
+}
 #else
 static inline int map_pin(int logical) { return logical; }
 #endif
 
+#ifdef TC_ARDUINO_PINS
+static const struct device* gpio_port(int pin) { return g_arduino_pins[pin].port; }
+static inline gpio_pin_t gpio_index(int pin) { return g_arduino_pins[pin].pin; }
+#else
 static const struct device* gpio_port(int pin) {
 #if DT_NODE_EXISTS(DT_NODELABEL(gpio3))
   if (pin >= 96) return DEVICE_DT_GET(DT_NODELABEL(gpio3));
@@ -149,6 +181,7 @@ static const struct device* gpio_port(int pin) {
   return DEVICE_DT_GET(DT_NODELABEL(gpio0));
 }
 static inline gpio_pin_t gpio_index(int pin) { return (gpio_pin_t)(pin % 32); }
+#endif
 
 #ifdef HAS_ADC
 static const struct adc_dt_spec g_adc = ADC_DT_SPEC_GET(ADC_NODE);
@@ -176,18 +209,29 @@ static bool g_hc_ready = false;
 // ── Non-volatile storage: NVS on the board's `storage` flash partition (192 KB
 // on the ESP32-S3, defined in its devicetree). One key holds the autorun program
 // text; SAVE writes it, boot reads it (see runtime::init). ──
-#if defined(CONFIG_BOARD_NRF54LM20DK)
+//
 // nRF54L RRAM: NVS reports writes OK but they do NOT read back on this
 // no-explicit-erase RRAM — a legacy/garbage storage region confuses NVS's
 // flash-page model (bench-proven: nvs_write returns >= 0, nvs_read returns
 // -EINVAL immediately after the write, so nothing autoruns on boot). RRAM is
 // byte-writable with overwrite, so persist the program as a length-prefixed blob
 // written straight to the storage partition via flash_area — no NVS, no erase.
+//
+// The UNO R4 uses the same blob on its 8 KB data flash: NVS there would cap a
+// saved program at one 1 KB sector. Unlike RRAM, RA data flash must be erased
+// before every rewrite (TC_STORE_ERASE).
+#if defined(CONFIG_BOARD_NRF54LM20DK) || defined(CONFIG_BOARD_ARDUINO_UNO_R4)
+#define TC_STORE_BLOB 1
+#endif
+#if defined(CONFIG_BOARD_ARDUINO_UNO_R4)
+#define TC_STORE_ERASE 1
+#endif
+#ifdef TC_STORE_BLOB
 static const struct flash_area* g_fa = nullptr;
 static bool g_nvs_ready = false;  // "store ready" (name shared with the NVS path)
 static constexpr uint32_t kStoreMagic = 0x54430201;  // 'T''C' 0x02 0x01
 static constexpr size_t kStoreWblk = 16;             // RRAM write-block-size (0x10)
-static char g_store_buf[4096 + kStoreWblk];          // 16-byte header block + program
+static char g_store_buf[CONFIG_TEXTOCHIP_STORE_BYTES + kStoreWblk];  // 16-byte header + program
 
 static void store_init() {
   if (flash_area_open(FIXED_PARTITION_ID(storage_partition), &g_fa) == 0)
@@ -335,7 +379,7 @@ void init() {
   store_init();
 }
 
-#if defined(CONFIG_BOARD_NRF54LM20DK)
+#ifdef TC_STORE_BLOB
 // flash_area store (RRAM). Layout: [magic u32][len u32][pad to 16][program bytes].
 static inline size_t store_align(size_t n) {
   return (n + (kStoreWblk - 1)) & ~(kStoreWblk - 1);
@@ -348,6 +392,9 @@ bool storeSave(const std::string& program) {
   memcpy(g_store_buf, &magic, 4);
   memcpy(g_store_buf + 4, &len, 4);
   memcpy(g_store_buf + kStoreWblk, program.data(), program.size());
+#ifdef TC_STORE_ERASE
+  if (flash_area_erase(g_fa, 0, g_fa->fa_size) != 0) return false;
+#endif
   return flash_area_write(g_fa, 0, g_store_buf, total) == 0;  // RRAM: overwrite, no erase
 }
 bool storeLoad(std::string& out) {
@@ -362,8 +409,12 @@ bool storeLoad(std::string& out) {
 }
 void storeClear() {
   if (!g_nvs_ready) return;
+#ifdef TC_STORE_ERASE
+  flash_area_erase(g_fa, 0, g_fa->fa_size);  // an erased header does not read as the magic
+#else
   memset(g_store_buf, 0, kStoreWblk);  // zero magic = no saved program
   flash_area_write(g_fa, 0, g_store_buf, kStoreWblk);
+#endif
 }
 void storeStatus(bool* mounted, int* savedBytes, int* sectorSize, int* sectorCount) {
   if (mounted) *mounted = g_nvs_ready;
@@ -416,14 +467,17 @@ void pinMode(int pin, int mode) {
                        : (mode == 2) ? (GPIO_INPUT | GPIO_PULL_DOWN)   // active-high sensor
                                      : (GPIO_INPUT | GPIO_PULL_UP);    // active-low button
   int p = map_pin(pin);
+  if (p < 0) return;  // no such pin on this board
   gpio_pin_configure(gpio_port(p), gpio_index(p), flags);
 }
 void pinWrite(int pin, int level) {
   int p = map_pin(pin);
+  if (p < 0) return;
   gpio_pin_set(gpio_port(p), gpio_index(p), level);
 }
 int pinRead(int pin) {
   int p = map_pin(pin);
+  if (p < 0) return 0;
   return gpio_pin_get(gpio_port(p), gpio_index(p));
 }
 
@@ -496,7 +550,7 @@ static const struct device* const pwm_motor = DEVICE_DT_GET(DT_ALIAS(tc_pwm_moto
 #define MOTOR_L_CH 0
 #define MOTOR_R_CH 1
 #define HAS_MOTORS 1
-#elif !defined(CONFIG_BOARD_NRF54LM20DK)
+#elif !defined(CONFIG_BOARD_NRF54LM20DK) && !defined(CONFIG_BOARD_ARDUINO_UNO_R4)
 #define MOTOR_DEV pwm_dev
 #define MOTOR_L_CH 2
 #define MOTOR_R_CH 3
@@ -516,12 +570,22 @@ void toneOff(int /*pin*/) { pwm_set(pwm_dev, 0, 1000000u, 0, 0); }
 
 // Servo on PWM channel 1 (overlay: LEDC_CH1 on a SEPARATE timer so the 50 Hz
 // servo frame is independent of the buzzer's variable tone frequency on ch0).
+// Boards whose PWM instances have one period for all channels (UNO R4 GPT)
+// put the servo on its own instance via the `tc-pwm-servo` alias, channel 0.
 // A standard hobby servo (SG90): 20 ms frame, 0.5 ms (0°) … 2.5 ms (180°) pulse.
+#if DT_NODE_EXISTS(DT_ALIAS(tc_pwm_servo))
+static const struct device* const pwm_servo = DEVICE_DT_GET(DT_ALIAS(tc_pwm_servo));
+#define SERVO_DEV pwm_servo
+#define SERVO_CH 0
+#else
+#define SERVO_DEV pwm_dev
+#define SERVO_CH 1
+#endif
 void servo(int /*pin*/, int angle) {
   if (angle < 0) angle = 0;
   if (angle > 180) angle = 180;
   uint32_t pulse = 500000u + (uint32_t)angle * 2000000u / 180u;  // ns
-  pwm_set(pwm_dev, 1, 20000000u, pulse, 0);                       // 20 ms = 50 Hz
+  pwm_set(SERVO_DEV, SERVO_CH, 20000000u, pulse, 0);              // 20 ms = 50 Hz
 }
 
 #ifdef HAS_MOTORS
@@ -768,6 +832,9 @@ std::string railProbe() {
 // Pads already spoken for (motors 5/6/7, buzzer 13, mic 14/23/31) are skipped:
 // driving a motor enable to probe it would twitch a wheel.
 std::string padScan() {
+#ifdef TC_ARDUINO_PINS
+  return " n/a";  // raw nRF port-1 pads; the Arduino pin table has no such pins
+#endif
   std::string out;
   const int used[] = {5, 6, 7, 13, 14, 22, 23, 25, 26, 31};
   for (int i = 0; i <= 15; i++) {

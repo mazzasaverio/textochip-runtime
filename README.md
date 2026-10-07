@@ -75,7 +75,7 @@ can tell a maker their board is behind. Do not copy hexes by hand.
 
 ## Build for hardware
 
-Both boards build from this folder with `west`. Per-board work lives only in
+Every board builds from this folder with `west`. Per-board work lives only in
 `zephyr/boards/` plus the pin map in `hal_zephyr.cpp`.
 
 ### ESP32-S3 (upstream Zephyr + Zephyr SDK)
@@ -113,6 +113,28 @@ the product's user installer works around it with verify + retry. Both builds ha
 edge-AI tier ON (`CONFIG_TEXTOCHIP_AI=y`); the B build adds `CONFIG_TEXTOCHIP_NRF_EDGEAI=y`
 to swap the classifier for Nordic's Axon model. Port notes,
 bring-up log and pitfalls: [`docs/nordic-nrf-connect-sdk.md`](docs/nordic-nrf-connect-sdk.md).
+
+### Arduino UNO R4 WiFi (upstream Zephyr + Zephyr SDK), build-proven only
+
+```bash
+west build -b arduino_uno_r4@wifi zephyr
+pyocd pack install r7fa4m1ab   # once
+west flash                     # pyOCD over the USB-C port (to confirm on the bench)
+```
+
+Build-proven on 2026-10-07 (Zephyr 4.4.99): 90.2 KB of 240 KB flash, 31.1 KB of
+32 KB RAM, all of it static (VM, heap, stacks). Not yet flashed or smoke-tested.
+
+- One USB-C cable for flash and IDE. The port is an ESP32-S3 USB bridge wired to
+  the RA4M1's SCI9; the overlay moves the console there from upstream's SCI2.
+- No AI tier (`CONFIG_TEXTOCHIP_AI=n`): `VOICE()` and `SEE()` read "none", and the
+  `SEE`/`SNAP` bench commands are compiled out.
+- Programs are capped at 128 instructions (`CONFIG_TEXTOCHIP_MAX_PROGRAM`) and a
+  saved program at 2 KB of text, to fit 32 KB of RAM.
+- Logical pins land on the Arduino numbers printed on the board; the map is in
+  [`docs/hardware.md`](docs/hardware.md). I/O is **5 V**.
+- Motors, the 12x8 LED matrix and Wi-Fi are not wired yet. The relay (D9) and the
+  HC-SR04 (D10/D11) are.
 
 ## Status (bench-verified)
 

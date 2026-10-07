@@ -17,6 +17,7 @@ if(NOT TEXTOCHIP_BUILD_ID)
   set(TEXTOCHIP_BUILD_ID "unknown")
 endif()
 target_compile_definitions(app PRIVATE TEXTOCHIP_BUILD="${TEXTOCHIP_BUILD_ID}")
+target_compile_definitions(app PRIVATE MAX_PROGRAM=${CONFIG_TEXTOCHIP_MAX_PROGRAM})
 
 # The portable core lives in ../src and is shared with the host build verbatim.
 target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src)
@@ -145,4 +146,8 @@ else()
   # trips over it ("operator delete is private"). The glue only sets -fno-rtti.
   target_compile_options(modules__tflite-micro PRIVATE -fno-exceptions)
 endif()  # NRF_EDGEAI vs TFLM backend
+else()
+  # No AI tier: vision_service (and its frame buffer) is not linked, so the
+  # SEE / SNAP bench commands are compiled out of runtime.cpp too.
+  target_compile_definitions(app PRIVATE TEXTOCHIP_NO_VISION)
 endif()  # CONFIG_TEXTOCHIP_AI

@@ -106,6 +106,7 @@ open runtime others can audit, port, and contribute missions to, without giving 
 moat. Edit the firmware **only here** — the product no longer carries a copy.
 
 The public-release decision and rejected alternatives are recorded in
-[`docs/DECISIONS.md`](docs/DECISIONS.md). Current work belongs in
-[`docs/ROADMAP.md`](docs/ROADMAP.md); the old roadmap here was removed after its Nordic voice,
-vision and persistence items shipped.
+[`docs/DECISIONS.md`](docs/DECISIONS.md). Current work belongs in the product roadmap, in the
+`textochip` repository (`docs/03-roadmap.md`); the old roadmap here was removed after its Nordic
+voice, vision and persistence items shipped, and the runtime's own former roadmap is in
+[`docs/archive/ROADMAP.md`](docs/archive/ROADMAP.md).

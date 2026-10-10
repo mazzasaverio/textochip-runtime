@@ -1,5 +1,16 @@
 # Project log
 
+## 2026-10-10
+
+- Aligned the repo with the owner's core standard: `AGENTS.md` rewritten to the template
+  (the vendored ops kernel and `.agent-standards/` removed), root `Makefile` with
+  `check`, `check-fast` and `dev` over the host suite, Claude hook running
+  `make check-fast` after edits, `.agents/skills` linked to `.claude/skills`,
+  `docs/research/` started, `docs/CHANGELOG.md` added at 0.1.0.
+- `docs/VISION.md` and `docs/ROADMAP.md` moved to `docs/archive/`: direction now lives
+  in the `textochip` repo's numbered documents.
+- `make check` green (host build and the eight secret-free host tests).
+
 ## 2026-09-03
 
 - Published the runtime repository as open source under Apache-2.0.

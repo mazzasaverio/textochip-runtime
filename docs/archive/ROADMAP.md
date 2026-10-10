@@ -1,3 +1,5 @@
+> Archived 2026-10-10: superseded by the bets in the `textochip` repository's `docs/03-roadmap.md`; the "Released" items are in this repo's `docs/CHANGELOG.md` (0.1.0).
+
 # Runtime roadmap
 
 Last reviewed: 2026-09-03.

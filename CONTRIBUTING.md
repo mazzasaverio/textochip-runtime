@@ -4,7 +4,7 @@ Thanks for helping make the Text to Chip Runtime more portable and dependable.
 
 ## Start here
 
-1. Read [the runtime vision](docs/VISION.md), [the architecture](ARCHITECTURE.md)
+1. Read [the project rules](AGENTS.md), [the architecture](ARCHITECTURE.md)
    and [the bytecode contract](SPEC.md).
 2. Open an issue before making an ISA or serial-protocol change. Compatibility
    is part of the product contract.

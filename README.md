@@ -193,10 +193,12 @@ entries.
 
 - [`SPEC.md`](SPEC.md): the bytecode ISA + serial protocol, the contract with the product repo. Keep them in sync.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md): how the core, HAL and boards fit together.
-- [`docs/VISION.md`](docs/VISION.md): purpose, audience, open-core boundary and durable advantage.
-- [`docs/ROADMAP.md`](docs/ROADMAP.md): the current outcome-based execution sequence.
+- [`AGENTS.md`](AGENTS.md): the working rules, conventions and traps for anyone (or any agent) changing this repo.
+- [`docs/CHANGELOG.md`](docs/CHANGELOG.md): what each runtime release changed for its users.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md): append-only policy and architecture decisions.
 - [`docs/LOG.md`](docs/LOG.md): concise project and verification history.
+- The product's vision and roadmap live in the `textochip` repository; the runtime's
+  earlier ones are kept in [`docs/archive/`](docs/archive/).
 - [`docs/bench-runbook.md`](docs/bench-runbook.md): wiring + stage-by-stage bring-up of the voice robot.
 - [`docs/edge-ai.md`](docs/edge-ai.md): the VOICE()/SEE() inference design.
 - [`docs/nordic-nrf-connect-sdk.md`](docs/nordic-nrf-connect-sdk.md): the Nordic port, living notes.

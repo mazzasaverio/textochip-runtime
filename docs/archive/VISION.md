@@ -1,3 +1,5 @@
+> Archived 2026-10-10: superseded by the product's direction documents in the `textochip` repository (`docs/01-vision.md` to `04-decisions.md`); its runtime boundaries now live in this repo's `AGENTS.md`, "Project conventions".
+
 # Runtime vision
 
 Text to Chip Runtime is the open, auditable layer that turns a small bytecode

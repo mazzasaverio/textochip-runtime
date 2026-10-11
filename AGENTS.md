@@ -131,8 +131,9 @@ No UI in this repo. The IDE, its design system and every user-facing screen live
 
 - Tasks are GitHub issues in this repo, labelled with a role (`role:researcher`) and a
   track: `bet:<n>` for the current bet (in `textochip/docs/03-roadmap.md`), `run` for
-  keeping the product alive. At most two in progress (`doing`), normally one per track;
-  `waiting` means a decision for the owner. The `operating-lead` skill keeps the queue
+  keeping the product alive. Decided work starts at once (`doing`), each task by an
+  agent in its own worktree; tasks on the same files run one after the other; `waiting`
+  means a decision for the owner. The `operating-lead` skill keeps the queue
   (`core/holding/02-ceo-manual.md`, "How work flows").
 - A pull request that changes something for the users (makers, the IDE, contributors)
   adds its entry to `docs/CHANGELOG.md` (`stack-rules`, rule 18).

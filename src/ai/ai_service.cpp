@@ -38,7 +38,11 @@ int g_hop = 0;   // slide between inferences (samples)
 int g_have = 0;  // valid samples currently held in g_signal
 bool g_ready = false;
 
-float g_signal[kMaxSamples];  // the rolling window, float ~ -1..1 (raw mic units)
+// The rolling window, as the raw (median-filtered) mic samples: read as
+// sample / 32768.0f, the float it used to hold, bit for bit. Half the RAM of
+// a float window (32 KB), which the ESP32-S3 image needed to link (2026-10-13).
+int16_t g_signal[kMaxSamples];
+inline float signalAt(int i) { return (float)g_signal[i] / 32768.0f; }
 float g_proc[kMaxSamples];    // DC-removed + gained copy — the actual MFCC input
 float g_feat[kMaxFeat];       // MFCC output (n_frames * n_mfcc)
 int16_t g_scratch[kChunk];    // small drain buffer for hal::aiCapture
@@ -187,7 +191,7 @@ int ai_service::poll() {
       int16_t m = v[2];
       int d = (int)m - (int)center;
       if (d > 3277 || d < -3277) g_spikes++;  // replaced by > 0.1 FS
-      g_signal[g_have + i] = (float)m / 32768.0f;
+      g_signal[g_have + i] = m;
       g_medh[0] = g_medh[1];
       g_medh[1] = g_medh[2];
       g_medh[2] = g_medh[3];
@@ -202,7 +206,10 @@ int ai_service::poll() {
   // 3. Full window: extract MFCC and classify (confidence-gated — see kMinConfidence).
   {
     float sumabs = 0.0f;
-    for (int i = 0; i < g_win; i++) sumabs += g_signal[i] < 0 ? -g_signal[i] : g_signal[i];
+    for (int i = 0; i < g_win; i++) {
+      const float s = signalAt(i);
+      sumabs += s < 0 ? -s : s;
+    }
     g_lastLevel = (int)(sumabs / (float)g_win * 32768.0f);
   }
   // Condition a COPY of the window (g_proc): high-pass + envelope AGC (see the
@@ -213,7 +220,7 @@ int ai_service::poll() {
     float py = 0.0f;
     g_proc[0] = 0.0f;
     for (int i = 1; i < g_win; i++) {
-      py = g_signal[i] - g_signal[i - 1] + kHpfPole * py;
+      py = signalAt(i) - signalAt(i - 1) + kHpfPole * py;
       g_proc[i] = py;
     }
     // 2. envelope: max of 10 ms block mean-abs (spike-immune loudness estimate)
@@ -314,7 +321,7 @@ int ai_service::poll() {
   //    so the next inference overlaps this one — a keyword that lands across a
   //    window boundary still gets a clean look on the following window.
   int keep = g_win - g_hop;
-  memmove(g_signal, g_signal + g_hop, (size_t)keep * sizeof(float));
+  memmove(g_signal, g_signal + g_hop, (size_t)keep * sizeof(g_signal[0]));
   g_have = keep;
 
   return cls < 0 ? 0 : cls;

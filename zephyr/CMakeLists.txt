@@ -69,6 +69,8 @@ if(CONFIG_TEXTOCHIP_AI)
     target_compile_definitions(app PRIVATE TEXTOCHIP_VISION_COLOR)
     target_sources(app PRIVATE ../src/ai/color_detect.c)
   else()
+    # No camera: SEE() reads "nothing", and the service keeps no frame buffer.
+    target_compile_definitions(app PRIVATE TEXTOCHIP_VISION_NONE)
     target_sources(app PRIVATE ../src/ai/ai_vision_stub.cpp)
   endif()
 

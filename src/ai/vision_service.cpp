@@ -22,10 +22,12 @@
 //                            (VISION_LABELS 1..3). Needs a trained model.
 namespace {
 
-#ifndef TEXTOCHIP_VISION_NPU
+#if !defined(TEXTOCHIP_VISION_NPU) && !defined(TEXTOCHIP_VISION_NONE)
 // The NPU backend captures and converts on its own; this frame buffer exists
 // only for the colour / object-model paths (27 KB the NPU build spends on the
-// model instead).
+// model instead). A board with no camera (TEXTOCHIP_VISION_NONE, set by
+// zephyr/CMakeLists.txt) has no frame to fill: its 9 KB were the difference
+// between the ESP32-S3 image linking or not (2026-10-13).
 #ifdef TEXTOCHIP_VISION_COLOR
 constexpr int kBytesPerPixel = 3;  // RGB888
 #else
@@ -85,7 +87,7 @@ void applyGeometry(int raw, int nx, int nsize) {
 }  // namespace
 
 void vision_service::reset() {
-#ifndef TEXTOCHIP_VISION_NPU
+#if !defined(TEXTOCHIP_VISION_NPU) && !defined(TEXTOCHIP_VISION_NONE)
   g_have = 0;
 #endif
   g_emaValid = false;
@@ -108,6 +110,10 @@ int vision_service::poll() {
   g_lastRaw = raw;
   applyGeometry(raw, npu_vision_x(), npu_vision_size());
   return g_confirmed;
+#elif defined(TEXTOCHIP_VISION_NONE)
+  // No camera on this board: never a frame, as before when camCapture()
+  // returned 0 into a frame that could not fill.
+  return -1;
 #else
   // 1. Drain a bounded chunk of camera bytes into the frame (non-blocking).
   int room = kFrameBytes - g_have;

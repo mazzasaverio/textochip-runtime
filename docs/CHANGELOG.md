@@ -9,6 +9,15 @@ terminal), the `textochip` IDE and compiler that talk to it through the bytecode
 serial contract in `SPEC.md`, and contributors who build it from source.
 Implementation details stay in git and in `LOG.md`.
 
+## 0.4.1 - 2026-10-14T01:00+02:00 - The ESP32-S3 image fits again
+
+- **The ESP32-S3 builds again:** its image had outgrown the chip's internal RAM by
+  39 KB. The voice window now holds the microphone's 16-bit samples instead of floats
+  (32 KB less, the same values to the bit), and a board with no camera keeps no camera
+  frame (9 KB less). Nothing a program does changes on any board.
+- Verified: the host tests, the voice service end to end (TTS words to MOVE) with the
+  same output before and after, and the four images built in CI.
+
 ## 0.4.0 - 2026-10-13T23:00+02:00 - The board says what it is
 
 - **The CAPS handshake:** a new `CAPS` command answers with the build, the contract

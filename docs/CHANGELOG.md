@@ -9,6 +9,16 @@ terminal), the `textochip` IDE and compiler that talk to it through the bytecode
 serial contract in `SPEC.md`, and contributors who build it from source.
 Implementation details stay in git and in `LOG.md`.
 
+## 0.2.0 - 2026-10-13T18:00+02:00 - A blue LED
+
+- **A fourth LED pin:** the IDE's blue LED (`LED blue, on`, logical pin 18) reaches a
+  pad on every board: GPIO18 on the ESP32-S3 (no firmware change needed there), A4 on
+  the UNO R4 WiFi, and the DK's on-board LED3 (P1.28) on the Nordic nRF54LM20 DK. Until
+  a board runs this build, a blue LED on the UNO R4 stays dark and on the DK the write
+  goes to the unmapped raw pad P0.18.
+- **Validation:** the host build and test suite (`make check`); the board builds and
+  the bench check of the two new pads are still to do.
+
 ## 0.1.0 - 2026-10-07T21:11+02:00 - Baseline
 
 - **Runs IDE programs:** the runtime runs the Chip BASIC bytecode produced by the IDE

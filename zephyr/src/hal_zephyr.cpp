@@ -106,7 +106,7 @@ static void serial_rx_init() {}
 // translates to raw = port*32 + pin.
 #if defined(CONFIG_BOARD_NRF54LM20DK)
 // Nordic nRF54LM20 DK map (PROVISIONAL — finalize at the bench; keep in sync
-// with lib/boards.ts NORDIC_PINS + docs/hardware.md). Phase 1: the three LED
+// with lib/boards.ts NORDIC_PINS + docs/hardware.md). Phase 1: the four LED
 // pins go to the ON-BOARD LEDs (all green — no wiring needed to see the
 // semaforo cycle) and button A to the on-board Button 0. Colored external
 // LEDs on the header come with phase 2.
@@ -115,6 +115,7 @@ static int map_pin(int logical) {
     case 4:  return 1 * 32 + 22;  // red LED    -> LED0 (P1.22, on-board)
     case 2:  return 1 * 32 + 25;  // yellow LED -> LED1 (P1.25, on-board)
     case 1:  return 1 * 32 + 27;  // green LED  -> LED2 (P1.27, on-board)
+    case 18: return 1 * 32 + 28;  // blue LED   -> LED3 (P1.28, on-board, green)
     case 5:  return 1 * 32 + 13;  // buzzer     -> P1.13 (D5; PWM in phase 2)
     case 6:  return 1 * 32 + 26;  // button A   -> Button 0 (P1.26, on-board)
     case 7:  return 3 * 32 + 0;   // PIR        -> P3.00 (D6)
@@ -147,6 +148,7 @@ static int map_pin(int logical) {
     case 1:  return 2;   // green LED  -> D2
     case 2:  return 3;   // yellow LED -> D3
     case 4:  return 4;   // red LED    -> D4
+    case 18: return 18;  // blue LED   -> A4
     case 5:  return 5;   // buzzer     -> D5 (GPT0, see the overlay)
     case 6:  return 7;   // button A   -> D7
     case 7:  return 8;   // PIR        -> D8

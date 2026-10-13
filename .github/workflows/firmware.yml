@@ -1,0 +1,217 @@
+name: Firmware
+
+# Every board's firmware, built from this commit by a machine instead of a
+# laptop (docs/spec-platform.md in textochip, step 1c). The hosted images went
+# stale three times while they were built by hand (scripts/publish-hex.sh);
+# here each image is built from the commit it names, with the CAPS line that
+# says so, and handed over with a manifest the IDE reads
+# (textochip public/firmware/firmware.json).
+#
+#   nrf54lm20dk   (A)  NCS v3.4.0, TFLite Micro voice + colour vision
+#   nrf54lm20dk-b (B)  NCS v3.4.0 + sdk-edge-ai v2.2.0, person detection on the Axon
+#   unor4wifi          upstream Zephyr ef440e43c (before the flash1 rename)
+#   esp32s3            the same upstream Zephyr, hal_espressif and its blobs
+#
+# Both toolchains come from their makers: Nordic's NCS toolchain image, and
+# the Zephyr SDK 1.0.1 that the upstream tree asks for (zephyr/SDK_VERSION).
+#
+# Publishing: with the TEXTOCHIP_PUBLISH_TOKEN secret (a fine-grained token
+# with contents:write on mazzasaverio/textochip), a push to main also pushes
+# the images to the branch firmware-<sha> of textochip, ready to merge.
+# Without it the images stay as this run's artifact.
+
+on:
+  push:
+    paths:
+      - src/**
+      - zephyr/**
+      - third_party/**
+      - .github/workflows/firmware.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NCS_VERSION: v3.4.0
+  EDGEAI_VERSION: v2.2.0
+  ZEPHYR_UPSTREAM: ef440e43c6762917a1290b342de1f3857548e5a4
+
+jobs:
+  nordic:
+    runs-on: ubuntu-24.04
+    container: ghcr.io/nrfconnect/sdk-nrf-toolchain:v3.4.0
+    defaults:
+      run:
+        # The image's BASH_ENV puts the toolchain on PATH for every step.
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+          path: runtime
+
+      - name: Trust the checkout (the build id is its git hash)
+        run: git config --global --add safe.directory '*'
+
+      - name: Cache the NCS workspace
+        uses: actions/cache@v4
+        with:
+          path: ncs
+          key: ncs-${{ env.NCS_VERSION }}-edgeai-${{ env.EDGEAI_VERSION }}
+
+      - name: Fetch NCS and sdk-edge-ai
+        run: |
+          if [ ! -d ncs/.west ]; then
+            west init -m https://github.com/nrfconnect/sdk-nrf --mr "$NCS_VERSION" ncs
+            (cd ncs && west update --narrow -o=--depth=1)
+            git clone --depth 1 --branch "$EDGEAI_VERSION" \
+              https://github.com/nrfconnect/sdk-edge-ai ncs/sdk-edge-ai
+          fi
+
+      - name: Fetch TFLite Micro's third-party sources
+        run: make -C runtime/third_party/tflite-micro -f tensorflow/lite/micro/tools/make/Makefile third_party_downloads
+
+      - name: Build the A target
+        working-directory: runtime
+        run: |
+          ZEPHYR_BASE="$GITHUB_WORKSPACE/ncs/zephyr" west build --pristine \
+            -b nrf54lm20dk/nrf54lm20a/cpuapp zephyr -d build_dk_a
+          mkdir -p ../out
+          cp build_dk_a/zephyr/zephyr/zephyr.hex ../out/textochip-nrf54lm20dk.hex
+
+      - name: Build the B target (person detection on the Axon)
+        working-directory: runtime
+        run: |
+          ZEPHYR_BASE="$GITHUB_WORKSPACE/ncs/zephyr" west build --pristine \
+            -b nrf54lm20dk/nrf54lm20b/cpuapp zephyr -d build_dk_b -- \
+            -DEXTRA_ZEPHYR_MODULES="$GITHUB_WORKSPACE/ncs/sdk-edge-ai" \
+            -DCONFIG_TEXTOCHIP_NRF_PERSONDET=y \
+            -DCONFIG_NRF_AXON_INTERLAYER_BUFFER_SIZE=229376
+          cp build_dk_b/zephyr/zephyr/zephyr.hex ../out/textochip-nrf54lm20dk-b.hex
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware-nordic
+          path: out/
+          if-no-files-found: error
+
+  upstream:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: unor4wifi
+            board: arduino_uno_r4@wifi
+            toolchain: arm-zephyr-eabi
+            modules: hal_renesas cmsis_6 picolibc
+          - id: esp32s3
+            board: esp32s3_devkitc/esp32s3/procpu
+            toolchain: xtensa-espressif_esp32s3_zephyr-elf
+            modules: hal_espressif picolibc
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+          path: runtime
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install the host tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -yq --no-install-recommends ninja-build device-tree-compiler
+          pip install west
+
+      - name: Fetch Zephyr and the board's modules
+        run: |
+          mkdir -p zp && cd zp
+          git init -q zephyr
+          git -C zephyr fetch -q --depth 1 https://github.com/zephyrproject-rtos/zephyr "$ZEPHYR_UPSTREAM"
+          git -C zephyr checkout -q FETCH_HEAD
+          west init -l zephyr
+          west update --narrow -o=--depth=1 ${{ matrix.modules }}
+          pip install -r zephyr/scripts/requirements-base.txt -r zephyr/scripts/requirements-run.txt
+          if [ "${{ matrix.id }}" = esp32s3 ]; then west blobs fetch hal_espressif; fi
+
+      - name: Install the Zephyr SDK and the board's toolchain
+        run: |
+          V=$(cat zp/zephyr/SDK_VERSION)
+          wget -q "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v$V/zephyr-sdk-${V}_linux-x86_64_minimal.tar.xz"
+          tar xf "zephyr-sdk-${V}_linux-x86_64_minimal.tar.xz" -C "$HOME"
+          "$HOME/zephyr-sdk-$V/setup.sh" -t "${{ matrix.toolchain }}" -c
+
+      - name: Fetch TFLite Micro's third-party sources
+        if: matrix.id == 'esp32s3'
+        run: make -C runtime/third_party/tflite-micro -f tensorflow/lite/micro/tools/make/Makefile third_party_downloads
+
+      - name: Build
+        working-directory: runtime
+        env:
+          ZEPHYR_BASE: ${{ github.workspace }}/zp/zephyr
+          ZEPHYR_TOOLCHAIN_VARIANT: zephyr
+        run: |
+          west build --pristine -b "${{ matrix.board }}" zephyr -d build
+          mkdir -p ../out
+          if [ "${{ matrix.id }}" = unor4wifi ]; then
+            "$HOME"/zephyr-sdk-*/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-objcopy -O binary \
+              -R .option_setting_osis build/zephyr/zephyr.elf ../out/textochip-unor4wifi.bin
+          else
+            cp build/zephyr/zephyr.bin ../out/textochip-esp32s3.bin
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ matrix.id }}
+          path: out/
+          if-no-files-found: error
+
+  manifest:
+    needs: [nordic, upstream]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: firmware-*
+          merge-multiple: true
+          path: firmware
+
+      - name: Write the manifest the IDE reads
+        run: |
+          B=$(echo "$GITHUB_SHA" | cut -c1-7)
+          cat > firmware/firmware.json <<EOF
+          {
+            "esp32s3": { "build": "$B", "caps": true, "image": "textochip-esp32s3.bin" },
+            "nrf54lm20dk": { "build": "$B", "caps": true, "image": "textochip-nrf54lm20dk.hex" },
+            "unor4wifi": { "build": "$B", "caps": true, "image": "textochip-unor4wifi.bin" }
+          }
+          EOF
+          echo "$B" > firmware/textochip-nrf54lm20dk.version
+          ls -l firmware
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: firmware/
+
+      - name: Push the images to textochip (branch firmware-<sha>)
+        if: github.ref == 'refs/heads/main'
+        env:
+          TOKEN: ${{ secrets.TEXTOCHIP_PUBLISH_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "No TEXTOCHIP_PUBLISH_TOKEN: the images stay as this run's artifact."
+            exit 0
+          fi
+          B=$(echo "$GITHUB_SHA" | cut -c1-7)
+          git clone -q --depth 1 "https://x-access-token:$TOKEN@github.com/mazzasaverio/textochip" product
+          cp firmware/* product/public/firmware/
+          cd product
+          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$(date -u +%F)-$B\"/" public/firmware/manifest.json
+          git checkout -q -b "firmware-$B"
+          git -c user.name="textochip-runtime CI" -c user.email="ci@textochip.com" \
+            commit -qam "Publish the firmware built from textochip-runtime $B"
+          git push -q origin "firmware-$B"

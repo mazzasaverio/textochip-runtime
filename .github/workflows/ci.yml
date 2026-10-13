@@ -10,11 +10,10 @@ name: CI
 # error in the one thing that can be checked without a board should never
 # survive a push again.
 #
-# Deliberately NOT here: the Zephyr firmware build. It needs the nRF Connect
-# SDK toolchain (multi-GB) and the proprietary sdk-edge-ai add-on, which is
-# not ours to fetch in CI. Board builds stay a local step, gated by
-# scripts/hooks/pre-push + scripts/publish-hex.sh. Also skipped: test-vision
-# and ai-infer, which need the TFLite Micro submodule built (~minutes).
+# Deliberately NOT here: the Zephyr firmware builds, which take tens of
+# minutes and gigabytes of SDK. They have their own workflow, firmware.yml,
+# run when the firmware sources change. Also skipped: test-vision and
+# ai-infer, which need the TFLite Micro submodule built (~minutes).
 
 on:
   push:

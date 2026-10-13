@@ -4,6 +4,20 @@ Non-obvious project decisions are recorded newest first. Earlier technical
 rationale remains in [ARCHITECTURE.md](../ARCHITECTURE.md); new or changed
 policy belongs here.
 
+## 2026-10-14: Images from CI reach makers without a bench check
+
+**Decision:** the owner's (textochip `docs/04-decisions.md`, 2026-10-14): the images
+`.github/workflows/firmware.yml` builds are published to makers as they are, for every
+board. This replaces the rule of 2026-10-07 that a republished hex needs a bench check
+on the DK first.
+
+**Why:** every image is built in CI from the commit it names and answers `CAPS` with
+that build; the code passes the host suite, the contract-3 pad rules and textochip's
+differential test (10,000 programs against the simulator).
+
+**Cost:** a fault only the hardware shows reaches makers before anyone sees it on a
+bench. The way back is republishing the previous images, which stay in textochip's git.
+
 ## 2026-10-07: The UNO R4's "L" LED mirrors the red LED
 
 **Decision:** on the UNO R4 WiFi, every `MODE`/`SET` on logical pin 4 (red LED,

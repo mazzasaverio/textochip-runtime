@@ -15,10 +15,10 @@ name: Firmware
 # Both toolchains come from their makers: Nordic's NCS toolchain image, and
 # the Zephyr SDK 1.0.1 that the upstream tree asks for (zephyr/SDK_VERSION).
 #
-# Publishing: with the TEXTOCHIP_PUBLISH_TOKEN secret (a fine-grained token
-# with contents:write on mazzasaverio/textochip), a push to main also pushes
-# the images to the branch firmware-<sha> of textochip, ready to merge.
-# Without it the images stay as this run's artifact.
+# Publishing (the owner, 2026-10-14: no bench check before makers get it): with
+# the TEXTOCHIP_PUBLISH_TOKEN secret (a fine-grained token with contents:write on
+# mazzasaverio/textochip), a push to main also pushes the images to textochip
+# main, which deploys them. Without it the images stay as this run's artifact.
 
 on:
   push:
@@ -245,7 +245,7 @@ jobs:
           name: firmware
           path: firmware/
 
-      - name: Push the images to textochip (branch firmware-<sha>)
+      - name: Publish the images to textochip main
         if: github.ref == 'refs/heads/main'
         env:
           TOKEN: ${{ secrets.TEXTOCHIP_PUBLISH_TOKEN }}
@@ -268,7 +268,8 @@ jobs:
           PY
           cd product
           sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$(date -u +%F)-$B\"/" public/firmware/manifest.json
-          git checkout -q -b "firmware-$B"
+          git add -A public/firmware
+          git diff --cached --quiet && { echo "nothing new to publish"; exit 0; }
           git -c user.name="textochip-runtime CI" -c user.email="ci@textochip.com" \
-            commit -qam "Publish the firmware built from textochip-runtime $B"
-          git push -q origin "firmware-$B"
+            commit -qm "Publish the firmware built from textochip-runtime $B"
+          git push -q origin HEAD:main

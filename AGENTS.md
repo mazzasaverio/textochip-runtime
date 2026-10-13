@@ -69,9 +69,11 @@ SPEC.md       the bytecode ISA and serial protocol: the contract with textochip
   `textochip/public/firmware/`, then commits and pushes `textochip` main, which deploys
   the site. Running it is a production release of `textochip`.
 - The firmware workflow (`.github/workflows/firmware.yml`) builds all four images on
-  each firmware change; with `TEXTOCHIP_PUBLISH_TOKEN` it pushes them to a
-  `firmware-<sha>` branch of `textochip`, never to its main.
-- A republished hex needs a bench check on the DK first (`docs/DECISIONS.md`,
+  each firmware change; on main, with `TEXTOCHIP_PUBLISH_TOKEN`, it pushes them to
+  `textochip` main, which deploys them. Without the token, copy them from the run's
+  `firmware` artifact into `textochip/public/firmware/` and push.
+- Images built by the firmware workflow are published to makers without a bench check
+  (the owner, `docs/DECISIONS.md`, 2026-10-14; it replaced the bench check of
   2026-10-07).
 - The firmware answers `VER` with its build id (the short commit), so the IDE can tell a
   maker their board is behind.

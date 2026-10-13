@@ -109,10 +109,13 @@ jobs:
       - name: Build the B target (person detection on the Axon)
         working-directory: runtime
         run: |
+          # zephyr/CMakeLists.txt finds the person detector at its default
+          # place, ~/projects/labs/sdk-edge-ai (a -D does not cross sysbuild)
+          mkdir -p "$HOME/projects/labs"
+          ln -sfn "$GITHUB_WORKSPACE/ncs/sdk-edge-ai" "$HOME/projects/labs/sdk-edge-ai"
           ZEPHYR_BASE="$GITHUB_WORKSPACE/ncs/zephyr" west build --pristine \
             -b nrf54lm20dk/nrf54lm20b/cpuapp zephyr -d build_dk_b -- \
             -DEXTRA_ZEPHYR_MODULES="$GITHUB_WORKSPACE/ncs/sdk-edge-ai" \
-            -Dzephyr_TC_PERSONDET_DIR="$GITHUB_WORKSPACE/ncs/sdk-edge-ai/applications/person_detection/src" \
             -DCONFIG_TEXTOCHIP_NRF_PERSONDET=y \
             -DCONFIG_NRF_AXON_INTERLAYER_BUFFER_SIZE=229376
           cp build_dk_b/zephyr/zephyr/zephyr.hex ../out/textochip-nrf54lm20dk-b.hex

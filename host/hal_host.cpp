@@ -28,7 +28,22 @@ std::vector<unsigned char> g_rgb;  // RGB camera frame stub (host_feed_rgb)
 size_t g_rgbPos = 0;
 int g_moveL = 0, g_moveR = 0;
 bool g_moved = false;
+std::string g_lastLine;
+bool g_quiet = false;
+int g_toneHz = 0;
+int g_servoAngle = -1;
 }  // namespace
+
+int host_get_tone() { return g_toneHz; }
+int host_get_servo() { return g_servoAngle; }
+void host_reset_pins() {
+  g_level.fill(0);
+  g_mode.fill(0);
+  g_toneHz = 0;
+  g_servoAngle = -1;
+}
+const std::string& host_last_line() { return g_lastLine; }
+void host_set_quiet(bool quiet) { g_quiet = quiet; }
 
 void host_advance(uint32_t ms) { g_now += ms; }
 void host_set_distance(int cm) { g_distance = cm; }
@@ -64,9 +79,16 @@ bool host_get_move(int* left, int* right) {
   return g_moved;
 }
 
+// Which board the host stands in for (pads.h): PAD_HOST by default; a test
+// sets another to exercise that board's pad names and rules.
+static PadBoard g_padBoard = PAD_HOST;
+void host_set_pad_board(PadBoard b) { g_padBoard = b; }
+
 namespace hal {
 
 void init() {}
+
+PadBoard padBoard() { return g_padBoard; }
 
 void pinMode(int pin, int mode) {
   if (pin >= 0 && pin < 128) g_mode[pin] = mode;
@@ -76,7 +98,7 @@ void pinWrite(int pin, int level) {
   if (pin < 0 || pin >= 128) return;
   if (g_level[pin] != level) {  // only print transitions, keeps the trace readable
     g_level[pin] = level;
-    std::printf("    [t=%6ums] pin%-2d = %d\n", g_now, pin, level);
+    if (!g_quiet) std::printf("    [t=%6ums] pin%-2d = %d\n", g_now, pin, level);
   }
 }
 
@@ -94,13 +116,20 @@ int analogRead(int /*pin*/) { return 0; }
 
 int distanceCm() { return g_distance; }
 
-void tone(int pin, int hz) { std::printf("    [t=%6ums] buzzer pin%d -> %d Hz\n", g_now, pin, hz); }
-void toneOff(int pin) { std::printf("    [t=%6ums] buzzer pin%d off\n", g_now, pin); }
+void tone(int pin, int hz) {
+  g_toneHz = hz;
+  if (!g_quiet) std::printf("    [t=%6ums] buzzer pin%d -> %d Hz\n", g_now, pin, hz);
+}
+void toneOff(int pin) {
+  g_toneHz = 0;
+  if (!g_quiet) std::printf("    [t=%6ums] buzzer pin%d off\n", g_now, pin);
+}
 
 void servo(int pin, int angle) {
   if (angle < 0) angle = 0;
   if (angle > 180) angle = 180;
-  std::printf("    [t=%6ums] servo pin%d -> %d deg\n", g_now, pin, angle);
+  g_servoAngle = angle;
+  if (!g_quiet) std::printf("    [t=%6ums] servo pin%d -> %d deg\n", g_now, pin, angle);
 }
 
 // Differential-drive motors — host edition just prints the wheel speeds (no real
@@ -111,7 +140,7 @@ bool isMoving() { return g_moveL != 0 || g_moveR != 0; }
 void move(int left, int right) {
   auto clamp = [](int v) { return v < -255 ? -255 : v > 255 ? 255 : v; };
   int l = clamp(left), r = clamp(right);
-  if (!g_moved || l != g_moveL || r != g_moveR) {  // print transitions only
+  if (!g_quiet && (!g_moved || l != g_moveL || r != g_moveR)) {  // print transitions only
     std::printf("    [t=%6ums] move  L=%-4d R=%-4d\n", g_now, l, r);
   }
   g_moveL = l;
@@ -210,6 +239,9 @@ uint32_t nowMs() { return g_now; }
 
 int serialReadChar() { return -1; }  // host demo injects lines via runtime::feedLine
 void serialWrite(const std::string& s) { std::printf("%s", s.c_str()); }
-void serialWriteLine(const std::string& s) { std::printf("%s\n", s.c_str()); }
+void serialWriteLine(const std::string& s) {
+  g_lastLine = s;
+  if (!g_quiet) std::printf("%s\n", s.c_str());
+}
 
 }  // namespace hal

@@ -9,6 +9,22 @@ terminal), the `textochip` IDE and compiler that talk to it through the bytecode
 serial contract in `SPEC.md`, and contributors who build it from source.
 Implementation details stay in git and in `LOG.md`.
 
+## 0.5.0 - 2026-10-14T02:30+02:00 - Contract 3: programs name the board's pads
+
+- **Programs say which pads they use:** a contract-3 program opens with a resource table
+  (`RES 0 DOUT P1.22`) and its instructions address resources (`SET R0 1`), so the IDE
+  resolves pins from the board's descriptor and the firmware keeps no table of the
+  IDE's numbers. `CAPS` answers `contract=3`. Contract-2 programs run unchanged.
+- **The board refuses what would harm it:** a program that uses the flash, the USB, a
+  strapping pin, a pad shorted to ground, the microphone's pads, or puts the buzzer,
+  the servo or the analog input on a pad that peripheral is not wired to, is refused
+  with the reason instead of loaded.
+- **Fixed:** a new program now starts with fresh variables, as in the simulator; the
+  last program's values survived a `LOAD`. On the Nordic DK the relay drives P0.04,
+  where the IDE wires it, instead of the camera's SPI clock (P1.10).
+- Verified: a host test of the pad rules on three boards and 9,000 generated programs
+  that run the same in contract 2 and 3, the host suite, the four images built in CI.
+
 ## 0.4.1 - 2026-10-14T01:00+02:00 - The ESP32-S3 image fits again
 
 - **The ESP32-S3 builds again:** its image had outgrown the chip's internal RAM by

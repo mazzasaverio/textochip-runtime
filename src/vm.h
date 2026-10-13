@@ -3,6 +3,7 @@
 
 #include "isa.h"
 #include "mission.h"
+#include "pads.h"
 
 // Tick-based bytecode VM — brief §7. Hardware access goes through hal:: (see
 // vm.cpp), so the same logic runs on the host and on any board. NO blocking delay.
@@ -14,6 +15,9 @@
 #define MAX_PROGRAM 256
 #endif
 #define STEPS_PER_TICK 64
+// Contract 3: the most entries a program's resource table can hold (4 bytes
+// each: the UNO R4 has little RAM to spare).
+#define MAX_RESOURCES 32
 #define VALUE_STACK_SIZE 32
 #define CALL_STACK_SIZE 16
 
@@ -25,6 +29,17 @@ class VM {
   void clearProgram();
   bool addInstruction(const Instruction& in);  // false if program is full
   int programSize() const { return count; }
+
+  // Contract 3 (SPEC.md §1). A program may open with `CONTRACT <n>` and a
+  // resource table (`RES` lines); its pin operands then name resources
+  // (`SET R0 1`). Each returns "" or why the line is refused.
+  std::string setContract(int n);
+  std::string addResource(const HeaderLine& res);
+  // Once the whole program is in: every resource is a pad of this board that a
+  // program may use, the buzzer/servo/ADC resources are on the pads those
+  // peripherals are wired to, and every instruction uses a declared resource
+  // the way its kind allows. "" when the program can run, else the reason.
+  std::string check() const;
 
   void start();  // pc = 0, state = RUNNING
   void stop();   // state = STOPPED
@@ -64,6 +79,19 @@ class VM {
  private:
   Instruction program[MAX_PROGRAM];
   int count = 0;
+
+  struct Resource {
+    int16_t pad;   // the board's GPIO index (pads.h)
+    uint8_t kind;  // ResKind
+    uint8_t pull;  // DIN: 0 = up, 2 = down (MODE's codes)
+  };
+  Resource res[MAX_RESOURCES];
+  int resCount = 0;
+  int contract = 2;  // 2 until a CONTRACT line or a RES line says 3
+
+  // The pad an instruction's pin operand stands for: a resource's, or a
+  // contract-2 logical pin through the board's legacy map. -1 for none.
+  int padOf(long operand) const;
   int pc = 0;
   VmState state = VM_IDLE;
   uint32_t resumeAt = 0;

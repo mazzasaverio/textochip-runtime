@@ -23,6 +23,35 @@ std::string inbuf;
 // what runs (and the boot autorun can re-feed it). Built up line-by-line on LOAD.
 std::string programText;
 
+// The first refused header line of the program being loaded: a program whose
+// resource table is wrong does not load at all (the "." reply says why).
+std::string headerError;
+
+// One line of a program being loaded (LOAD or the boot autorun): a contract-3
+// header line (CONTRACT, RES) or an instruction. "" when taken, else the reply.
+std::string programLine(const std::string& line) {
+  HeaderLine h = parseHeaderLine(line);
+  std::string err;
+  if (h.kind == HeaderLine::BAD_HEADER) {
+    err = "bad header: " + line;
+  } else if (h.kind == HeaderLine::CONTRACT) {
+    err = vm.setContract(h.number);
+  } else if (h.kind == HeaderLine::RES) {
+    err = vm.addResource(h);
+  } else {
+    Instruction in;
+    if (!parseInstructionLine(line, in)) return "ERROR: bad instruction: " + line;
+    if (!vm.addInstruction(in)) return "ERROR: program full";
+  }
+  if (!err.empty()) {
+    if (headerError.empty()) headerError = err;
+    return "ERROR: " + err;
+  }
+  programText += line;  // remember the raw text so SAVE persists it verbatim
+  programText += '\n';
+  return "";
+}
+
 std::string upper(std::string s) {
   for (char& c : s) c = (char)std::toupper((unsigned char)c);
   return s;
@@ -60,21 +89,23 @@ void runtime::feedLine(const std::string& raw) {
   if (loading) {
     if (line == ".") {
       loading = false;
+      // A contract-3 program is checked whole against this board: a pad it may
+      // not use, a buzzer on a pad with no PWM, an undeclared resource. Refused,
+      // it is not kept: RUN or SAVE would run or persist half a program.
+      const std::string why = headerError.empty() ? vm.check() : headerError;
+      headerError.clear();
+      if (!why.empty()) {
+        vm.clearProgram();
+        programText.clear();
+        hal::serialWriteLine("ERROR: " + why);
+        return;
+      }
       hal::serialWriteLine("OK: loaded " + std::to_string(vm.programSize()));
       return;
     }
     if (line.empty()) return;
-    Instruction in;
-    if (parseInstructionLine(line, in)) {
-      if (vm.addInstruction(in)) {
-        programText += line;  // remember the raw text so SAVE persists it verbatim
-        programText += '\n';
-      } else {
-        hal::serialWriteLine("ERROR: program full");
-      }
-    } else {
-      hal::serialWriteLine("ERROR: bad instruction: " + line);
-    }
+    const std::string reply = programLine(line);
+    if (!reply.empty()) hal::serialWriteLine(reply);
     return;
   }
 
@@ -92,6 +123,7 @@ void runtime::feedLine(const std::string& raw) {
     vm.stop();  // a boot-autorun program may be running — take over cleanly
     vm.clearProgram();
     programText.clear();
+    headerError.clear();
     loading = true;
     hal::serialWriteLine("OK: send program, end '.'");
   } else if (line == "RUN") {
@@ -462,6 +494,7 @@ namespace {
 int loadProgramText(const std::string& text) {
   vm.clearProgram();
   programText.clear();
+  headerError.clear();
   size_t start = 0;
   while (start < text.size()) {
     size_t nl = text.find('\n', start);
@@ -469,11 +502,15 @@ int loadProgramText(const std::string& text) {
     std::string line = trim(text.substr(start, end - start));
     start = (nl == std::string::npos) ? text.size() : nl + 1;
     if (line.empty()) continue;
-    Instruction in;
-    if (parseInstructionLine(line, in) && vm.addInstruction(in)) {
-      programText += line;
-      programText += '\n';
-    }
+    programLine(line);
+  }
+  // A saved program this firmware can no longer run safely (say, a pad that a
+  // newer firmware reserves) does not autorun.
+  const bool bad = !headerError.empty() || !vm.check().empty();
+  headerError.clear();
+  if (bad) {
+    vm.clearProgram();
+    programText.clear();
   }
   return vm.programSize();
 }

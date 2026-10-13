@@ -11,8 +11,10 @@ As long as both sides honour this document, the compiler grammar and the firmwar
 can change without breaking each other. Treat changes here as **versioned and
 deliberate**.
 
-> **Contract version: 2** (Tier-1 + Tier-2 + the `TONE`/`RPIN`/`SERVO`/`AREAD`/`MOVE`
-> + `MODE … INPD` real-hardware extensions + the Tier-4 edge-AI `AISTART`/`INFER`).
+> **Contract version: 3** (2026-10-14): contract 2 (Tier-1 + Tier-2 + the
+> `TONE`/`RPIN`/`SERVO`/`AREAD`/`MOVE` + `MODE … INPD` real-hardware extensions + the
+> Tier-4 edge-AI `AISTART`/`INFER`) plus the **resource table** (§1, "Contract 3"). A
+> contract-3 firmware runs contract-2 programs unchanged.
 > `DIST` (ultrasonic distance in cm) is implemented in the firmware VM + HAL (host-tested); the
 > Zephyr HC-SR04 driver ships behind a board-overlay alias — bring-up is wiring the sensor.
 
@@ -25,11 +27,57 @@ operands, e.g. `SET 4 1`. The firmware parses each line into an instruction
 struct; the simulator executes the same instructions directly.
 
 - **Addresses** (`JMP`/`JZ`/`GOSUB` targets) are **0-based instruction indices**.
-- **Pins** are **concrete GPIO numbers** — the compiler bakes them in from the
-  board profile, so the firmware stays board-generic and stored programs run
-  standalone.
+- **Pins**: in contract 3, a pin operand is `R<n>`, entry n of the program's resource
+  table, which names the board's own pad ("GPIO4", "P1.22", "D4"). In contract 2 it is
+  a logical pin number the firmware maps to a pad (`src/pads.cpp`, `legacyPad`).
 - Two stacks: a **value stack** (ints) and a **call stack** (return addresses).
 - **Variables** are integers named `a`–`z`.
+
+### Contract 3 — the resource table
+
+A contract-3 program opens with its resource table; the instructions then address
+resources, never pins:
+
+```
+CONTRACT 3
+RES 0 DOUT P1.22
+RES 1 DIN P1.26 pull=up
+RES 2 TONE P1.13
+MODE R0 OUT
+MODE R1 IN
+READ R1
+JZ 6
+TONE R2 440
+SET R0 1
+```
+
+| Line | Meaning |
+|------|---------|
+| `CONTRACT <n>` | the contract the program is written for; a firmware refuses a newer one |
+| `RES <id> <kind> <pad> [pull=up\|down]` | resource `<id>` (numbered from 0, in order) is `<pad>` used as `<kind>` |
+
+- **Kinds**: `DOUT` (written with `SET`, `MODE … OUT`, may be read back), `DIN` (read
+  with `READ`; `pull=up`, the default, goes with `MODE … IN`, `pull=down` with
+  `MODE … INPD`), `TONE` (`TONE`), `SERVO` (`SERVO`), `ADC` (`AREAD`). `RPIN` reads any.
+- **Pads** are the board's own names, the ones the IDE's board descriptors print as
+  `physical` (`textochip/lib/boards/<id>.json`): `GPIO<n>` on the ESP32-S3,
+  `P<port>.<pin>` on the nRF54L, `D<n>`/`A<n>` on the UNO R4.
+- `CONTRACT` and `RES` lines are not instructions: `JMP`/`JZ`/`GOSUB` addresses count
+  instructions only. A `RES` line alone makes a program contract 3.
+- **The firmware defends itself.** At `.` it checks the whole program against its
+  board (`src/pads.cpp`) and refuses it, keeping nothing, with one `ERROR: <reason>`
+  line instead of `OK: loaded N`:
+  - a pad that is not this board's (`ERROR: R0 P1.22: no such pad on this board`);
+  - a pad a program may not use: the flash, the PSRAM, the USB, a strapping pin, a pad
+    shorted to ground, one a driver claims at boot (`ERROR: R0 GPIO19: the USB port`);
+  - a `TONE`, `SERVO` or `ADC` resource on another pad than the one that peripheral is
+    wired to (`ERROR: R0 GPIO7: this board's TONE is wired to GPIO5`);
+  - two resources on one pad, an undeclared resource, an instruction that uses a
+    resource against its kind, a bare pin number in a contract-3 program.
+  A saved program that fails the check does not autorun.
+- **The IDE** sends contract 3 to a board whose `CAPS` says `contract=3` or more, and
+  contract 2 otherwise. Loading a program (either contract) starts it with fresh
+  variables and stacks, as the browser simulator does.
 
 ### Tier 1 — core
 
@@ -92,7 +140,8 @@ struct; the simulator executes the same instructions directly.
 - **`MOVE` carries no pin.** The two-motor L298N is a **fixed board wiring owned by the HAL**
   (provisionally GPIO `10/11/12/13/14/21` = leftDir1/leftDir2/leftPwm/rightDir1/rightDir2/rightPwm on
   the ESP32-S3 profile — also provisional). The bytecode only carries the two wheel speeds.
-- **On Zephyr a `<pin>` operand is advisory for PWM peripherals.** For `TONE`/`SERVO` the raw GPIO
+- **On Zephyr a `<pin>` operand is advisory for PWM peripherals** in contract 2 (contract 3
+  refuses a `TONE`/`SERVO`/`ADC` resource on any other pad). For `TONE`/`SERVO` the raw GPIO
   in the bytecode names the intent, but the actual channel is **fixed in the board overlay/pinctrl**
   (`zephyr/boards/esp32s3_devkitc_esp32s3_procpu.overlay`: LEDC PWM ch0 on GPIO 5 for the buzzer,
   ch1 for the servo). Repoint the
@@ -179,7 +228,7 @@ parsing.
 | `STORE?` (debug)    | report the autorun store: is it mounted, how many bytes are persisted, and its geometry. Diagnoses a `SAVE` that does not autorun on boot (`saved<0` = nothing stored) | `STORE mounted=0\|1 saved=N sector=WxC` |
 | (boot)              | if a saved program exists, load + run it (PC-unplugged autonomy) | `READY` then `OK: autorun N` |
 
-`CAPS` (contract 2, 2026-10-13) is one line of space-separated `key=value` pairs, so it
+`CAPS` (since contract 2, 2026-10-13) is one line of space-separated `key=value` pairs, so it
 can grow: `build` is the runtime git hash (the same as `VER`), `contract` this SPEC's
 version, `max` the program cap in instructions, `board` the id the IDE knows the board by
 (`textochip/lib/boards/<id>.json`), `prims` the primitives this build compiled in, from

@@ -17,6 +17,14 @@ static std::string upper(std::string s) {
 
 static long toLong(const std::string& s) { return std::strtol(s.c_str(), nullptr, 10); }
 
+// A pin operand: `R<n>` (contract 3, a resource) or a number (contract 2).
+static long pinOperand(const std::string& s) {
+  if (s.size() >= 2 && (s[0] == 'R' || s[0] == 'r') &&
+      std::isdigit((unsigned char)s[1]))
+    return RES_REF + toLong(s.substr(1));
+  return toLong(s);
+}
+
 const char* opcodeName(OpCode op) {
   switch (op) {
     case OP_NOP: return "NOP";
@@ -93,7 +101,7 @@ bool parseInstructionLine(const std::string& raw, Instruction& out) {
 
   switch (out.op) {
     case OP_MODE: {
-      out.a = toLong(t1);
+      out.a = pinOperand(t1);
       std::string dir = upper(t2);
       // 1 = OUTPUT, 2 = INPUT_PULLDOWN (active-high sensors), 0 = INPUT_PULLUP.
       out.b = (dir == "OUT") ? 1 : (dir == "INPD") ? 2 : 0;
@@ -102,18 +110,23 @@ bool parseInstructionLine(const std::string& raw, Instruction& out) {
     case OP_SET:
     case OP_TONE:   // TONE <pin> <freq>
     case OP_SERVO:  // SERVO <pin> <angle 0..180>
+      out.a = pinOperand(t1);
+      out.b = toLong(t2);
+      break;
     case OP_MOVE:   // MOVE <left> <right> — wheel speeds (-255..255; toLong handles the sign)
       out.a = toLong(t1);
       out.b = toLong(t2);
+      break;
+    case OP_READ:
+    case OP_RPIN:
+    case OP_AREAD:  // AREAD <pin> — push the analog reading
+      out.a = pinOperand(t1);
       break;
     case OP_WAIT:
     case OP_JMP:
     case OP_JZ:
     case OP_GOSUB:
     case OP_PUSH:
-    case OP_READ:
-    case OP_RPIN:
-    case OP_AREAD:  // AREAD <pin> — push the analog reading
       out.a = toLong(t1);
       break;
     case OP_LOAD:
@@ -155,4 +168,48 @@ bool parseInstructionLine(const std::string& raw, Instruction& out) {
       break;  // HALT / NOP / ADD..RET take no operands
   }
   return true;
+}
+
+HeaderLine parseHeaderLine(const std::string& raw) {
+  HeaderLine h;
+  std::string l = trim(raw);
+  size_t sp = l.find(' ');
+  std::string word = upper(sp == std::string::npos ? l : l.substr(0, sp));
+  if (word != "CONTRACT" && word != "RES") return h;
+  h.kind = HeaderLine::BAD_HEADER;
+  // the fields after the word
+  std::string tok[4];
+  int n = 0;
+  std::string rest = sp == std::string::npos ? "" : trim(l.substr(sp + 1));
+  while (!rest.empty()) {
+    size_t s2 = rest.find(' ');
+    std::string t = s2 == std::string::npos ? rest : rest.substr(0, s2);
+    rest = s2 == std::string::npos ? "" : trim(rest.substr(s2 + 1));
+    if (n == 4) return h;  // too many fields
+    tok[n++] = t;
+  }
+  auto isNumber = [](const std::string& s) {
+    if (s.empty()) return false;
+    for (char c : s)
+      if (!std::isdigit((unsigned char)c)) return false;
+    return true;
+  };
+  if (word == "CONTRACT") {
+    if (n != 1 || !isNumber(tok[0])) return h;
+    h.kind = HeaderLine::CONTRACT;
+    h.number = (int)toLong(tok[0]);
+    return h;
+  }
+  if (n < 3 || !isNumber(tok[0])) return h;
+  h.number = (int)toLong(tok[0]);
+  h.resKind = upper(tok[1]);
+  h.pad = upper(tok[2]);
+  if (n == 4) {
+    std::string pull = upper(tok[3]);
+    if (pull == "PULL=UP") h.pull = 0;
+    else if (pull == "PULL=DOWN") h.pull = 2;
+    else return h;
+  }
+  h.kind = HeaderLine::RES;
+  return h;
 }

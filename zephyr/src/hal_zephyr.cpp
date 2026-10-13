@@ -99,80 +99,22 @@ static void serial_rx_init() {
 static void serial_rx_init() {}
 #endif
 
-// ── GPIO: the bytecode carries LOGICAL pin numbers (baked from the browser's
-// shared board profile — ESP32-S3 GPIO numbers). Each board's HAL maps them to
-// its physical pins (lib/boards.ts + docs/hardware.md state this contract).
-// On the ESP32-S3 the mapping is identity. On the Nordic DK, map_pin()
-// translates to raw = port*32 + pin.
+// ── GPIO: the HAL drives PADS, the board's own GPIO indices (src/pads.h).
+// The names, the reserved pads and the contract-2 logical pin map live in
+// src/pads.cpp, portable and host-tested; this file only turns a pad into a
+// GPIO port and pin. ESP32-S3 and nRF54L: raw = port*32 + pin. UNO R4 WiFi:
+// the Arduino pin printed on the board (D0..D13, A0..A5 = 14..19), an index
+// into the overlay's zephyr,user tc-gpios table.
 #if defined(CONFIG_BOARD_NRF54LM20DK)
-// Nordic nRF54LM20 DK map (PROVISIONAL — finalize at the bench; keep in sync
-// with lib/boards.ts NORDIC_PINS + docs/hardware.md). Phase 1: the four LED
-// pins go to the ON-BOARD LEDs (all green — no wiring needed to see the
-// semaforo cycle) and button A to the on-board Button 0. Colored external
-// LEDs on the header come with phase 2.
-static int map_pin(int logical) {
-  switch (logical) {
-    case 4:  return 1 * 32 + 22;  // red LED    -> LED0 (P1.22, on-board)
-    case 2:  return 1 * 32 + 25;  // yellow LED -> LED1 (P1.25, on-board)
-    case 1:  return 1 * 32 + 27;  // green LED  -> LED2 (P1.27, on-board)
-    case 18: return 1 * 32 + 28;  // blue LED   -> LED3 (P1.28, on-board, green)
-    case 5:  return 1 * 32 + 13;  // buzzer     -> P1.13 (D5; PWM in phase 2)
-    case 6:  return 1 * 32 + 26;  // button A   -> Button 0 (P1.26, on-board)
-    case 7:  return 3 * 32 + 0;   // PIR        -> P3.00 (D6)
-    case 8:  return 3 * 32 + 1;   // servo      -> P3.01 (D7; PWM in phase 2)
-    case 9:  return 0 * 32 + 3;   // analog in  -> P0.03 (D8; ADC in phase 2)
-    case 10: return 3 * 32 + 2;   // motor L dir1 -> P3.02 (D10)
-    case 11: return 3 * 32 + 3;   // motor L dir2 -> P3.03 (D11)
-    case 12: return 1 * 32 + 7;   // motor L pwm  -> P1.07 (D12)
-    case 13: return 3 * 32 + 5;   // motor R dir1 -> P3.05 (D0)  [P1.06/D13 is now ENB/PWM]
-    case 14: return 1 * 32 + 5;   // motor R dir2 -> P1.05 (D14)
-    case 21: return 2 * 32 + 5;   // motor R pwm  -> P2.05 (D21)
-    case 38: return 2 * 32 + 0;   // line left    -> P2.00 (D16)
-    case 39: return 2 * 32 + 1;   // line center  -> P2.01 (D17)
-    case 40: return 2 * 32 + 2;   // line right   -> P2.02 (D18)
-    case 41: return 2 * 32 + 3;   // obstacle     -> P2.03 (D19)
-    // The RGB LED's legs (47, 3, 46): no three free pads on this DK, so they
-    // go nowhere. Passed through raw they would land on P1.15, P0.03 (the
-    // analog input) and P1.14 (the mic's FSYNC).
-    case 47:
-    case 3:
-    case 46: return -1;
-    default: return logical;      // unmapped: raw port*32+pin passthrough
-  }
-}
+static constexpr PadBoard kPadBoard = PAD_NRF54LM20;
 #elif defined(CONFIG_BOARD_ARDUINO_UNO_R4)
-// Arduino UNO R4 WiFi map (keep in sync with the IDE's lib/boards.ts UNO_R4_PINS
-// + docs/hardware.md). The result is the Arduino pin printed on the board
-// (D0..D13, A0..A5 = 14..19), an index into the overlay's zephyr,user tc-gpios
-// table. Motors are not wired in phase 1: -1 makes them no-ops. The HC-SR04
-// (D10/D11) is HAL-owned through the overlay's hcsr04 aliases.
+static constexpr PadBoard kPadBoard = PAD_UNOR4;
 #define TC_ARDUINO_PINS 1
 static const struct gpio_dt_spec g_arduino_pins[] = {
     DT_FOREACH_PROP_ELEM_SEP(DT_PATH(zephyr_user), tc_gpios, GPIO_DT_SPEC_GET_BY_IDX, (,))};
-static int map_pin(int logical) {
-  switch (logical) {
-    case 1:  return 2;   // green LED  -> D2
-    case 2:  return 3;   // yellow LED -> D3
-    case 4:  return 4;   // red LED    -> D4
-    case 18: return 18;  // blue LED   -> A4
-    case 5:  return 5;   // buzzer     -> D5 (GPT0, see the overlay)
-    case 6:  return 7;   // button A   -> D7
-    case 7:  return 8;   // PIR        -> D8
-    case 8:  return 6;   // servo      -> D6 (GPT3, see the overlay)
-    case 9:  return 14;  // analog in  -> A0
-    case 38: return 15;  // line left   -> A1
-    case 39: return 16;  // line center -> A2
-    case 40: return 17;  // line right  -> A3
-    case 41: return 12;  // obstacle    -> D12
-    case 42: return 9;   // relay       -> D9
-    case 47: return 0;   // RGB LED R   -> D0 (upstream's console UART, off here)
-    case 3:  return 1;   // RGB LED G   -> D1
-    case 46: return 19;  // RGB LED B   -> A5
-    default: return -1;  // not on this board
-  }
-}
+static constexpr int kArduinoPins = sizeof(g_arduino_pins) / sizeof(g_arduino_pins[0]);
 #else
-static inline int map_pin(int logical) { return logical; }
+static constexpr PadBoard kPadBoard = PAD_ESP32S3;
 #endif
 
 #ifdef TC_ARDUINO_PINS
@@ -474,37 +416,45 @@ void storeStatus(bool* mounted, int* savedBytes, int* sectorSize, int* sectorCou
 #endif
 
 #if defined(CONFIG_BOARD_ARDUINO_UNO_R4)
-// The on-board "L" LED (D13) lights together with the red LED (logical 4), so a
-// bare board shows a running program before anything is wired. Red only: a
-// program alternating two LEDs would otherwise keep "L" on all the time.
-static constexpr int kMirrorLogical = 4;
+// The on-board "L" LED (D13) lights together with the red LED (D4, where the
+// IDE wires it), so a bare board shows a running program before anything is
+// wired. Red only: a program alternating two LEDs would otherwise keep "L" on.
+static constexpr int kMirrorPad = 4;
 static constexpr int kMirrorPin = 13;
 #endif
 
-void pinMode(int pin, int mode) {
+PadBoard padBoard() { return kPadBoard; }
+
+// A pad this board can drive: on the UNO R4 an index into tc-gpios.
+static bool padOk(int p) {
+#ifdef TC_ARDUINO_PINS
+  return p >= 0 && p < kArduinoPins;
+#else
+  return p >= 0 && p < 128;
+#endif
+}
+
+void pinMode(int p, int mode) {
   gpio_flags_t flags = (mode == 1)   ? GPIO_OUTPUT_INACTIVE
                        : (mode == 2) ? (GPIO_INPUT | GPIO_PULL_DOWN)   // active-high sensor
                                      : (GPIO_INPUT | GPIO_PULL_UP);    // active-low button
-  int p = map_pin(pin);
-  if (p < 0) return;  // no such pin on this board
+  if (!padOk(p)) return;  // no such pad on this board
   gpio_pin_configure(gpio_port(p), gpio_index(p), flags);
 #if defined(CONFIG_BOARD_ARDUINO_UNO_R4)
-  if (pin == kMirrorLogical && mode == 1)
+  if (p == kMirrorPad && mode == 1)
     gpio_pin_configure(gpio_port(kMirrorPin), gpio_index(kMirrorPin), flags);
 #endif
 }
-void pinWrite(int pin, int level) {
-  int p = map_pin(pin);
-  if (p < 0) return;
+void pinWrite(int p, int level) {
+  if (!padOk(p)) return;
   gpio_pin_set(gpio_port(p), gpio_index(p), level);
 #if defined(CONFIG_BOARD_ARDUINO_UNO_R4)
-  if (pin == kMirrorLogical)
+  if (p == kMirrorPad)
     gpio_pin_set(gpio_port(kMirrorPin), gpio_index(kMirrorPin), level);
 #endif
 }
-int pinRead(int pin) {
-  int p = map_pin(pin);
-  if (p < 0) return 0;
+int pinRead(int p) {
+  if (!padOk(p)) return 0;
   return gpio_pin_get(gpio_port(p), gpio_index(p));
 }
 
@@ -616,12 +566,14 @@ void servo(int /*pin*/, int angle) {
 }
 
 #ifdef HAS_MOTORS
-// Differential drive on an L298N. Motor pins are LOGICAL (map_pin resolves them
-// per board); direction from the sign, speed |v| 0..255 → PWM duty (~1 kHz) on
+// Differential drive on an L298N. The motor pins are the legacy logical ones
+// (pads::legacyPad resolves them per board); direction from the sign, speed |v| 0..255 → PWM duty (~1 kHz) on
 // the enable channel. Left IN1=10 IN2=11 EN=12, right IN3=13 IN4=14 EN=21.
 static void drive_motor(int in1, int in2, int pwmCh, int v) {
   if (v < -255) v = -255;
   if (v > 255) v = 255;
+  in1 = pads::legacyPad(kPadBoard, in1);
+  in2 = pads::legacyPad(kPadBoard, in2);
   pinMode(in1, 1);  // OUTPUT
   pinMode(in2, 1);
   // v == 0 coasts BOTH direction pins low, not just duty 0: if the L298N's EN

@@ -4,7 +4,14 @@
 
 // The contract version this build speaks (SPEC.md), reported by CAPS. The IDE
 // compares it with what a program needs before uploading.
-#define TEXTOCHIP_CONTRACT 2
+#define TEXTOCHIP_CONTRACT 3
+
+// Contract 3: a pin operand written `R<n>` names entry n of the program's
+// resource table (`RES` lines, SPEC.md §1). It is stored in Instruction::a as
+// RES_REF + n, far above any pin number; a bare number is a contract-2 logical
+// pin, resolved by pads::legacyPad.
+constexpr long RES_REF = 1L << 24;
+inline bool isResRef(long a) { return a >= RES_REF; }
 
 // Opcode set — mirrors lib/isa.ts and the brief §3. Strings are std::string
 // (portable across the host g++ build and the Zephyr board build).
@@ -41,3 +48,16 @@ OpCode opcodeFromName(const std::string& name);
 
 // Parse one wire line into `out`. Returns false on unknown opcode / empty line.
 bool parseInstructionLine(const std::string& line, Instruction& out);
+
+// The program header lines of contract 3, which are not instructions:
+//   CONTRACT <n>                          -> kind CONTRACT, number n
+//   RES <id> <KIND> <pad> [pull=up|down]  -> kind RES, its fields
+// Returns NOT_HEADER for any other line, BAD_HEADER for a malformed one.
+struct HeaderLine {
+  enum Kind { NOT_HEADER, BAD_HEADER, CONTRACT, RES } kind = NOT_HEADER;
+  int number = 0;        // CONTRACT n, or the RES id
+  std::string resKind;   // "DOUT", "DIN", "TONE", "SERVO", "ADC"
+  std::string pad;       // "GPIO4", "P1.22", "D4"
+  int pull = 0;          // DIN: 0 = up (the default), 2 = down (MODE's codes)
+};
+HeaderLine parseHeaderLine(const std::string& line);

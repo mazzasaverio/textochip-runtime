@@ -27,6 +27,15 @@ void VM::reset() {
 
 void VM::clearProgram() {
   count = 0;
+  resCount = 0;
+  contract = 2;
+  // A new program starts with fresh variables and stacks, as in the browser
+  // simulator (simVm.ts load -> reset). They used to survive a LOAD, so a
+  // program could read the last one's `a` (found by the contract-3
+  // differential test, 2026-10-14).
+  vsp = 0;
+  csp = 0;
+  for (int i = 0; i < 26; i++) vars[i] = 0;
   pc = 0;
   state = VM_IDLE;
   resumeAt = 0;
@@ -39,6 +48,83 @@ bool VM::addInstruction(const Instruction& in) {
   if (count >= MAX_PROGRAM) return false;
   program[count++] = in;
   return true;
+}
+
+std::string VM::setContract(int n) {
+  if (n < 2 || n > TEXTOCHIP_CONTRACT)
+    return "contract " + std::to_string(n) + " is not supported (this firmware speaks up to " +
+           std::to_string(TEXTOCHIP_CONTRACT) + ")";
+  contract = n;
+  return "";
+}
+
+std::string VM::addResource(const HeaderLine& h) {
+  if (h.number != resCount)
+    return "RES " + std::to_string(h.number) + ": resources are numbered from 0 in order (expected " +
+           std::to_string(resCount) + ")";
+  if (resCount >= MAX_RESOURCES) return "too many resources";
+  ResKind kind = pads::kindByName(h.resKind);
+  if (kind == RES_UNKNOWN) return "R" + std::to_string(h.number) + ": unknown kind " + h.resKind;
+  int pad = pads::byName(hal::padBoard(), h.pad);
+  if (pad < 0) return "R" + std::to_string(h.number) + " " + h.pad + ": no such pad on this board";
+  res[resCount++] = Resource{(int16_t)pad, (uint8_t)kind, (uint8_t)h.pull};
+  contract = 3;
+  return "";
+}
+
+int VM::padOf(long a) const {
+  if (isResRef(a)) {
+    long i = a - RES_REF;
+    return i < resCount ? res[i].pad : -1;
+  }
+  return pads::legacyPad(hal::padBoard(), (int)a);
+}
+
+// The resource kind an opcode needs, and whether it reads a pin at all.
+static bool usesPin(OpCode op) {
+  return op == OP_MODE || op == OP_SET || op == OP_READ || op == OP_TONE ||
+         op == OP_SERVO || op == OP_AREAD || op == OP_RPIN;
+}
+
+std::string VM::check() const {
+  const PadBoard board = hal::padBoard();
+  for (int i = 0; i < resCount; i++) {
+    const std::string r = "R" + std::to_string(i) + " " + pads::name(board, res[i].pad);
+    if (const char* why = pads::reserved(board, res[i].pad)) return r + ": " + why;
+    for (int j = 0; j < i; j++)
+      if (res[j].pad == res[i].pad) return r + ": already R" + std::to_string(j);
+    const ResKind kind = (ResKind)res[i].kind;
+    const int fixed = pads::fixedPad(board, kind);
+    if (fixed >= 0 && fixed != res[i].pad)
+      return r + ": this board's " + pads::kindName(kind) + " is wired to " + pads::name(board, fixed);
+  }
+  for (int i = 0; i < count; i++) {
+    const Instruction& in = program[i];
+    if (!usesPin(in.op)) continue;
+    const std::string at = "instruction " + std::to_string(i) + " (" + opcodeName(in.op) + ")";
+    if (!isResRef(in.a)) {
+      if (contract >= 3) return at + ": a bare pin in a contract 3 program";
+      continue;
+    }
+    const long r = in.a - RES_REF;
+    if (r >= resCount) return at + ": R" + std::to_string(r) + " is not declared";
+    const ResKind kind = (ResKind)res[r].kind;
+    bool ok;
+    switch (in.op) {
+      case OP_SET: ok = kind == RES_DOUT; break;
+      case OP_MODE:
+        ok = in.b == 1 ? kind == RES_DOUT
+                       : kind == RES_DIN && res[r].pull == (uint8_t)in.b;
+        break;
+      case OP_READ: ok = kind == RES_DIN || kind == RES_DOUT; break;
+      case OP_TONE: ok = kind == RES_TONE; break;
+      case OP_SERVO: ok = kind == RES_SERVO; break;
+      case OP_AREAD: ok = kind == RES_ADC; break;
+      default: ok = true; break;  // RPIN reads any pad
+    }
+    if (!ok) return at + ": R" + std::to_string(r) + " is a " + pads::kindName(kind) + " resource";
+  }
+  return "";
 }
 
 void VM::start() {
@@ -93,12 +179,16 @@ void VM::tick() {
 
 void VM::step(const Instruction& in) {
   switch (in.op) {
-    case OP_MODE:
-      hal::pinMode((int)in.a, (int)in.b);  // 0=IN pull-up, 1=OUT, 2=IN pull-down
+    case OP_MODE: {
+      int p = padOf(in.a);
+      if (p >= 0) hal::pinMode(p, (int)in.b);  // 0=IN pull-up, 1=OUT, 2=IN pull-down
       break;
-    case OP_SET:
-      hal::pinWrite((int)in.a, in.b ? 1 : 0);
+    }
+    case OP_SET: {
+      int p = padOf(in.a);
+      if (p >= 0) hal::pinWrite(p, in.b ? 1 : 0);
       break;
+    }
     case OP_WAIT:
       resumeAt = hal::nowMs() + (uint32_t)in.a;
       state = VM_WAITING;
@@ -113,9 +203,12 @@ void VM::step(const Instruction& in) {
       break;
     case OP_NOP:
       break;
-    case OP_CALL:
-      currentMission =
-          missionFor(in.missionId, in.callArgs, in.callArgc, in.callParams);
+    case OP_CALL: {
+      // A mission's pins are contract-2 logical pins: hand it the pads.
+      int pins[6];
+      for (int k = 0; k < in.callArgc && k < 6; k++)
+        pins[k] = pads::legacyPad(hal::padBoard(), in.callArgs[k]);
+      currentMission = missionFor(in.missionId, pins, in.callArgc, in.callParams);
       if (currentMission != nullptr) {
         currentMission->begin();
         state = VM_RUNNING_MISSION;
@@ -123,6 +216,7 @@ void VM::step(const Instruction& in) {
         hal::serialWriteLine(std::string("ERROR: unknown mission ") + in.missionId);
       }
       break;
+    }
 
     // ── Tier 2 ──
     case OP_PUSH: push(in.a); break;
@@ -135,7 +229,11 @@ void VM::step(const Instruction& in) {
       long v = pop();  // pop regardless, to keep the value stack balanced
       if (in.a >= 0 && in.a < 26) vars[in.a] = v;
     } break;
-    case OP_READ: push(hal::pinRead((int)in.a)); break;
+    case OP_READ: {
+      int p = padOf(in.a);
+      push(p >= 0 ? hal::pinRead(p) : 0);
+      break;
+    }
     case OP_ADD: { long b = pop(); push(pop() + b); } break;
     case OP_SUB: { long b = pop(); push(pop() - b); } break;
     case OP_MUL: { long b = pop(); push(pop() * b); } break;
@@ -168,18 +266,22 @@ void VM::step(const Instruction& in) {
 
     // ── Extensions ──
     case OP_TONE:
-      if (in.b > 0) hal::tone((int)in.a, (int)in.b);
-      else hal::toneOff((int)in.a);
+      if (in.b > 0) hal::tone(padOf(in.a), (int)in.b);
+      else hal::toneOff(padOf(in.a));
       break;
-    case OP_RPIN:
-      hal::serialWriteLine("PIN " + std::to_string((int)in.a) + " = " +
-                           std::to_string(hal::pinRead((int)in.a)));
+    case OP_RPIN: {
+      // Echo the operand as it was asked ("PIN 7", "PIN R2"), the board's level.
+      int p = padOf(in.a);
+      std::string asked = isResRef(in.a) ? "R" + std::to_string(in.a - RES_REF)
+                                         : std::to_string((int)in.a);
+      hal::serialWriteLine("PIN " + asked + " = " + std::to_string(p >= 0 ? hal::pinRead(p) : 0));
       break;
+    }
     case OP_SERVO:  // SERVO <pin> <angle 0..180> — position a hobby servo (50 Hz PWM)
-      hal::servo((int)in.a, (int)in.b);
+      hal::servo(padOf(in.a), (int)in.b);
       break;
     case OP_AREAD:  // AREAD <pin> — push the analog (ADC) reading
-      push(hal::analogRead((int)in.a));
+      push(hal::analogRead(padOf(in.a)));
       break;
     case OP_MOVE:  // MOVE <left> <right> — differential drive (L298N)
       hal::move((int)in.a, (int)in.b);

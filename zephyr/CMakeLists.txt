@@ -27,6 +27,7 @@ target_sources(app PRIVATE
   src/arducam_mega.cpp      # the SEE() camera (SPI); compiles to a no-op with no camera node
   ../src/isa.cpp
   ../src/vm.cpp
+  ../src/pads.cpp           # the board pads: names, reserved, the contract-2 map
   ../src/runtime.cpp
   ../src/registry.cpp
 )

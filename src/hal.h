@@ -2,6 +2,8 @@
 #include <cstdint>
 #include <string>
 
+#include "pads.h"
+
 // Hardware Abstraction Layer (HAL).
 // The VM / ISA / missions are platform-agnostic and ONLY ever call hal::*.
 // Each platform provides exactly one implementation of these functions:
@@ -13,7 +15,11 @@ namespace hal {
 
 void init();  // bring up the clock + serial link
 
-// GPIO. mode: 0 = INPUT_PULLUP (active-low, e.g. a button), 1 = OUTPUT,
+// Which board this is, for the pad names and rules in pads.h.
+PadBoard padBoard();
+
+// GPIO, by PAD: the board's own GPIO index (pads.h), never a logical pin.
+// mode: 0 = INPUT_PULLUP (active-low, e.g. a button), 1 = OUTPUT,
 // 2 = INPUT_PULLDOWN (active-high, e.g. a PIR — idles LOW when disconnected).
 void pinMode(int pin, int mode);
 void pinWrite(int pin, int level);  // level 0/1

@@ -112,7 +112,7 @@ jobs:
           ZEPHYR_BASE="$GITHUB_WORKSPACE/ncs/zephyr" west build --pristine \
             -b nrf54lm20dk/nrf54lm20b/cpuapp zephyr -d build_dk_b -- \
             -DEXTRA_ZEPHYR_MODULES="$GITHUB_WORKSPACE/ncs/sdk-edge-ai" \
-            -DTC_PERSONDET_DIR="$GITHUB_WORKSPACE/ncs/sdk-edge-ai/applications/person_detection/src" \
+            -Dzephyr_TC_PERSONDET_DIR="$GITHUB_WORKSPACE/ncs/sdk-edge-ai/applications/person_detection/src" \
             -DCONFIG_TEXTOCHIP_NRF_PERSONDET=y \
             -DCONFIG_NRF_AXON_INTERLAYER_BUFFER_SIZE=229376
           cp build_dk_b/zephyr/zephyr/zephyr.hex ../out/textochip-nrf54lm20dk-b.hex
@@ -204,8 +204,12 @@ jobs:
           path: out/
           if-no-files-found: error
 
+  # Writes the manifest for the images that built: a board whose build fails
+  # (the ESP32-S3's internal RAM, 2026-10-13) keeps its previous published
+  # image instead of holding the others back.
   manifest:
     needs: [nordic, upstream]
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4
@@ -217,14 +221,20 @@ jobs:
       - name: Write the manifest the IDE reads
         run: |
           B=$(echo "$GITHUB_SHA" | cut -c1-7)
-          cat > firmware/firmware.json <<EOF
-          {
-            "esp32s3": { "build": "$B", "caps": true, "image": "textochip-esp32s3.bin" },
-            "nrf54lm20dk": { "build": "$B", "caps": true, "image": "textochip-nrf54lm20dk.hex" },
-            "unor4wifi": { "build": "$B", "caps": true, "image": "textochip-unor4wifi.bin" }
+          entry() {  # board id, image file
+            [ -f "firmware/$2" ] && printf '"%s": { "build": "%s", "caps": true, "image": "%s" }' "$1" "$B" "$2"
           }
-          EOF
-          echo "$B" > firmware/textochip-nrf54lm20dk.version
+          {
+            echo "{"
+            for e in "$(entry esp32s3 textochip-esp32s3.bin)" \
+                     "$(entry nrf54lm20dk textochip-nrf54lm20dk.hex)" \
+                     "$(entry unor4wifi textochip-unor4wifi.bin)"; do
+              [ -n "$e" ] && echo "  $e,"
+            done
+          } | sed '$ s/,$//' > firmware/firmware.json
+          echo "}" >> firmware/firmware.json
+          python3 -m json.tool firmware/firmware.json
+          [ -f firmware/textochip-nrf54lm20dk.hex ] && echo "$B" > firmware/textochip-nrf54lm20dk.version
           ls -l firmware
 
       - uses: actions/upload-artifact@v4
@@ -243,7 +253,16 @@ jobs:
           fi
           B=$(echo "$GITHUB_SHA" | cut -c1-7)
           git clone -q --depth 1 "https://x-access-token:$TOKEN@github.com/mazzasaverio/textochip" product
-          cp firmware/* product/public/firmware/
+          # the images that built replace theirs; the manifest is merged, so a
+          # board that did not build keeps its published entry
+          find firmware -type f ! -name firmware.json -exec cp {} product/public/firmware/ \;
+          python3 - <<'PY'
+          import json
+          path = "product/public/firmware/firmware.json"
+          merged = json.load(open(path))
+          merged.update(json.load(open("firmware/firmware.json")))
+          open(path, "w").write(json.dumps(merged, indent=2) + "\n")
+          PY
           cd product
           sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$(date -u +%F)-$B\"/" public/firmware/manifest.json
           git checkout -q -b "firmware-$B"

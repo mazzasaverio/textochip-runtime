@@ -152,7 +152,10 @@ jobs:
         run: |
           sudo apt-get update -q
           sudo apt-get install -yq --no-install-recommends ninja-build device-tree-compiler
-          pip install west
+          # a venv: `west packages pip --install` refuses the system Python
+          python -m venv "$HOME/venv"
+          echo "$HOME/venv/bin" >> "$GITHUB_PATH"
+          "$HOME/venv/bin/pip" install west
 
       - name: Fetch Zephyr and the board's modules
         run: |

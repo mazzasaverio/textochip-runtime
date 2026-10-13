@@ -112,6 +112,7 @@ jobs:
           ZEPHYR_BASE="$GITHUB_WORKSPACE/ncs/zephyr" west build --pristine \
             -b nrf54lm20dk/nrf54lm20b/cpuapp zephyr -d build_dk_b -- \
             -DEXTRA_ZEPHYR_MODULES="$GITHUB_WORKSPACE/ncs/sdk-edge-ai" \
+            -DTC_PERSONDET_DIR="$GITHUB_WORKSPACE/ncs/sdk-edge-ai/applications/person_detection/src" \
             -DCONFIG_TEXTOCHIP_NRF_PERSONDET=y \
             -DCONFIG_NRF_AXON_INTERLAYER_BUFFER_SIZE=229376
           cp build_dk_b/zephyr/zephyr/zephyr.hex ../out/textochip-nrf54lm20dk-b.hex
@@ -162,6 +163,8 @@ jobs:
           west init -l zephyr
           west update --narrow -o=--depth=1 ${{ matrix.modules }}
           pip install -r zephyr/scripts/requirements-base.txt
+          # the modules' own Python needs (esptool for the ESP32-S3 image)
+          west packages pip --install
           if [ "${{ matrix.id }}" = esp32s3 ]; then west blobs fetch hal_espressif; fi
 
       - name: Install the Zephyr SDK and the board's toolchain

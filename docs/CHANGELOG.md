@@ -16,8 +16,11 @@ Implementation details stay in git and in `LOG.md`.
   the UNO R4 WiFi, and the DK's on-board LED3 (P1.28) on the Nordic nRF54LM20 DK. Until
   a board runs this build, a blue LED on the UNO R4 stays dark and on the DK the write
   goes to the unmapped raw pad P0.18.
-- **Validation:** the host build and test suite (`make check`); the board builds and
-  the bench check of the two new pads are still to do.
+- **Published 2026-10-13:** the textochip site serves this build (`VER b595b3b`) for the
+  Nordic DK (A and B targets, NCS v3.4.0) and the UNO R4 WiFi (upstream Zephyr
+  `ef440e43c`).
+- **Validation:** the host build and test suite (`make check`); the three board builds.
+  Not yet flashed: the bench check of the two new pads is still to do.
 
 ## 0.1.0 - 2026-10-07T21:11+02:00 - Baseline
 

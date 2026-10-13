@@ -135,6 +135,12 @@ the bridge's CMSIS-DAP) also works in principle but needs a udev rule on Linux.
 Build-proven on 2026-10-07 (Zephyr 4.4.99): 90.2 KB of 240 KB flash, 31.1 KB of
 32 KB RAM, all of it static (VM, heap, stacks). Not yet flashed or smoke-tested.
 
+Known-good Zephyr revision: `ef440e43c` (4.4.99, 2026-09-07), with the Zephyr SDK 1.0.1
+of the NCS v3.4.0 toolchain; the published image (2026-10-13, `b595b3b`) is built from
+it. Upstream main from the next day on fails at the overlay's `&flash1`: the RA
+flash mapped-partition migration (`d8c3bbe9b`, `0bdb63e77`) removed that label, so the
+storage partition moves to the new layout before the board follows main again.
+
 - One USB-C cable for flash and IDE. The port is an ESP32-S3 USB bridge wired to
   the RA4M1's SCI9; the overlay moves the console there from upstream's SCI2.
 - No AI tier (`CONFIG_TEXTOCHIP_AI=n`): `VOICE()` and `SEE()` read "none", and the

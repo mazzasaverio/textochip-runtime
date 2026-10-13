@@ -134,7 +134,7 @@ jobs:
           git -C zephyr checkout -q FETCH_HEAD
           west init -l zephyr
           west update --narrow -o=--depth=1 ${{ matrix.modules }}
-          pip install -r zephyr/scripts/requirements-base.txt -r zephyr/scripts/requirements-run.txt
+          pip install -r zephyr/scripts/requirements-base.txt
           if [ "${{ matrix.id }}" = esp32s3 ]; then west blobs fetch hal_espressif; fi
 
       - name: Install the Zephyr SDK and the board's toolchain

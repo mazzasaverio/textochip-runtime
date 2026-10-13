@@ -19,3 +19,4 @@ host/test_idle
 host/test_caps
 host/color_probe
 host/test_contract3
+host/trace_tool

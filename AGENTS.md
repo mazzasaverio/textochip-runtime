@@ -68,6 +68,9 @@ SPEC.md       the bytecode ISA and serial protocol: the contract with textochip
   commit it builds the A and B targets, copies both hex files and their `.version` into
   `textochip/public/firmware/`, then commits and pushes `textochip` main, which deploys
   the site. Running it is a production release of `textochip`.
+- The firmware workflow (`.github/workflows/firmware.yml`) builds all four images on
+  each firmware change; with `TEXTOCHIP_PUBLISH_TOKEN` it pushes them to a
+  `firmware-<sha>` branch of `textochip`, never to its main.
 - A republished hex needs a bench check on the DK first (`docs/DECISIONS.md`,
   2026-10-07).
 - The firmware answers `VER` with its build id (the short commit), so the IDE can tell a

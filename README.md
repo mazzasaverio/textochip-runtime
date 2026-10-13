@@ -73,6 +73,15 @@ the IDE's install card. A pre-push hook (`scripts/hooks/pre-push`; activate with
 were not published, and the firmware answers `VER` with its build id so the IDE
 can tell a maker their board is behind. Do not copy hexes by hand.
 
+Since 2026-10-13 a machine builds every board's image too: `.github/workflows/firmware.yml`
+builds the Nordic A and B targets, the UNO R4 WiFi and the ESP32-S3 from the commit
+that changes `src/`, `zephyr/` or `third_party/`, and leaves the images with a
+`firmware.json` (the build id per board, which the IDE compares with the board's
+`CAPS` answer) as the run's artifact. With the `TEXTOCHIP_PUBLISH_TOKEN` secret set, a
+push to main also pushes them to a `firmware-<sha>` branch of `textochip`, to merge
+after the bench check. Until that secret exists, `publish-hex.sh` stays the way the
+Nordic hex is published.
+
 ## Build for hardware
 
 Every board builds from this folder with `west`. Per-board work lives only in

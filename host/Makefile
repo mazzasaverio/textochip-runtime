@@ -91,6 +91,10 @@ test-vision: test_vision.cpp ../src/ai/ai_vision_tflm.cpp ../src/ai/vision_servi
 
 # The power hook: VM::idleForMs / runtime::idleMs — what the Zephyr main loop
 # sleeps on instead of spinning at 1 kHz through an hours-long WAIT.
+test-caps: test_caps.cpp ../src/isa.cpp ../src/vm.cpp ../src/runtime.cpp ../src/registry.cpp hal_host.cpp $(VISION_OBJS)
+	$(CXX) $(CXXFLAGS) -o test_caps $^ -lm
+	./test_caps
+
 test-idle: test_idle.cpp ../src/isa.cpp ../src/vm.cpp ../src/runtime.cpp ../src/registry.cpp hal_host.cpp $(VISION_OBJS)
 	$(CXX) $(CXXFLAGS) -o test_idle test_idle.cpp ../src/isa.cpp ../src/vm.cpp ../src/runtime.cpp ../src/registry.cpp hal_host.cpp $(VISION_OBJS) -lm
 	./test_idle
@@ -141,4 +145,4 @@ test-color-service: test_color_service.cpp ../src/ai/vision_service.cpp ../src/a
 	$(CXX) $(CXXFLAGS) -o test_color_service test_color_service.cpp vision_service_color.o color_detect.o hal_host.cpp -lm
 	./test_color_service
 
-.PHONY: run test-ai test-ai-vm test-ai-move tflm-lib ai-infer test-ai-service test-vision test-color test-color-move test-color-service test-dist test-idle clean
+.PHONY: test-caps run test-ai test-ai-vm test-ai-move tflm-lib ai-infer test-ai-service test-vision test-color test-color-move test-color-service test-dist test-idle clean

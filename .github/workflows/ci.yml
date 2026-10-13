@@ -34,6 +34,9 @@ jobs:
         run: make -C host textochip_vm_host
 
       # Each target answers one question and needs no model or submodule.
+      - name: Protocol — the CAPS handshake line
+        run: make -C host test-caps
+
       - name: VM — power hook (idle declaration, what the loop sleeps on)
         run: make -C host test-idle
 

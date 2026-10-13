@@ -9,6 +9,16 @@ terminal), the `textochip` IDE and compiler that talk to it through the bytecode
 serial contract in `SPEC.md`, and contributors who build it from source.
 Implementation details stay in git and in `LOG.md`.
 
+## 0.4.0 - 2026-10-13T23:00+02:00 - The board says what it is
+
+- **The CAPS handshake:** a new `CAPS` command answers with the build, the contract
+  version, the program cap, the board id and the primitives this build drives (for
+  example `CAPS build=… contract=2 max=128 board=unor4wifi prims=digital,adc,tone,servo,dist`).
+  The IDE uses it on connect to tell a maker their firmware is behind, or that the board
+  is not the one selected, on every board.
+- **Validation:** a host test of the CAPS line (`make test-caps`, in `make check` and CI);
+  the Nordic DK and UNO R4 builds.
+
 ## 0.3.0 - 2026-10-13T20:30+02:00 - The RGB LED's pins
 
 - **Three pins for the RGB LED:** the IDE's RGB LED (`RGB <colour>`, logical pins 47,

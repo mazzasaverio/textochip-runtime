@@ -17,4 +17,8 @@ void tick();                          // advance the VM one cooperative step-bud
 // progress, the mic/camera inference services). The main loop caps it to keep
 // serial latency bounded — see zephyr/src/main.cpp.
 uint32_t idleMs();
+// The CAPS reply (SPEC.md §2): "CAPS build=<id> contract=<n> max=<n> board=<id>
+// prims=<a,b,...>". One line, space-separated key=value pairs; a key the IDE
+// does not know is ignored, so the line can grow.
+std::string capsLine();
 }  // namespace runtime

@@ -120,6 +120,12 @@ std::string railProbe();
 // Bench: which P1 pads can actually be driven (see padScan in the Zephyr HAL).
 std::string padScan();
 
+// What this build of the firmware can drive, for the CAPS handshake: the
+// board id the IDE knows it by and the primitives compiled in, as
+// "board=<id> prims=<a,b,...>". Per board, from the build's own macros, so it
+// cannot claim a peripheral its overlay does not have.
+std::string capabilities();
+
 // Non-volatile storage for the autorun program (brief §7). SAVE persists the
 // raw bytecode text to flash; on boot, a saved program is loaded + run with no
 // PC attached (the board's autonomy). One slot — a new save overwrites it.

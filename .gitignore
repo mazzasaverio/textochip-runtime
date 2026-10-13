@@ -16,4 +16,5 @@ host/test_color_move
 host/test_color_service
 host/test_dist
 host/test_idle
+host/test_caps
 host/color_probe

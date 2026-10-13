@@ -163,6 +163,7 @@ parsing.
 | From the IDE        | Board action                                  | Reply                       |
 |---------------------|-----------------------------------------------|-----------------------------|
 | `PING`              | health check                                  | `PONG`                      |
+| `CAPS`              | what this firmware is and can drive (the handshake the IDE runs on connect) | `CAPS build=<id> contract=<n> max=<n> board=<id> prims=<a,b,…>` |
 | `LOAD`              | begin receiving bytecode                       | `OK: send program, end '.'` |
 | `<instruction>` …   | buffer instructions                            | (buffered)                  |
 | `.`                 | end of program                                 | `OK: loaded N`              |
@@ -177,6 +178,13 @@ parsing.
 | `CAM` (debug)       | ask the camera who it is and how big one frame measures — the first thing to check when the Arducam goes on the bench, since everything either side of the SPI read is host-tested | `OK: cam id=0x81 fw=Y-M-D/vv frame=18432 (expect 18432)` or `OK: cam absent (…)` |
 | `STORE?` (debug)    | report the autorun store: is it mounted, how many bytes are persisted, and its geometry. Diagnoses a `SAVE` that does not autorun on boot (`saved<0` = nothing stored) | `STORE mounted=0\|1 saved=N sector=WxC` |
 | (boot)              | if a saved program exists, load + run it (PC-unplugged autonomy) | `READY` then `OK: autorun N` |
+
+`CAPS` (contract 2, 2026-10-13) is one line of space-separated `key=value` pairs, so it
+can grow: `build` is the runtime git hash (the same as `VER`), `contract` this SPEC's
+version, `max` the program cap in instructions, `board` the id the IDE knows the board by
+(`textochip/lib/boards/<id>.json`), `prims` the primitives this build compiled in, from
+`digital`, `adc`, `tone`, `servo`, `move`, `dist`, `infer`. The IDE ignores keys it does
+not know, and a firmware that answers `ERROR: unknown command` predates the handshake.
 
 While a **voice program runs**, the firmware streams edge-AI feedback on the console: a heartbeat
 every ~2 s (`mic: level=… env=… gain=… spk=… top=<label> NN% mfcc=…ms infer=…ms`) so a silent mic

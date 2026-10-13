@@ -2,6 +2,10 @@
 #include <cstdint>
 #include <string>
 
+// The contract version this build speaks (SPEC.md), reported by CAPS. The IDE
+// compares it with what a program needs before uploading.
+#define TEXTOCHIP_CONTRACT 2
+
 // Opcode set — mirrors lib/isa.ts and the brief §3. Strings are std::string
 // (portable across the host g++ build and the Zephyr board build).
 enum OpCode {

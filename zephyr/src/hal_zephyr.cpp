@@ -858,6 +858,36 @@ std::string railProbe() {
 // the mic and the motor PWM taught us), so the replacement must also be on P1.
 // Pads already spoken for (motors 5/6/7, buzzer 13, mic 14/23/31) are skipped:
 // driving a motor enable to probe it would twitch a wheel.
+// The CAPS handshake (SPEC.md §2): the board id the IDE knows it by
+// (lib/boards/<id>.json) and the primitives this build compiled in.
+std::string capabilities() {
+#if defined(CONFIG_BOARD_NRF54LM20DK)
+  std::string out = "board=nrf54lm20dk prims=digital";
+#elif defined(CONFIG_BOARD_ARDUINO_UNO_R4)
+  std::string out = "board=unor4wifi prims=digital";
+#elif defined(CONFIG_SOC_SERIES_ESP32S3)
+  std::string out = "board=esp32s3 prims=digital";
+#else
+  std::string out = "board=" CONFIG_BOARD " prims=digital";
+#endif
+#ifdef HAS_ADC
+  out += ",adc";
+#endif
+#ifdef TC_PWM_NODE
+  out += ",tone,servo";
+#endif
+#ifdef HAS_MOTORS
+  out += ",move";
+#endif
+#ifdef HAS_HCSR04
+  out += ",dist";
+#endif
+#ifdef TEXTOCHIP_AI
+  out += ",infer";
+#endif
+  return out;
+}
+
 std::string padScan() {
 #ifdef TC_ARDUINO_PINS
   return " n/a";  // raw nRF port-1 pads; the Arduino pin table has no such pins

@@ -35,6 +35,16 @@ std::string trim(const std::string& s) {
 }
 }  // namespace
 
+#ifndef TEXTOCHIP_BUILD
+#define TEXTOCHIP_BUILD "dev"
+#endif
+
+std::string runtime::capsLine() {
+  return std::string("CAPS build=") + TEXTOCHIP_BUILD +
+         " contract=" + std::to_string(TEXTOCHIP_CONTRACT) +
+         " max=" + std::to_string(MAX_PROGRAM) + " " + hal::capabilities();
+}
+
 void runtime::feedLine(const std::string& raw) {
   std::string line = trim(raw);
 
@@ -70,12 +80,11 @@ void runtime::feedLine(const std::string& raw) {
 
   if (line.empty()) return;
 
-  if (line == "VER") {
+  if (line == "CAPS") {
+    hal::serialWriteLine(runtime::capsLine());
+  } else if (line == "VER") {
     // The build id (runtime git hash). The IDE compares it with the published
     // firmware's id and offers the one-command update when they differ.
-#ifndef TEXTOCHIP_BUILD
-#define TEXTOCHIP_BUILD "dev"
-#endif
     hal::serialWriteLine("VER " TEXTOCHIP_BUILD);
   } else if (line == "PING") {
     hal::serialWriteLine("PONG");

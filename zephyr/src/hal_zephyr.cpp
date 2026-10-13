@@ -131,6 +131,12 @@ static int map_pin(int logical) {
     case 39: return 2 * 32 + 1;   // line center  -> P2.01 (D17)
     case 40: return 2 * 32 + 2;   // line right   -> P2.02 (D18)
     case 41: return 2 * 32 + 3;   // obstacle     -> P2.03 (D19)
+    // The RGB LED's legs (47, 3, 46): no three free pads on this DK, so they
+    // go nowhere. Passed through raw they would land on P1.15, P0.03 (the
+    // analog input) and P1.14 (the mic's FSYNC).
+    case 47:
+    case 3:
+    case 46: return -1;
     default: return logical;      // unmapped: raw port*32+pin passthrough
   }
 }
@@ -159,6 +165,9 @@ static int map_pin(int logical) {
     case 40: return 17;  // line right  -> A3
     case 41: return 12;  // obstacle    -> D12
     case 42: return 9;   // relay       -> D9
+    case 47: return 0;   // RGB LED R   -> D0 (upstream's console UART, off here)
+    case 3:  return 1;   // RGB LED G   -> D1
+    case 46: return 19;  // RGB LED B   -> A5
     default: return -1;  // not on this board
   }
 }

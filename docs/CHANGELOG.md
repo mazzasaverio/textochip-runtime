@@ -9,6 +9,16 @@ terminal), the `textochip` IDE and compiler that talk to it through the bytecode
 serial contract in `SPEC.md`, and contributors who build it from source.
 Implementation details stay in git and in `LOG.md`.
 
+## 0.3.0 - 2026-10-13T20:30+02:00 - The RGB LED's pins
+
+- **Three pins for the RGB LED:** the IDE's RGB LED (`RGB <colour>`, logical pins 47,
+  3, 46) reaches D0, D1 and A5 on the UNO R4 WiFi, and GPIO 47, 3, 46 on the ESP32-S3
+  (identity map, no change there). The Nordic DK has no three free pads: those pins go
+  nowhere instead of being passed through raw to P1.15, P0.03 (the analog input) and
+  P1.14 (the mic).
+- **Validation:** the host build and test suite (`make check`); the UNO R4 and Nordic
+  DK builds. Not yet flashed.
+
 ## 0.2.0 - 2026-10-13T18:00+02:00 - A blue LED
 
 - **A fourth LED pin:** the IDE's blue LED (`LED blue, on`, logical pin 18) reaches a

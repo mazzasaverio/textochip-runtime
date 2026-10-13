@@ -31,6 +31,7 @@ Logical pin (bytecode) to the Arduino pin printed on the board. Source of truth:
 - 2 yellow LED: D3
 - 4 red LED: D4, mirrored on the on-board "L" LED (D13)
 - 18 blue LED: A4 (2026-10-13)
+- 47, 3, 46 RGB LED red, green, blue legs: D0, D1, A5 (2026-10-13)
 - 5 buzzer: D5 (PWM, GPT0 channel A)
 - 6 button A: D7 (input, pull-up, active low)
 - 7 PIR: D8
@@ -42,8 +43,7 @@ Logical pin (bytecode) to the Arduino pin printed on the board. Source of truth:
 - HC-SR04 (`DIST`, HAL-owned): TRIG D10, ECHO D11
 - Not wired in phase 1: motors (10-14, 21). `MOVE` is a no-op.
 
-Free for later: D0, D1 (upstream's console UART, disabled here), A5, the
-Qwiic connector.
+Free for later: the Qwiic connector.
 
 **5 V I/O.** The RA4M1 on this board runs at 5 V, so its outputs are 5 V and its
 inputs expect up to 5 V. 3.3 V-only parts (the INMP441 mic, the Arducam) must not

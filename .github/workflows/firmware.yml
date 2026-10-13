@@ -38,7 +38,31 @@ env:
   ZEPHYR_UPSTREAM: ef440e43c6762917a1290b342de1f3857548e5a4
 
 jobs:
+  # TFLite Micro's third-party sources (flatbuffers, gemmlowp, ruy, kissfft,
+  # patched), fetched once by its own Makefile and handed to the builds: the
+  # Nordic toolchain image has no make.
+  tflm:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Fetch TFLite Micro's third-party sources
+        run: |
+          # its Makefile also generates example arrays, with these
+          pip install numpy pillow
+          make -C third_party/tflite-micro -f tensorflow/lite/micro/tools/make/Makefile third_party_downloads
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tflm-downloads
+          path: third_party/tflite-micro/tensorflow/lite/micro/tools/make/downloads/
+          include-hidden-files: true
+
   nordic:
+    needs: tflm
     runs-on: ubuntu-24.04
     container: ghcr.io/nrfconnect/sdk-nrf-toolchain:v3.4.0
     defaults:
@@ -69,8 +93,10 @@ jobs:
               https://github.com/nrfconnect/sdk-edge-ai ncs/sdk-edge-ai
           fi
 
-      - name: Fetch TFLite Micro's third-party sources
-        run: make -C runtime/third_party/tflite-micro -f tensorflow/lite/micro/tools/make/Makefile third_party_downloads
+      - uses: actions/download-artifact@v4
+        with:
+          name: tflm-downloads
+          path: runtime/third_party/tflite-micro/tensorflow/lite/micro/tools/make/downloads
 
       - name: Build the A target
         working-directory: runtime
@@ -97,6 +123,7 @@ jobs:
           if-no-files-found: error
 
   upstream:
+    needs: tflm
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -144,9 +171,11 @@ jobs:
           tar xf "zephyr-sdk-${V}_linux-x86_64_minimal.tar.xz" -C "$HOME"
           "$HOME/zephyr-sdk-$V/setup.sh" -t "${{ matrix.toolchain }}" -c
 
-      - name: Fetch TFLite Micro's third-party sources
+      - uses: actions/download-artifact@v4
         if: matrix.id == 'esp32s3'
-        run: make -C runtime/third_party/tflite-micro -f tensorflow/lite/micro/tools/make/Makefile third_party_downloads
+        with:
+          name: tflm-downloads
+          path: runtime/third_party/tflite-micro/tensorflow/lite/micro/tools/make/downloads
 
       - name: Build
         working-directory: runtime

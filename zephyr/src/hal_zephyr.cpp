@@ -815,35 +815,67 @@ std::string railProbe() {
 // The CAPS handshake (SPEC.md §2): the board id the IDE knows it by
 // (lib/boards/<id>.json) and the primitives this build compiled in.
 // ── SENSE: the sensors the board's overlay declares, through Zephyr's sensor
-// API. A sensor node carries a `tc_<part>` label (tc_bme280); the IDE names it
-// by the part ("bme280") and the channel ("temp", "hum", "pres"). Readings are
-// sampled at most once a second and cached: a sensor is slow to sample, and a
-// program's loop asks on every tick.
-#if DT_NODE_EXISTS(DT_NODELABEL(tc_bme280)) && DT_NODE_HAS_STATUS(DT_NODELABEL(tc_bme280), okay)
-#define HAS_BME280 1
+// API. A sensor node carries a `tc_<part>` label (tc_bme280, tc_dht22); the IDE
+// names it by the part ("bme280") and the channel ("temp", "hum", "pres").
+// Readings are sampled at most once a period and cached: a sensor is slow to
+// sample (the DHT22 busy-waits ~23 ms, and wants 2 s between readings), and a
+// program's loop asks on every tick. A sensor is one row of the table below.
+#define TC_SENSOR_OK(label) \
+  (DT_NODE_EXISTS(DT_NODELABEL(label)) && DT_NODE_HAS_STATUS(DT_NODELABEL(label), okay))
+#if TC_SENSOR_OK(tc_bme280) || TC_SENSOR_OK(tc_dht22)
+#define HAS_SENSORS 1
 #include <zephyr/drivers/sensor.h>
-static const struct device* const g_bme280 = DEVICE_DT_GET(DT_NODELABEL(tc_bme280));
+
+namespace {
+struct SenseChannel {
+  const char* name;
+  enum sensor_channel chan;
+  double scale;  // to the unit a maker reads
+};
+struct SenseDevice {
+  const char* name;
+  const struct device* dev;
+  int64_t periodMs;
+  const SenseChannel* channels;
+  size_t count;
+  int64_t lastMs;
+  bool ok;
+  struct sensor_value v[3];
+};
+
+// °C, %RH, hPa (Zephyr gives kPa)
+constexpr SenseChannel kClimate[] = {
+    {"temp", SENSOR_CHAN_AMBIENT_TEMP, 1.0},
+    {"hum", SENSOR_CHAN_HUMIDITY, 1.0},
+    {"pres", SENSOR_CHAN_PRESS, 10.0},
+};
+
+SenseDevice g_sensors[] = {
+#if TC_SENSOR_OK(tc_bme280)
+    {"bme280", DEVICE_DT_GET(DT_NODELABEL(tc_bme280)), 1000, kClimate, 3, -100000, false, {}},
+#endif
+#if TC_SENSOR_OK(tc_dht22)
+    {"dht22", DEVICE_DT_GET(DT_NODELABEL(tc_dht22)), 2000, kClimate, 2, -100000, false, {}},
+#endif
+};
+}  // namespace
 #endif
 
 int sense(const std::string& device, const std::string& channel) {
-#ifdef HAS_BME280
-  if (device == "bme280") {
-    static int64_t lastMs = -10000;
-    static struct sensor_value t, h, p;
-    static bool ok = false;
+#ifdef HAS_SENSORS
+  for (auto& s : g_sensors) {
+    if (device != s.name) continue;
     const int64_t now = k_uptime_get();
-    if (now - lastMs >= 1000) {
-      lastMs = now;
-      ok = device_is_ready(g_bme280) && sensor_sample_fetch(g_bme280) == 0 &&
-           sensor_channel_get(g_bme280, SENSOR_CHAN_AMBIENT_TEMP, &t) == 0 &&
-           sensor_channel_get(g_bme280, SENSOR_CHAN_HUMIDITY, &h) == 0 &&
-           sensor_channel_get(g_bme280, SENSOR_CHAN_PRESS, &p) == 0;
+    if (now - s.lastMs >= s.periodMs) {
+      s.lastMs = now;
+      s.ok = device_is_ready(s.dev) && sensor_sample_fetch(s.dev) == 0;
+      for (size_t i = 0; s.ok && i < s.count; i++)
+        s.ok = sensor_channel_get(s.dev, s.channels[i].chan, &s.v[i]) == 0;
     }
-    if (!ok) return 0;
-    // rounded to the unit a maker reads: °C, %RH, hPa (Zephyr gives kPa)
-    if (channel == "temp") return (int)lround(sensor_value_to_double(&t));
-    if (channel == "hum") return (int)lround(sensor_value_to_double(&h));
-    if (channel == "pres") return (int)lround(sensor_value_to_double(&p) * 10.0);
+    if (!s.ok) return 0;
+    for (size_t i = 0; i < s.count; i++)
+      if (channel == s.channels[i].name)
+        return (int)lround(sensor_value_to_double(&s.v[i]) * s.channels[i].scale);
     return 0;
   }
 #endif
@@ -854,8 +886,11 @@ int sense(const std::string& device, const std::string& channel) {
 
 std::string sensors() {
   std::string out;
-#ifdef HAS_BME280
-  out += "bme280";
+#ifdef HAS_SENSORS
+  for (const auto& s : g_sensors) {
+    if (!out.empty()) out += ",";
+    out += s.name;
+  }
 #endif
   return out;
 }

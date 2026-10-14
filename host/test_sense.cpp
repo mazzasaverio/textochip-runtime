@@ -40,11 +40,25 @@ int main() {
   for (int i = 0; i < 5; i++) runtime::tick();
   expect("28 °C: the LED lights", host_get_level(4) == 1);
   runtime::feedLine("STOP");
+  // a second device is the same opcode with another word: a DHT22's humidity
+  const char* humid[] = {"MODE 4 OUT", "SENSE dht22 hum", "PUSH 70", "GT", "JZ 7",
+                         "SET 4 1",    "JMP 1",           "SET 4 0", "JMP 1"};
+  runtime::feedLine("LOAD");
+  for (const char* l : humid) runtime::feedLine(l);
+  runtime::feedLine(".");
+  runtime::feedLine("RUN");
+  host_set_sense("dht22.hum", 80);
+  for (int i = 0; i < 5; i++) runtime::tick();
+  expect("a DHT22 at 80 %: the LED lights", host_get_level(4) == 1);
+  host_set_sense("dht22.hum", 40);
+  for (int i = 0; i < 5; i++) runtime::tick();
+  expect("40 %: off again", host_get_level(4) == 0);
+  runtime::feedLine("STOP");
   expect("CAPS lists the sensor", runtime::capsLine().find(" sensors=bme280") != std::string::npos);
   if (fail) {
     printf("FAIL: SENSE\n");
     return 1;
   }
-  printf("OK: SENSE — a sensor reading drives the program (a thermostat at 25 °C)\n");
+  printf("OK: SENSE — a sensor reading drives the program (a thermostat, a hygrostat)\n");
   return 0;
 }

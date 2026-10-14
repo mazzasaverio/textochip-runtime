@@ -209,3 +209,16 @@
 		status = "okay";
 	};
 };
+
+/*
+ * DHT22 (AM2302) for SENSE: its data line on A3, the IDE descriptor's fixed
+ * "dht" pad (the line tracker's right sensor; the UNO R4 drives no robot yet).
+ */
+/ {
+	tc_dht22: dht22 {
+		compatible = "aosong,dht";
+		dio-gpios = <&arduino_header ARDUINO_HEADER_R3_A3 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+		dht22;
+		status = "okay";
+	};
+};

@@ -9,6 +9,15 @@ terminal), the `textochip` IDE and compiler that talk to it through the bytecode
 serial contract in `SPEC.md`, and contributors who build it from source.
 Implementation details stay in git and in `LOG.md`.
 
+## 0.7.0 - 2026-10-14T09:00+02:00 - The DHT22
+
+- **A second sensor:** `SENSE dht22 temp|hum` reads a DHT22 (AM2302) on one data line:
+  GPIO40 on the ESP32-S3, A3 on the UNO R4 (both the line tracker's right pin). One
+  reading every 2 s; each costs the program ~23 ms. `CAPS` lists `sensors=bme280,dht22`.
+- **For contributors:** a sensor is now one row of a table in the HAL.
+- Verified: the host test reads a second device (a hygrostat); the UNO R4 built locally
+  (RAM 96.6 %), the three boards in CI. Not on the bench yet.
+
 ## 0.6.0 - 2026-10-14T08:00+02:00 - A climate sensor, and room on the ESP32-S3
 
 - **Sensors through their drivers:** `SENSE <device> <channel>` pushes a reading from a

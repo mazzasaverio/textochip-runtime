@@ -182,3 +182,20 @@ pwm0: &ledc0 {
 		status = "okay";
 	};
 };
+
+/*
+ * DHT22 (AM2302) temperature and humidity sensor for SENSE: its data line on
+ * GPIO40 (gpio1 pin 8), the IDE descriptor's fixed "dht" pad (the line
+ * tracker's right sensor, which a weather station does not use). Zephyr's
+ * bit-banged driver: an 18 ms start pulse, then ~5 ms of data.
+ */
+#include <zephyr/dt-bindings/gpio/gpio.h>
+
+/ {
+	tc_dht22: dht22 {
+		compatible = "aosong,dht";
+		dio-gpios = <&gpio1 8 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+		dht22;
+		status = "okay";
+	};
+};

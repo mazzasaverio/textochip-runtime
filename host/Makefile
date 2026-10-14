@@ -170,3 +170,7 @@ test-color-service: test_color_service.cpp ../src/ai/vision_service.cpp ../src/a
 	./test_color_service
 
 .PHONY: trace-tool test-sense test-pixels test-display test-caps test-contract3 run test-ai test-ai-vm test-ai-move tflm-lib ai-infer test-ai-service test-vision test-color test-color-move test-color-service test-dist test-idle clean
+
+# The ISA, once: src/isa_ops.gen.h must match src/isa.json.
+check-isa:
+	python3 ../tools/gen_isa.py --check

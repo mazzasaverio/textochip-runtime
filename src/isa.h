@@ -13,30 +13,17 @@
 constexpr long RES_REF = 1L << 24;
 inline bool isResRef(long a) { return a >= RES_REF; }
 
-// Opcode set — mirrors lib/isa.ts and the brief §3. Strings are std::string
+// Opcode set: generated from src/isa.json (tools/gen_isa.py), the one list
+// the IDE's lib/isa.json copies. OP_NOP is 0. Strings are std::string
 // (portable across the host g++ build and the Zephyr board build).
+#include "isa_ops.gen.h"
+static_assert(TEXTOCHIP_ISA_CONTRACT == TEXTOCHIP_CONTRACT,
+              "isa.json's contract and TEXTOCHIP_CONTRACT disagree");
+
 enum OpCode {
-  OP_NOP = 0,
-  // Tier 1 — core
-  OP_MODE, OP_SET, OP_WAIT, OP_JMP, OP_CALL, OP_HALT,
-  // Tier 2 — expressions & branching
-  OP_PUSH, OP_LOAD, OP_STORE, OP_READ,
-  OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_GT, OP_LT, OP_EQ, OP_AND, OP_NOT, OP_ABS,
-  OP_JZ, OP_GOSUB, OP_RET,
-  // Extensions (real hardware)
-  OP_TONE, OP_RPIN, OP_SERVO, OP_AREAD,
-  OP_MOVE,  // MOVE <left> <right> — differential drive, wheel speeds -255..255
-  OP_DIST,  // DIST — push the ultrasonic distance in cm (HC-SR04; HAL-owned, no pin)
-  // Tier 4 — edge-AI
-  OP_AISTART,  // AISTART <model> — start the model's background inference service
-  OP_INFER,    // INFER <model> — push the latest class index (0 = none), non-blocking
-  // Contract 3 primitives
-  OP_SENSE,    // SENSE <device> <channel> — push a sensor's reading (°C, %, hPa)
-  OP_PIXN,     // PIXN <count> — set up the LED strip: count pixels, all off
-  OP_PIX,      // PIX — pop colour (0xRRGGBB), pop index; index -1 = every pixel
-  OP_DCLR,     // DCLR — clear the screen's rows
-  OP_DTEXT,    // DTEXT <row> "<text>" — a row of the screen (OLED) is this text
-  OP_DNUM,     // DNUM <row> — pop a number, append it to the row
+#define TEXTOCHIP_OP_ENUM(name) OP_##name,
+  TEXTOCHIP_OPCODES(TEXTOCHIP_OP_ENUM)
+#undef TEXTOCHIP_OP_ENUM
   OP_UNKNOWN
 };
 

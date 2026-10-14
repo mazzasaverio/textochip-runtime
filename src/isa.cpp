@@ -27,44 +27,11 @@ static long pinOperand(const std::string& s) {
 
 const char* opcodeName(OpCode op) {
   switch (op) {
-    case OP_NOP: return "NOP";
-    case OP_MODE: return "MODE";
-    case OP_SET: return "SET";
-    case OP_WAIT: return "WAIT";
-    case OP_JMP: return "JMP";
-    case OP_CALL: return "CALL";
-    case OP_HALT: return "HALT";
-    case OP_PUSH: return "PUSH";
-    case OP_LOAD: return "LOAD";
-    case OP_STORE: return "STORE";
-    case OP_READ: return "READ";
-    case OP_ADD: return "ADD";
-    case OP_SUB: return "SUB";
-    case OP_MUL: return "MUL";
-    case OP_DIV: return "DIV";
-    case OP_GT: return "GT";
-    case OP_LT: return "LT";
-    case OP_EQ: return "EQ";
-    case OP_AND: return "AND";
-    case OP_NOT: return "NOT";
-    case OP_ABS: return "ABS";
-    case OP_JZ: return "JZ";
-    case OP_GOSUB: return "GOSUB";
-    case OP_RET: return "RET";
-    case OP_TONE: return "TONE";
-    case OP_RPIN: return "RPIN";
-    case OP_SERVO: return "SERVO";
-    case OP_AREAD: return "AREAD";
-    case OP_MOVE: return "MOVE";
-    case OP_DIST: return "DIST";
-    case OP_AISTART: return "AISTART";
-    case OP_INFER: return "INFER";
-    case OP_SENSE: return "SENSE";
-    case OP_PIXN: return "PIXN";
-    case OP_PIX: return "PIX";
-    case OP_DCLR: return "DCLR";
-    case OP_DTEXT: return "DTEXT";
-    case OP_DNUM: return "DNUM";
+#define TEXTOCHIP_OP_NAME(name) \
+  case OP_##name:              \
+    return #name;
+    TEXTOCHIP_OPCODES(TEXTOCHIP_OP_NAME)
+#undef TEXTOCHIP_OP_NAME
     default: return "?";
   }
 }
@@ -74,17 +41,9 @@ OpCode opcodeFromName(const std::string& n) {
     const char* k;
     OpCode v;
   } M[] = {
-      {"NOP", OP_NOP},   {"MODE", OP_MODE}, {"SET", OP_SET},     {"WAIT", OP_WAIT},
-      {"JMP", OP_JMP},   {"CALL", OP_CALL}, {"HALT", OP_HALT},   {"PUSH", OP_PUSH},
-      {"LOAD", OP_LOAD}, {"STORE", OP_STORE}, {"READ", OP_READ}, {"ADD", OP_ADD},
-      {"SUB", OP_SUB},   {"MUL", OP_MUL},   {"DIV", OP_DIV},     {"GT", OP_GT},
-      {"LT", OP_LT},     {"EQ", OP_EQ},     {"AND", OP_AND},     {"NOT", OP_NOT},
-      {"ABS", OP_ABS},   {"JZ", OP_JZ},     {"GOSUB", OP_GOSUB}, {"RET", OP_RET},
-      {"TONE", OP_TONE}, {"RPIN", OP_RPIN}, {"SERVO", OP_SERVO},
-      {"AREAD", OP_AREAD}, {"MOVE", OP_MOVE}, {"DIST", OP_DIST},
-      {"AISTART", OP_AISTART}, {"INFER", OP_INFER},
-      {"SENSE", OP_SENSE}, {"PIXN", OP_PIXN}, {"PIX", OP_PIX},
-      {"DCLR", OP_DCLR}, {"DTEXT", OP_DTEXT}, {"DNUM", OP_DNUM},
+#define TEXTOCHIP_OP_ENTRY(name) {#name, OP_##name},
+      TEXTOCHIP_OPCODES(TEXTOCHIP_OP_ENTRY)
+#undef TEXTOCHIP_OP_ENTRY
   };
   for (auto& m : M)
     if (n == m.k) return m.v;

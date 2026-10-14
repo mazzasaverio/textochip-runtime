@@ -29,6 +29,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: The generated ISA header matches isa.json
+        run: make -C host check-isa
+
       - name: Build the host demo (links the whole runtime)
         run: make -C host textochip_vm_host
 

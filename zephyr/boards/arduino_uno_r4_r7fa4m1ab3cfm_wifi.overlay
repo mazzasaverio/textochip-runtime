@@ -108,7 +108,7 @@
 /* Upstream enables these on header pins the VM drives as plain GPIO: SCI2 on
  * D0/D1, SPI0 on D10-D13, PWM7 on D8/D9, IIC1 on A4/A5, IIC0 on the Qwiic
  * connector. Nothing in the runtime uses them, and on 32 KB of RAM every
- * driver instance counts. */
+ * driver instance counts. IIC0 comes back below, for the SENSE parts. */
 &sci2 {
 	status = "disabled";
 };
@@ -201,6 +201,8 @@
  * common breakout; SDO to GND). With no sensor wired SENSE reads 0.
  */
 &iic0 {
+	status = "okay";
+
 	tc_bme280: bme280@76 {
 		compatible = "bosch,bme280";
 		reg = <0x76>;

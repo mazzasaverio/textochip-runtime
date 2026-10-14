@@ -31,6 +31,10 @@
   node labelled `tc_bme280` (`bosch,bme280`), samples at most once a second and rounds
   (pressure: kPa × 10 = hPa). `hal::sensors()` feeds `CAPS`.
 - ESP32-S3: i2c0 on GPIO38/39 with its own pinctrl group (`tc_i2c0_default`). UNO R4:
-  the node goes on iic0 (Qwiic), already enabled upstream; the header's iic1 (A4/A5)
-  stays as upstream has it. `CONFIG_I2C` and `CONFIG_SENSOR` on both. Nordic: none.
+  the node goes on iic0 (Qwiic), which this overlay had disabled with the other unused
+  upstream peripherals and now re-enables; the header's iic1 (A4/A5) stays disabled, so
+  A4/A5 stay plain GPIO. `CONFIG_I2C` and `CONFIG_SENSOR` on both. Nordic: none.
+- UNO R4 RAM: 31552 of 32768 B (96.29 %, +248 B for the I2C and BME280 drivers), the
+  first CI build failed on `__device_dts_ord_101` (iic0 still disabled). Reproduced and
+  fixed locally with the NCS toolchain's Zephyr SDK 1.0.1 against upstream ef440e43c.
 - The PSRAM build (`TC_BIG_RAM`): `dram0_0_seg` 66.28 %, CI run 38515172514.

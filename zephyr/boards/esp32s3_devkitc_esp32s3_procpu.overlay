@@ -199,3 +199,47 @@ pwm0: &ledc0 {
 		status = "okay";
 	};
 };
+
+/*
+ * PIXELS: a WS2812 strip on SPI3's MOSI alone, GPIO41 (the IDE descriptor's
+ * fixed "pixels" pad; the obstacle sensor's default, which a light strip does
+ * not need), at 6.4 MHz: one bit of colour is one SPI byte (Zephyr's
+ * ws2812-spi, as on the Adafruit QT Py ESP32-S3). Upstream enables SPI2 on
+ * GPIO10-13 and SPI3 on GPIO14/21/40/41, the motors' and the line tracker's
+ * pads: SPI2 is off and SPI3 keeps only its MOSI, so CONFIG_SPI claims no
+ * other pad at boot. Up to 64 pixels (chain-length).
+ */
+#include <zephyr/dt-bindings/led/led.h>
+
+&pinctrl {
+	tc_spim3_pixels: tc_spim3_pixels {
+		group1 {
+			pinmux = <SPIM3_MOSI_GPIO41>;
+			output-low;
+		};
+	};
+};
+
+&spi2 {
+	status = "disabled";
+};
+
+&spi3 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	pinctrl-0 = <&tc_spim3_pixels>;
+	pinctrl-names = "default";
+	line-idle-low;
+
+	tc_pixels: ws2812@0 {
+		compatible = "worldsemi,ws2812-spi";
+		reg = <0>;
+		spi-max-frequency = <6400000>;
+		chain-length = <64>;
+		spi-cpha;
+		spi-one-frame = <0xf0>;
+		spi-zero-frame = <0xc0>;
+		color-mapping = <LED_COLOR_ID_GREEN LED_COLOR_ID_RED LED_COLOR_ID_BLUE>;
+	};
+};

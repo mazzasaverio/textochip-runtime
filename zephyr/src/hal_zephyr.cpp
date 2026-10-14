@@ -55,6 +55,7 @@
 #include "hal.h"
 
 #include <cmath>
+#include <cstring>
 
 #include "arducam_mega.h"
 
@@ -895,6 +896,69 @@ std::string sensors() {
   return out;
 }
 
+// ── PIXELS: a WS2812 strip, a `tc_pixels` node in the overlay, through
+// Zephyr's led_strip API. The frame is kept here and sent at most once a tick,
+// only when the program changed a pixel (pixelsShow, from runtime::tick).
+#if DT_NODE_EXISTS(DT_NODELABEL(tc_pixels)) && DT_NODE_HAS_STATUS(DT_NODELABEL(tc_pixels), okay)
+#define HAS_PIXELS 1
+#include <zephyr/drivers/led_strip.h>
+namespace {
+const struct device* const g_strip = DEVICE_DT_GET(DT_NODELABEL(tc_pixels));
+constexpr int kStripMax = DT_PROP(DT_NODELABEL(tc_pixels), chain_length);
+struct led_rgb g_frame[kStripMax];
+int g_pixelCount = 0;
+bool g_pixelsDirty = false;
+}  // namespace
+#endif
+
+void pixelsBegin(int count) {
+#ifdef HAS_PIXELS
+  g_pixelCount = count < 0 ? 0 : count > kStripMax ? kStripMax : count;
+  // all off, the whole strip: a shorter program clears a longer one's pixels
+  memset(g_frame, 0, sizeof(g_frame));
+  g_pixelsDirty = true;
+#else
+  (void)count;
+#endif
+}
+
+void pixelSet(int index, long rgb) {
+#ifdef HAS_PIXELS
+  const auto put = [rgb](struct led_rgb& p) {
+    p.r = (uint8_t)((rgb >> 16) & 0xff);
+    p.g = (uint8_t)((rgb >> 8) & 0xff);
+    p.b = (uint8_t)(rgb & 0xff);
+  };
+  if (index == -1) {
+    for (int i = 0; i < g_pixelCount; i++) put(g_frame[i]);
+  } else if (index >= 0 && index < g_pixelCount) {
+    put(g_frame[index]);
+  } else {
+    return;
+  }
+  g_pixelsDirty = true;
+#else
+  (void)index;
+  (void)rgb;
+#endif
+}
+
+void pixelsShow() {
+#ifdef HAS_PIXELS
+  if (!g_pixelsDirty || !device_is_ready(g_strip)) return;
+  g_pixelsDirty = false;
+  led_strip_update_rgb(g_strip, g_frame, kStripMax);
+#endif
+}
+
+int pixelsMax() {
+#ifdef HAS_PIXELS
+  return kStripMax;
+#else
+  return 0;
+#endif
+}
+
 std::string capabilities() {
 #if defined(CONFIG_BOARD_NRF54LM20DK)
   std::string out = "board=nrf54lm20dk prims=digital";
@@ -919,6 +983,9 @@ std::string capabilities() {
 #endif
 #ifdef TEXTOCHIP_AI
   out += ",infer";
+#endif
+#ifdef HAS_PIXELS
+  out += ",pixels";
 #endif
   const std::string s = sensors();
   if (!s.empty()) out += ",sense sensors=" + s;

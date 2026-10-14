@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "../src/pads.h"
 
@@ -36,3 +37,6 @@ int host_get_servo();
 void host_reset_pins();
 // A sensor reading SENSE returns on the host ("bme280.temp" -> 23).
 void host_set_sense(const std::string& key, int value);
+// The LED strip's last frame sent (pixelsShow), and how many frames were sent.
+const std::vector<long>& host_pixels();
+int host_pixel_frames();

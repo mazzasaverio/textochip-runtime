@@ -41,6 +41,8 @@ jobs:
 
       - name: SENSE — a sensor reading drives the program
         run: make -C host test-sense
+      - name: PIXELS host test (a strip coloured by index)
+        run: make -C host test-pixels
 
       - name: VM — power hook (idle declaration, what the loop sleeps on)
         run: make -C host test-idle

@@ -9,6 +9,18 @@ terminal), the `textochip` IDE and compiler that talk to it through the bytecode
 serial contract in `SPEC.md`, and contributors who build it from source.
 Implementation details stay in git and in `LOG.md`.
 
+## 0.8.0 - 2026-10-14T10:00+02:00 - An LED strip
+
+- **PIXELS:** `PIXN <count>` sets up a WS2812 strip and `PIX` colours a pixel (or all)
+  from the stack, so an index can be a variable; one frame is sent per tick, only when
+  something changed. On the ESP32-S3: data on GPIO41 (SPI3's MOSI, Zephyr's
+  `ws2812-spi`), up to 64 pixels. Not yet on the UNO R4 and the Nordic DK. `CAPS` lists
+  `pixels`.
+- **Safer boot pads:** SPI2 is disabled and SPI3 keeps only its MOSI, so the SPI driver
+  never takes the motors' or the line tracker's pads.
+- Verified: a host test (all red, one pixel blue, an index out of range, a chaser, one
+  frame per tick); the three boards in CI. Not on the bench yet.
+
 ## 0.7.0 - 2026-10-14T09:00+02:00 - The DHT22
 
 - **A second sensor:** `SENSE dht22 temp|hum` reads a DHT22 (AM2302) on one data line:

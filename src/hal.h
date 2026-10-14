@@ -44,6 +44,16 @@ int sense(const std::string& device, const std::string& channel);
 // The sensors this build drives, comma-separated ("bme280"), for CAPS.
 std::string sensors();
 
+// PIXELS: an addressable LED strip (WS2812) on the pad the overlay binds.
+// pixelsBegin sets how many pixels the program uses (capped at the strip's
+// length) and turns them off; pixelSet colours one (0xRRGGBB; -1 = all, out of
+// range ignored); pixelsShow sends the frame if anything changed, once a tick.
+// Without a strip they do nothing; pixelsMax() is 0 then.
+void pixelsBegin(int count);
+void pixelSet(int index, long rgb);
+void pixelsShow();
+int pixelsMax();
+
 // Buzzer (square wave)
 void tone(int pin, int hz);  // hz>0 start
 void toneOff(int pin);

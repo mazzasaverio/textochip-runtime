@@ -289,6 +289,15 @@ void VM::step(const Instruction& in) {
     case OP_DIST:  // DIST — push the ultrasonic distance in cm (HC-SR04)
       push(hal::distanceCm());
       break;
+    case OP_PIXN:  // PIXN <count> — the strip's length for this program, all off
+      hal::pixelsBegin((int)in.a);
+      break;
+    case OP_PIX: {  // PIX — colour on top, the pixel under it (-1 = all)
+      const long rgb = pop();
+      const long index = pop();
+      hal::pixelSet((int)index, rgb);
+      break;
+    }
     case OP_SENSE:  // SENSE <device> <channel> — a sensor's reading (0 when absent)
       push(hal::sense(in.missionId, in.callParams));
       break;

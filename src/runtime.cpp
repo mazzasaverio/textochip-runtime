@@ -475,6 +475,7 @@ void runtime::tick() {
   }
 #endif
   vm.tick();
+  hal::pixelsShow();  // one frame per tick, only when the program changed one
 }
 
 uint32_t runtime::idleMs() {

@@ -32,6 +32,8 @@ enum OpCode {
   OP_INFER,    // INFER <model> — push the latest class index (0 = none), non-blocking
   // Contract 3 primitives
   OP_SENSE,    // SENSE <device> <channel> — push a sensor's reading (°C, %, hPa)
+  OP_PIXN,     // PIXN <count> — set up the LED strip: count pixels, all off
+  OP_PIX,      // PIX — pop colour (0xRRGGBB), pop index; index -1 = every pixel
   OP_UNKNOWN
 };
 

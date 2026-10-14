@@ -2,6 +2,7 @@
 // Pins are a simulated array, the clock is advanced from main(), serial = stdout.
 // This is the spirit of Zephyr's native_sim, but with the plain host compiler so
 // it builds & runs without installing the Zephyr toolchain.
+#include <algorithm>
 #include <array>
 #include <map>
 #include <cstddef>
@@ -34,6 +35,10 @@ std::map<std::string, int> g_sense;  // "bme280.temp" -> a reading (host_set_sen
 bool g_quiet = false;
 int g_toneHz = 0;
 int g_servoAngle = -1;
+// A 64-pixel strip on the host: the frame last shown, for the tests.
+std::vector<long> g_pixels, g_shown;
+bool g_pixelsDirty = false;
+int g_frames = 0;
 }  // namespace
 
 int host_get_tone() { return g_toneHz; }
@@ -124,7 +129,29 @@ int sense(const std::string& device, const std::string& channel) {
   return it == g_sense.end() ? 0 : it->second;
 }
 
-std::string sensors() { return "bme280"; }
+std::string sensors() { return "bme280,dht22"; }
+
+void pixelsBegin(int count) {
+  g_pixels.assign((size_t)std::max(0, std::min(count, 64)), 0);
+  g_pixelsDirty = true;
+}
+void pixelSet(int index, long rgb) {
+  if (index == -1) {
+    for (auto& p : g_pixels) p = rgb;
+  } else if (index >= 0 && index < (int)g_pixels.size()) {
+    g_pixels[(size_t)index] = rgb;
+  } else {
+    return;
+  }
+  g_pixelsDirty = true;
+}
+void pixelsShow() {
+  if (!g_pixelsDirty) return;
+  g_pixelsDirty = false;
+  g_shown = g_pixels;
+  g_frames++;
+}
+int pixelsMax() { return 64; }
 
 void tone(int pin, int hz) {
   g_toneHz = hz;
@@ -188,7 +215,7 @@ std::string camBitbangProbe() { return "n/a (host build has no camera)"; }
 std::string railProbe() { return "n/a (host build has no board)"; }
 std::string padScan() { return "n/a (host build has no board)"; }
 std::string capabilities() {
-  return "board=host prims=digital,adc,tone,servo,move,dist,infer,sense sensors=bme280,dht22";
+  return "board=host prims=digital,adc,tone,servo,move,dist,infer,pixels,sense sensors=bme280,dht22";
 }
 
 // Edge-AI camera stub: drain up to `max` queued grayscale bytes (host_feed_image)
@@ -255,3 +282,6 @@ void serialWriteLine(const std::string& s) {
 }
 
 }  // namespace hal
+
+const std::vector<long>& host_pixels() { return g_shown; }
+int host_pixel_frames() { return g_frames; }

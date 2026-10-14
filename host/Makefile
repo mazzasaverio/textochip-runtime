@@ -103,6 +103,10 @@ trace-tool: trace_tool.cpp ../src/isa.cpp ../src/vm.cpp ../src/pads.cpp ../src/r
 	$(CXX) $(CXXFLAGS) -o trace_tool $^ -lm
 
 # SENSE: a sensor's reading drives a program.
+test-pixels: test_pixels.cpp ../src/isa.cpp ../src/vm.cpp ../src/pads.cpp ../src/runtime.cpp ../src/registry.cpp hal_host.cpp $(VISION_OBJS)
+	$(CXX) $(CXXFLAGS) -o test_pixels $^ -lm
+	./test_pixels
+
 test-sense: test_sense.cpp ../src/isa.cpp ../src/vm.cpp ../src/pads.cpp ../src/runtime.cpp ../src/registry.cpp hal_host.cpp $(VISION_OBJS)
 	$(CXX) $(CXXFLAGS) -o test_sense $^ -lm
 	./test_sense
@@ -116,7 +120,7 @@ test-idle: test_idle.cpp ../src/isa.cpp ../src/vm.cpp ../src/pads.cpp ../src/run
 	./test_idle
 
 clean:
-	rm -f $(BIN) $(AI_BIN) test_ai_infer test_ai_vm test_ai_move test_ai_service test_contract3 test_sense trace_tool test_vision test_color test_color_move test_color_service test_idle color_probe *.o
+	rm -f $(BIN) $(AI_BIN) test_ai_infer test_ai_vm test_ai_move test_ai_service test_contract3 test_sense test_pixels trace_tool test_vision test_color test_color_move test_color_service test_idle color_probe *.o
 
 # Colour-blob detector for SEE() (the near-term Arducam vision path): synthetic
 # RGB frames -> the colour class, pinning the contract with the product's
@@ -161,4 +165,4 @@ test-color-service: test_color_service.cpp ../src/ai/vision_service.cpp ../src/a
 	$(CXX) $(CXXFLAGS) -o test_color_service test_color_service.cpp vision_service_color.o color_detect.o hal_host.cpp -lm
 	./test_color_service
 
-.PHONY: trace-tool test-sense test-caps test-contract3 run test-ai test-ai-vm test-ai-move tflm-lib ai-infer test-ai-service test-vision test-color test-color-move test-color-service test-dist test-idle clean
+.PHONY: trace-tool test-sense test-pixels test-caps test-contract3 run test-ai test-ai-vm test-ai-move tflm-lib ai-infer test-ai-service test-vision test-color test-color-move test-color-service test-dist test-idle clean

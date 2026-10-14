@@ -60,6 +60,8 @@ const char* opcodeName(OpCode op) {
     case OP_AISTART: return "AISTART";
     case OP_INFER: return "INFER";
     case OP_SENSE: return "SENSE";
+    case OP_PIXN: return "PIXN";
+    case OP_PIX: return "PIX";
     default: return "?";
   }
 }
@@ -78,7 +80,7 @@ OpCode opcodeFromName(const std::string& n) {
       {"TONE", OP_TONE}, {"RPIN", OP_RPIN}, {"SERVO", OP_SERVO},
       {"AREAD", OP_AREAD}, {"MOVE", OP_MOVE}, {"DIST", OP_DIST},
       {"AISTART", OP_AISTART}, {"INFER", OP_INFER},
-      {"SENSE", OP_SENSE},
+      {"SENSE", OP_SENSE}, {"PIXN", OP_PIXN}, {"PIX", OP_PIX},
   };
   for (auto& m : M)
     if (n == m.k) return m.v;
@@ -124,6 +126,7 @@ bool parseInstructionLine(const std::string& raw, Instruction& out) {
     case OP_AREAD:  // AREAD <pin> — push the analog reading
       out.a = pinOperand(t1);
       break;
+    case OP_PIXN:
     case OP_WAIT:
     case OP_JMP:
     case OP_JZ:

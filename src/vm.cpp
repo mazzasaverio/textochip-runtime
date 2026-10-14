@@ -129,6 +129,7 @@ std::string VM::check() const {
 
 void VM::start() {
   pc = 0;
+  startedAt = hal::nowMs();
   state = VM_RUNNING;
 }
 
@@ -244,6 +245,7 @@ void VM::step(const Instruction& in) {
     case OP_AND: { long b = pop(); long a = pop(); push((a && b) ? 1 : 0); } break;
     case OP_NOT: push(pop() ? 0 : 1); break;
     case OP_ABS: { long a = pop(); push(a < 0 ? -a : a); } break;
+    case OP_TIME: push((long)(hal::nowMs() - startedAt)); break;
     case OP_JZ:
       if (pop() == 0) pc = (int)in.a;
       break;

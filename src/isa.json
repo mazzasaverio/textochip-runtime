@@ -10,8 +10,8 @@
     { "name": "CALL", "operands": "<missionId> [k=v ...]", "doc": "start a native MISSION" },
     { "name": "HALT", "operands": "", "doc": "stop the program" },
     { "name": "PUSH", "operands": "<value>", "doc": "push a constant" },
-    { "name": "LOAD", "operands": "<var>", "doc": "push a variable (0..25)" },
-    { "name": "STORE", "operands": "<var>", "doc": "pop into a variable" },
+    { "name": "LOAD", "operands": "<var>", "doc": "push a variable (a..z)" },
+    { "name": "STORE", "operands": "<var>", "doc": "pop into a variable (a..z)" },
     { "name": "READ", "operands": "<pin>", "doc": "push a digital input" },
     { "name": "ADD", "operands": "", "doc": "pop b, pop a, push a + b" },
     { "name": "SUB", "operands": "", "doc": "pop b, pop a, push a - b" },
@@ -39,6 +39,7 @@
     { "name": "PIX", "operands": "", "doc": "pop colour (0xRRGGBB), pop index (-1 = all): colour a pixel" },
     { "name": "DCLR", "operands": "", "doc": "clear the screen's rows" },
     { "name": "DTEXT", "operands": "<row> \"<text>\"", "doc": "a row of the screen is this text" },
-    { "name": "DNUM", "operands": "<row>", "doc": "pop a number, append it to the row" }
+    { "name": "DNUM", "operands": "<row>", "doc": "pop a number, append it to the row" },
+    { "name": "TIME", "operands": "", "doc": "push the milliseconds since the program started" }
   ]
 }

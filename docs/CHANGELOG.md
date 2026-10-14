@@ -9,6 +9,18 @@ terminal), the `textochip` IDE and compiler that talk to it through the bytecode
 serial contract in `SPEC.md`, and contributors who build it from source.
 Implementation details stay in git and in `LOG.md`.
 
+## 0.10.0 - 2026-10-14T23:00+02:00 - TIME, and the ISA in one file
+
+- **TIME:** pushes the milliseconds since the program started, so a stopwatch or a
+  reflex game measures time instead of counting WAIT ticks; every board answers CAPS
+  with the `time` primitive. Wraps after about 24 days.
+- **The ISA in one file:** `src/isa.json` generates the opcode enum, the name table and
+  the parser's lookup (`tools/gen_isa.py`, checked in CI); the IDE keeps a byte-identical
+  copy.
+- Verified: every host test, `test-time` (TIME is 0 at start, 250 after a 250 ms WAIT,
+  not the board's uptime), the IDE's differential test against this VM. No bench run on
+  the boards (owner rule for CI-built firmware).
+
 ## 0.9.0 - 2026-10-14T11:00+02:00 - A small screen
 
 - **DISPLAY:** `DCLR`, `DTEXT <row> "<text>"` and `DNUM <row>` write rows of text and

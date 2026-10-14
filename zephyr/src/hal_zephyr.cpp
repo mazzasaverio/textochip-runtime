@@ -1022,13 +1022,13 @@ void displayShow() {
 
 std::string capabilities() {
 #if defined(CONFIG_BOARD_NRF54LM20DK)
-  std::string out = "board=nrf54lm20dk prims=digital";
+  std::string out = "board=nrf54lm20dk prims=digital,time";
 #elif defined(CONFIG_BOARD_ARDUINO_UNO_R4)
-  std::string out = "board=unor4wifi prims=digital";
+  std::string out = "board=unor4wifi prims=digital,time";
 #elif defined(CONFIG_SOC_SERIES_ESP32S3)
-  std::string out = "board=esp32s3 prims=digital";
+  std::string out = "board=esp32s3 prims=digital,time";
 #else
-  std::string out = "board=" CONFIG_BOARD " prims=digital";
+  std::string out = "board=" CONFIG_BOARD " prims=digital,time";
 #endif
 #ifdef HAS_ADC
   out += ",adc";

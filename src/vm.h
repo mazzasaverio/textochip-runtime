@@ -76,6 +76,9 @@ class VM {
   void setVisionSize(long s) { visionSize = s; }
   bool visionRequested() const { return visionActive; }
 
+  // A variable's value (0..25), read-only: the host tests check programs by it.
+  long var(int i) const { return (i >= 0 && i < 26) ? vars[i] : 0; }
+
  private:
   Instruction program[MAX_PROGRAM];
   int count = 0;
@@ -95,6 +98,8 @@ class VM {
   int pc = 0;
   VmState state = VM_IDLE;
   uint32_t resumeAt = 0;
+  // When start() ran: TIME pushes the milliseconds since (wraps after 24 days).
+  uint32_t startedAt = 0;
 
   long valueStack[VALUE_STACK_SIZE];
   int vsp = 0;

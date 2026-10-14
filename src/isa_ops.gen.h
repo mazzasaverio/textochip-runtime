@@ -13,8 +13,8 @@
   X(CALL) /* <missionId> [k=v ...]: start a native MISSION */ \
   X(HALT) /* -: stop the program */ \
   X(PUSH) /* <value>: push a constant */ \
-  X(LOAD) /* <var>: push a variable (0..25) */ \
-  X(STORE) /* <var>: pop into a variable */ \
+  X(LOAD) /* <var>: push a variable (a..z) */ \
+  X(STORE) /* <var>: pop into a variable (a..z) */ \
   X(READ) /* <pin>: push a digital input */ \
   X(ADD) /* -: pop b, pop a, push a + b */ \
   X(SUB) /* -: pop b, pop a, push a - b */ \
@@ -43,4 +43,5 @@
   X(DCLR) /* -: clear the screen's rows */ \
   X(DTEXT) /* <row> "<text>": a row of the screen is this text */ \
   X(DNUM) /* <row>: pop a number, append it to the row */ \
+  X(TIME) /* -: push the milliseconds since the program started */ \
 

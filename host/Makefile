@@ -174,3 +174,8 @@ test-color-service: test_color_service.cpp ../src/ai/vision_service.cpp ../src/a
 # The ISA, once: src/isa_ops.gen.h must match src/isa.json.
 check-isa:
 	python3 ../tools/gen_isa.py --check
+
+# TIME: the milliseconds since the program started.
+test-time: test_time.cpp ../src/isa.cpp ../src/vm.cpp ../src/pads.cpp ../src/runtime.cpp ../src/registry.cpp hal_host.cpp $(VISION_OBJS)
+	$(CXX) $(CXXFLAGS) -o test_time test_time.cpp ../src/isa.cpp ../src/vm.cpp ../src/pads.cpp ../src/runtime.cpp ../src/registry.cpp hal_host.cpp $(VISION_OBJS) -lm
+	./test_time

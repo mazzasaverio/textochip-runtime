@@ -40,3 +40,5 @@ void host_set_sense(const std::string& key, int value);
 // The LED strip's last frame sent (pixelsShow), and how many frames were sent.
 const std::vector<long>& host_pixels();
 int host_pixel_frames();
+// A row of the screen as last drawn (displayShow).
+std::string host_display_row(int row);

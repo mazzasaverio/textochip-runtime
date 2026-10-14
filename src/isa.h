@@ -34,6 +34,9 @@ enum OpCode {
   OP_SENSE,    // SENSE <device> <channel> — push a sensor's reading (°C, %, hPa)
   OP_PIXN,     // PIXN <count> — set up the LED strip: count pixels, all off
   OP_PIX,      // PIX — pop colour (0xRRGGBB), pop index; index -1 = every pixel
+  OP_DCLR,     // DCLR — clear the screen's rows
+  OP_DTEXT,    // DTEXT <row> "<text>" — a row of the screen (OLED) is this text
+  OP_DNUM,     // DNUM <row> — pop a number, append it to the row
   OP_UNKNOWN
 };
 

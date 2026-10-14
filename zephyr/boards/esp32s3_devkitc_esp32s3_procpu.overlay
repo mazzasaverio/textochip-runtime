@@ -181,6 +181,23 @@ pwm0: &ledc0 {
 		reg = <0x76>;
 		status = "okay";
 	};
+
+	/* DISPLAY: the common 0.96" SSD1306 OLED, 128x64 at 0x3C, on the same bus
+	 * as the BME280 (another address). With none wired its init fails and
+	 * the rows go nowhere. */
+	tc_display: ssd1306@3c {
+		compatible = "solomon,ssd1306";
+		reg = <0x3c>;
+		width = <128>;
+		height = <64>;
+		segment-offset = <0>;
+		page-offset = <0>;
+		display-offset = <0>;
+		multiplex-ratio = <63>;
+		segment-remap;
+		com-invdir;
+		prechargep = <0x22>;
+	};
 };
 
 /*

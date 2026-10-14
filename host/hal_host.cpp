@@ -39,6 +39,8 @@ int g_servoAngle = -1;
 std::vector<long> g_pixels, g_shown;
 bool g_pixelsDirty = false;
 int g_frames = 0;
+std::array<std::string, 4> g_rows, g_drawn;
+bool g_rowsDirty = false;
 }  // namespace
 
 int host_get_tone() { return g_toneHz; }
@@ -153,6 +155,22 @@ void pixelsShow() {
 }
 int pixelsMax() { return 64; }
 
+// A four-row screen on the host: the rows last drawn, for the tests.
+void displayClear() {
+  for (auto& r : g_rows) r.clear();
+  g_rowsDirty = true;
+}
+void displayText(int row, const std::string& text, bool append) {
+  if (row < 0 || row >= (int)g_rows.size()) return;
+  g_rows[(size_t)row] = (append ? g_rows[(size_t)row] : std::string()) + text;
+  g_rowsDirty = true;
+}
+void displayShow() {
+  if (!g_rowsDirty) return;
+  g_rowsDirty = false;
+  g_drawn = g_rows;
+}
+
 void tone(int pin, int hz) {
   g_toneHz = hz;
   if (!g_quiet) std::printf("    [t=%6ums] buzzer pin%d -> %d Hz\n", g_now, pin, hz);
@@ -215,7 +233,7 @@ std::string camBitbangProbe() { return "n/a (host build has no camera)"; }
 std::string railProbe() { return "n/a (host build has no board)"; }
 std::string padScan() { return "n/a (host build has no board)"; }
 std::string capabilities() {
-  return "board=host prims=digital,adc,tone,servo,move,dist,infer,pixels,sense sensors=bme280,dht22";
+  return "board=host prims=digital,adc,tone,servo,move,dist,infer,pixels,display,sense sensors=bme280,dht22";
 }
 
 // Edge-AI camera stub: drain up to `max` queued grayscale bytes (host_feed_image)
@@ -285,3 +303,4 @@ void serialWriteLine(const std::string& s) {
 
 const std::vector<long>& host_pixels() { return g_shown; }
 int host_pixel_frames() { return g_frames; }
+std::string host_display_row(int row) { return g_drawn[(size_t)row]; }

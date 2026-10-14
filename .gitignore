@@ -22,3 +22,4 @@ host/test_contract3
 host/trace_tool
 host/test_sense
 host/test_pixels
+host/test_display

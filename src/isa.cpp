@@ -62,6 +62,9 @@ const char* opcodeName(OpCode op) {
     case OP_SENSE: return "SENSE";
     case OP_PIXN: return "PIXN";
     case OP_PIX: return "PIX";
+    case OP_DCLR: return "DCLR";
+    case OP_DTEXT: return "DTEXT";
+    case OP_DNUM: return "DNUM";
     default: return "?";
   }
 }
@@ -81,6 +84,7 @@ OpCode opcodeFromName(const std::string& n) {
       {"AREAD", OP_AREAD}, {"MOVE", OP_MOVE}, {"DIST", OP_DIST},
       {"AISTART", OP_AISTART}, {"INFER", OP_INFER},
       {"SENSE", OP_SENSE}, {"PIXN", OP_PIXN}, {"PIX", OP_PIX},
+      {"DCLR", OP_DCLR}, {"DTEXT", OP_DTEXT}, {"DNUM", OP_DNUM},
   };
   for (auto& m : M)
     if (n == m.k) return m.v;
@@ -126,6 +130,19 @@ bool parseInstructionLine(const std::string& raw, Instruction& out) {
     case OP_AREAD:  // AREAD <pin> — push the analog reading
       out.a = pinOperand(t1);
       break;
+    case OP_DTEXT: {
+      // DTEXT <row> "<text>": the text in double quotes, so it keeps its
+      // spaces; printable ASCII (the screen's font), at most 21 characters.
+      out.a = toLong(t1);
+      if (t2.size() < 2 || t2.front() != '"' || t2.back() != '"') return false;
+      std::string text = t2.substr(1, t2.size() - 2);
+      if (text.size() > 21) return false;
+      for (char c : text)
+        if (c < 32 || c > 126 || c == '"') return false;
+      out.callParams = text;
+      break;
+    }
+    case OP_DNUM:
     case OP_PIXN:
     case OP_WAIT:
     case OP_JMP:

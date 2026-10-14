@@ -50,6 +50,12 @@ std::string sensors();
 // range ignored); pixelsShow sends the frame if anything changed, once a tick.
 // Without a strip they do nothing; pixelsMax() is 0 then.
 void pixelsBegin(int count);
+// DISPLAY: a small screen (an SSD1306 OLED) as rows of text. displayText sets a
+// row (0 = top), or appends to it; displayShow draws the rows if anything
+// changed, once a tick. Without a screen they do nothing.
+void displayClear();
+void displayText(int row, const std::string& text, bool append = false);
+void displayShow();
 void pixelSet(int index, long rgb);
 void pixelsShow();
 int pixelsMax();

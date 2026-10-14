@@ -9,6 +9,16 @@ terminal), the `textochip` IDE and compiler that talk to it through the bytecode
 serial contract in `SPEC.md`, and contributors who build it from source.
 Implementation details stay in git and in `LOG.md`.
 
+## 0.9.0 - 2026-10-14T11:00+02:00 - A small screen
+
+- **DISPLAY:** `DCLR`, `DTEXT <row> "<text>"` and `DNUM <row>` write rows of text and
+  numbers on an SSD1306 OLED (128×64, four rows of twelve characters), drawn once a tick
+  when a row changed. On the ESP32-S3, on the sensor bus (GPIO38/39) at 0x3C, beside
+  the BME280. Not on the UNO R4 (its RAM has no room for the frame), nor the Nordic DK.
+  `CAPS` lists `display`.
+- Verified: a host test (a label and a reading on a row); the three boards in CI. Not on
+  the bench yet.
+
 ## 0.8.0 - 2026-10-14T10:00+02:00 - An LED strip
 
 - **PIXELS:** `PIXN <count>` sets up a WS2812 strip and `PIX` colours a pixel (or all)

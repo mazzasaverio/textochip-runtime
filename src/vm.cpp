@@ -298,6 +298,15 @@ void VM::step(const Instruction& in) {
       hal::pixelSet((int)index, rgb);
       break;
     }
+    case OP_DCLR:  // DCLR — every row of the screen empty
+      hal::displayClear();
+      break;
+    case OP_DTEXT:  // DTEXT <row> "<text>" — the row is this text
+      hal::displayText((int)in.a, in.callParams);
+      break;
+    case OP_DNUM:  // DNUM <row> — a number from the stack, after the row's text
+      hal::displayText((int)in.a, std::to_string(pop()), true);
+      break;
     case OP_SENSE:  // SENSE <device> <channel> — a sensor's reading (0 when absent)
       push(hal::sense(in.missionId, in.callParams));
       break;

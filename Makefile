@@ -1,7 +1,7 @@
 # Entry points for agents and contributors. The real build lives in host/Makefile
 # (PC build and tests) and in zephyr/ (board builds with west, see README.md).
 
-HOST_TESTS = test-caps test-contract3 test-sense test-pixels test-idle test-dist test-ai-vm test-ai-move test-color test-color-move \
+HOST_TESTS = test-caps test-contract3 test-sense test-pixels test-display test-idle test-dist test-ai-vm test-ai-move test-color test-color-move \
              test-color-service test-ai
 
 .PHONY: check check-fast dev

@@ -959,6 +959,67 @@ int pixelsMax() {
 #endif
 }
 
+// ── DISPLAY: an SSD1306 OLED, a `tc_display` node in the overlay, as four rows
+// of text in the character framebuffer's 10x16 font (12 characters a row on
+// 128x64). The rows are kept here and drawn at most once a tick, only when the
+// program changed one (displayShow, from runtime::tick).
+#if DT_NODE_EXISTS(DT_NODELABEL(tc_display)) && DT_NODE_HAS_STATUS(DT_NODELABEL(tc_display), okay)
+#define HAS_DISPLAY 1
+#include <zephyr/display/cfb.h>
+#include <zephyr/drivers/display.h>
+namespace {
+const struct device* const g_screen = DEVICE_DT_GET(DT_NODELABEL(tc_display));
+std::string g_rows[4];
+bool g_rowsDirty = false;
+bool g_screenReady = false;
+bool screenUp() {
+  if (g_screenReady) return true;
+  if (!device_is_ready(g_screen) || cfb_framebuffer_init(g_screen) != 0) return false;
+  // the 10x16 font: the first CFB font of that size
+  for (int i = 0; i < cfb_get_numof_fonts(g_screen); i++) {
+    uint8_t w = 0, h = 0;
+    if (cfb_get_font_size(g_screen, i, &w, &h) == 0 && h == 16) {
+      cfb_framebuffer_set_font(g_screen, i);
+      break;
+    }
+  }
+  display_blanking_off(g_screen);
+  g_screenReady = true;
+  return true;
+}
+}  // namespace
+#endif
+
+void displayClear() {
+#ifdef HAS_DISPLAY
+  for (auto& r : g_rows) r.clear();
+  g_rowsDirty = true;
+#endif
+}
+
+void displayText(int row, const std::string& text, bool append) {
+#ifdef HAS_DISPLAY
+  if (row < 0 || row >= 4) return;
+  g_rows[row] = (append ? g_rows[row] : std::string()) + text;
+  g_rowsDirty = true;
+#else
+  (void)row;
+  (void)text;
+  (void)append;
+#endif
+}
+
+void displayShow() {
+#ifdef HAS_DISPLAY
+  if (!g_rowsDirty || !screenUp()) return;
+  g_rowsDirty = false;
+  cfb_framebuffer_clear(g_screen, false);
+  for (int r = 0; r < 4; r++)
+    if (!g_rows[r].empty()) cfb_print(g_screen, g_rows[r].c_str(), 0, (uint16_t)(r * 16));
+  cfb_framebuffer_finalize(g_screen);
+#endif
+}
+
 std::string capabilities() {
 #if defined(CONFIG_BOARD_NRF54LM20DK)
   std::string out = "board=nrf54lm20dk prims=digital";
@@ -986,6 +1047,9 @@ std::string capabilities() {
 #endif
 #ifdef HAS_PIXELS
   out += ",pixels";
+#endif
+#ifdef HAS_DISPLAY
+  out += ",display";
 #endif
   const std::string s = sensors();
   if (!s.empty()) out += ",sense sensors=" + s;

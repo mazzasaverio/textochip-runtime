@@ -9,6 +9,19 @@ terminal), the `textochip` IDE and compiler that talk to it through the bytecode
 serial contract in `SPEC.md`, and contributors who build it from source.
 Implementation details stay in git and in `LOG.md`.
 
+## 0.6.0 - 2026-10-14T08:00+02:00 - A climate sensor, and room on the ESP32-S3
+
+- **Sensors through their drivers:** `SENSE <device> <channel>` pushes a reading from a
+  sensor on the board's bus through Zephyr's sensor API; the first is the BME280
+  (`temp` in °C, `hum` in %, `pres` in hPa), at 0x76 on the ESP32-S3's GPIO38/39 and on
+  the UNO R4's Qwiic connector. `CAPS` lists `sense` and `sensors=bme280`. A missing
+  sensor reads 0.
+- **ESP32-S3:** the voice tier's buffers moved to the module's 8 MB PSRAM: internal RAM
+  from 99.7 % to 66 %, so the firmware has room again for new primitives.
+- Verified: a host test (a thermostat driven by a reading), the three boards built in CI.
+  Not on the bench yet: the owner publishes CI firmware without a bench check
+  (2026-10-14).
+
 ## 0.5.0 - 2026-10-14T02:30+02:00 - Contract 3: programs name the board's pads
 
 - **Programs say which pads they use:** a contract-3 program opens with a resource table

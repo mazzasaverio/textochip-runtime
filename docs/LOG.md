@@ -23,3 +23,14 @@
 - Updated the CI checkout action to its Node 24 release after the first public
   run exposed GitHub's Node 20 deprecation warning.
 - Next: prove clean community hardware builds, then cut a versioned release.
+
+## 2026-10-14: SENSE and the BME280 (0.6.0)
+
+- `OP_SENSE` parses `SENSE <dev> <chan>` (lowercase letters and digits) into
+  `missionId`/`callParams`; the VM pushes `hal::sense(dev, chan)`. The Zephyr HAL reads a
+  node labelled `tc_bme280` (`bosch,bme280`), samples at most once a second and rounds
+  (pressure: kPa × 10 = hPa). `hal::sensors()` feeds `CAPS`.
+- ESP32-S3: i2c0 on GPIO38/39 with its own pinctrl group (`tc_i2c0_default`). UNO R4:
+  the node goes on iic0 (Qwiic), already enabled upstream; the header's iic1 (A4/A5)
+  stays as upstream has it. `CONFIG_I2C` and `CONFIG_SENSOR` on both. Nordic: none.
+- The PSRAM build (`TC_BIG_RAM`): `dram0_0_seg` 66.28 %, CI run 38515172514.

@@ -1,5 +1,7 @@
 #include "ai_service.h"
 
+#include "bigram.h"
+
 #include <string.h>  // memmove
 
 #include "ai.h"
@@ -41,9 +43,9 @@ bool g_ready = false;
 // The rolling window, as the raw (median-filtered) mic samples: read as
 // sample / 32768.0f, the float it used to hold, bit for bit. Half the RAM of
 // a float window (32 KB), which the ESP32-S3 image needed to link (2026-10-13).
-int16_t g_signal[kMaxSamples];
+TC_BIG_RAM int16_t g_signal[kMaxSamples];
 inline float signalAt(int i) { return (float)g_signal[i] / 32768.0f; }
-float g_proc[kMaxSamples];    // DC-removed + gained copy — the actual MFCC input
+TC_BIG_RAM float g_proc[kMaxSamples];  // DC-removed + gained copy — the actual MFCC input
 float g_feat[kMaxFeat];       // MFCC output (n_frames * n_mfcc)
 int16_t g_scratch[kChunk];    // small drain buffer for hal::aiCapture
 
@@ -164,6 +166,8 @@ void ai_service::reset() {
 }
 
 int ai_service::poll() {
+  // no external RAM came up: the window lives there, so nothing to hear with
+  if (!tc_big_ram_ready()) return -1;
   if (!g_ready) reset();
 
   // 1. Drain a bounded chunk of new audio into the rolling window (non-blocking).

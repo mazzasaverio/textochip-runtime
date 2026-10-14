@@ -143,3 +143,8 @@ pwm0: &ledc0 {
 		zephyr,resolution = <12>;
 	};
 };
+
+/* The kit's module is a WROOM N8R8: 8 MB of octal PSRAM (src/ai/bigram.h). */
+&psram0 {
+	size = <DT_SIZE_M(8)>;
+};

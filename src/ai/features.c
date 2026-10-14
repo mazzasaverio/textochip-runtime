@@ -11,6 +11,7 @@
 // the caps are the shipped model's envelope (n_fft 512, 40 mels, 16 MFCC,
 // 30 ms frame = 480 samples), giving ~100 KB of .bss. The MATH is untouched:
 // storage class and bounds only, so the Python golden-vector parity holds.
+#include "bigram.h"
 #include "features.h"
 
 #include <math.h>
@@ -157,7 +158,7 @@ int tcml_mfcc(const float* signal, int n_samples, const TcmlFeatureParams* p,
   for (int n = 0; n < fl; n++)
     win[n] = (float)(0.54 - 0.46 * cos(2.0 * M_PI * n / (double)(fl - 1)));
 
-  static float fb[MAX_NMELS * (MAX_NFFT / 2 + 1)];
+  TC_BIG_RAM static float fb[MAX_NMELS * (MAX_NFFT / 2 + 1)];
   build_filterbank(p, fb, n_bins);
 
   // Orthonormal DCT-II basis (K x M).

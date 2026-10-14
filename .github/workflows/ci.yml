@@ -39,6 +39,9 @@ jobs:
       - name: Contract 3 — pad rules, and programs run as in contract 2
         run: make -C host test-contract3
 
+      - name: SENSE — a sensor reading drives the program
+        run: make -C host test-sense
+
       - name: VM — power hook (idle declaration, what the loop sleeps on)
         run: make -C host test-idle
 

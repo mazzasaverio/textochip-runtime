@@ -34,6 +34,16 @@ int analogRead(int pin);
 // practice). Compiled from DISTANCE().
 int distanceCm();
 
+// A sensor's reading through the board's sensor driver (SENSE): `device` is
+// the part ("bme280"), `channel` what to read ("temp" in °C, "hum" in %RH,
+// "pres" in hPa), rounded to a whole number. 0 when the board has no such
+// sensor or it does not answer. Readings are cached for a second (a sensor
+// is slow to sample and a loop asks every tick).
+int sense(const std::string& device, const std::string& channel);
+
+// The sensors this build drives, comma-separated ("bme280"), for CAPS.
+std::string sensors();
+
 // Buzzer (square wave)
 void tone(int pin, int hz);  // hz>0 start
 void toneOff(int pin);

@@ -54,6 +54,8 @@
 
 #include "hal.h"
 
+#include <cmath>
+
 #include "arducam_mega.h"
 
 // ── Serial: the chosen console UART is the link to the IDE (Web Serial) ──
@@ -812,6 +814,52 @@ std::string railProbe() {
 // driving a motor enable to probe it would twitch a wheel.
 // The CAPS handshake (SPEC.md §2): the board id the IDE knows it by
 // (lib/boards/<id>.json) and the primitives this build compiled in.
+// ── SENSE: the sensors the board's overlay declares, through Zephyr's sensor
+// API. A sensor node carries a `tc_<part>` label (tc_bme280); the IDE names it
+// by the part ("bme280") and the channel ("temp", "hum", "pres"). Readings are
+// sampled at most once a second and cached: a sensor is slow to sample, and a
+// program's loop asks on every tick.
+#if DT_NODE_EXISTS(DT_NODELABEL(tc_bme280)) && DT_NODE_HAS_STATUS(DT_NODELABEL(tc_bme280), okay)
+#define HAS_BME280 1
+#include <zephyr/drivers/sensor.h>
+static const struct device* const g_bme280 = DEVICE_DT_GET(DT_NODELABEL(tc_bme280));
+#endif
+
+int sense(const std::string& device, const std::string& channel) {
+#ifdef HAS_BME280
+  if (device == "bme280") {
+    static int64_t lastMs = -10000;
+    static struct sensor_value t, h, p;
+    static bool ok = false;
+    const int64_t now = k_uptime_get();
+    if (now - lastMs >= 1000) {
+      lastMs = now;
+      ok = device_is_ready(g_bme280) && sensor_sample_fetch(g_bme280) == 0 &&
+           sensor_channel_get(g_bme280, SENSOR_CHAN_AMBIENT_TEMP, &t) == 0 &&
+           sensor_channel_get(g_bme280, SENSOR_CHAN_HUMIDITY, &h) == 0 &&
+           sensor_channel_get(g_bme280, SENSOR_CHAN_PRESS, &p) == 0;
+    }
+    if (!ok) return 0;
+    // rounded to the unit a maker reads: °C, %RH, hPa (Zephyr gives kPa)
+    if (channel == "temp") return (int)lround(sensor_value_to_double(&t));
+    if (channel == "hum") return (int)lround(sensor_value_to_double(&h));
+    if (channel == "pres") return (int)lround(sensor_value_to_double(&p) * 10.0);
+    return 0;
+  }
+#endif
+  (void)device;
+  (void)channel;
+  return 0;
+}
+
+std::string sensors() {
+  std::string out;
+#ifdef HAS_BME280
+  out += "bme280";
+#endif
+  return out;
+}
+
 std::string capabilities() {
 #if defined(CONFIG_BOARD_NRF54LM20DK)
   std::string out = "board=nrf54lm20dk prims=digital";
@@ -837,6 +885,8 @@ std::string capabilities() {
 #ifdef TEXTOCHIP_AI
   out += ",infer";
 #endif
+  const std::string s = sensors();
+  if (!s.empty()) out += ",sense sensors=" + s;
   return out;
 }
 

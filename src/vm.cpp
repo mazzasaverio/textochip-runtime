@@ -289,6 +289,9 @@ void VM::step(const Instruction& in) {
     case OP_DIST:  // DIST — push the ultrasonic distance in cm (HC-SR04)
       push(hal::distanceCm());
       break;
+    case OP_SENSE:  // SENSE <device> <channel> — a sensor's reading (0 when absent)
+      push(hal::sense(in.missionId, in.callParams));
+      break;
 
     // ── Tier 4 — edge-AI ──
     case OP_AISTART:

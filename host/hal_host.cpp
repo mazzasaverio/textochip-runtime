@@ -3,6 +3,7 @@
 // This is the spirit of Zephyr's native_sim, but with the plain host compiler so
 // it builds & runs without installing the Zephyr toolchain.
 #include <array>
+#include <map>
 #include <cstddef>
 #include <cstdio>
 #include <string>
@@ -29,6 +30,7 @@ size_t g_rgbPos = 0;
 int g_moveL = 0, g_moveR = 0;
 bool g_moved = false;
 std::string g_lastLine;
+std::map<std::string, int> g_sense;  // "bme280.temp" -> a reading (host_set_sense)
 bool g_quiet = false;
 int g_toneHz = 0;
 int g_servoAngle = -1;
@@ -43,6 +45,7 @@ void host_reset_pins() {
   g_servoAngle = -1;
 }
 const std::string& host_last_line() { return g_lastLine; }
+void host_set_sense(const std::string& key, int value) { g_sense[key] = value; }
 void host_set_quiet(bool quiet) { g_quiet = quiet; }
 
 void host_advance(uint32_t ms) { g_now += ms; }
@@ -116,6 +119,13 @@ int analogRead(int /*pin*/) { return 0; }
 
 int distanceCm() { return g_distance; }
 
+int sense(const std::string& device, const std::string& channel) {
+  auto it = g_sense.find(device + "." + channel);
+  return it == g_sense.end() ? 0 : it->second;
+}
+
+std::string sensors() { return "bme280"; }
+
 void tone(int pin, int hz) {
   g_toneHz = hz;
   if (!g_quiet) std::printf("    [t=%6ums] buzzer pin%d -> %d Hz\n", g_now, pin, hz);
@@ -178,7 +188,7 @@ std::string camBitbangProbe() { return "n/a (host build has no camera)"; }
 std::string railProbe() { return "n/a (host build has no board)"; }
 std::string padScan() { return "n/a (host build has no board)"; }
 std::string capabilities() {
-  return "board=host prims=digital,adc,tone,servo,move,dist,infer";
+  return "board=host prims=digital,adc,tone,servo,move,dist,infer,sense sensors=bme280";
 }
 
 // Edge-AI camera stub: drain up to `max` queued grayscale bytes (host_feed_image)

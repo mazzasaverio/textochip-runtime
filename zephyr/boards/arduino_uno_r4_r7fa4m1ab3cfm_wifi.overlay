@@ -194,3 +194,16 @@
 		};
 	};
 };
+
+/*
+ * SENSE parts on the Qwiic connector (iic0, P400/P401, 3.3 V), which the board
+ * already enables: no header pin is spent on the bus. A BME280 at 0x76 (the
+ * common breakout; SDO to GND). With no sensor wired SENSE reads 0.
+ */
+&iic0 {
+	tc_bme280: bme280@76 {
+		compatible = "bosch,bme280";
+		reg = <0x76>;
+		status = "okay";
+	};
+};

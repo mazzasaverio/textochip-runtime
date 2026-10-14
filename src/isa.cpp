@@ -59,6 +59,7 @@ const char* opcodeName(OpCode op) {
     case OP_DIST: return "DIST";
     case OP_AISTART: return "AISTART";
     case OP_INFER: return "INFER";
+    case OP_SENSE: return "SENSE";
     default: return "?";
   }
 }
@@ -77,6 +78,7 @@ OpCode opcodeFromName(const std::string& n) {
       {"TONE", OP_TONE}, {"RPIN", OP_RPIN}, {"SERVO", OP_SERVO},
       {"AREAD", OP_AREAD}, {"MOVE", OP_MOVE}, {"DIST", OP_DIST},
       {"AISTART", OP_AISTART}, {"INFER", OP_INFER},
+      {"SENSE", OP_SENSE},
   };
   for (auto& m : M)
     if (n == m.k) return m.v;
@@ -144,6 +146,22 @@ bool parseInstructionLine(const std::string& raw, Instruction& out) {
       // baked-in model, so it's recorded but not otherwise used.
       out.missionId = t1;
       break;
+    case OP_SENSE: {
+      // SENSE <device> <channel>: "bme280" "temp". Both lowercase words.
+      auto word = [](const std::string& s) {
+        if (s.empty() || s.size() > 16) return false;
+        for (char c : s)
+          if (!std::isalnum((unsigned char)c)) return false;
+        return true;
+      };
+      std::string dev = t1, chan = t2;
+      for (char& c : dev) c = (char)std::tolower((unsigned char)c);
+      for (char& c : chan) c = (char)std::tolower((unsigned char)c);
+      if (!word(dev) || !word(chan)) return false;
+      out.missionId = dev;
+      out.callParams = chan;
+      break;
+    }
     case OP_CALL: {
       out.missionId = t1;
       // After the id: integer pin tokens, then optional key=value param tokens

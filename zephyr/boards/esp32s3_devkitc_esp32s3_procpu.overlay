@@ -148,3 +148,37 @@ pwm0: &ledc0 {
 &psram0 {
 	size = <DT_SIZE_M(8)>;
 };
+
+/*
+ * I2C bus for the SENSE parts (docs/spec-platform.md, step 5): i2c0 on GPIO38
+ * (SDA) and GPIO39 (SCL), the IDE descriptor's fixed "i2c" pads. They are the
+ * line tracker's default pins, which a robot uses and a weather station does
+ * not; the allocator keeps them free when a program reads a sensor.
+ * A BME280 at 0x76 (the common breakout; SDO to GND). With no sensor wired the
+ * driver fails its init and SENSE reads 0.
+ */
+#include <zephyr/dt-bindings/i2c/i2c.h>
+
+&pinctrl {
+	tc_i2c0_default: tc_i2c0_default {
+		group1 {
+			pinmux = <I2C0_SDA_GPIO38>, <I2C0_SCL_GPIO39>;
+			bias-pull-up;
+			drive-open-drain;
+			output-high;
+		};
+	};
+};
+
+&i2c0 {
+	clock-frequency = <I2C_BITRATE_STANDARD>;
+	pinctrl-0 = <&tc_i2c0_default>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	tc_bme280: bme280@76 {
+		compatible = "bosch,bme280";
+		reg = <0x76>;
+		status = "okay";
+	};
+};

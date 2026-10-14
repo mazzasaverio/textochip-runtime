@@ -30,6 +30,8 @@ enum OpCode {
   // Tier 4 — edge-AI
   OP_AISTART,  // AISTART <model> — start the model's background inference service
   OP_INFER,    // INFER <model> — push the latest class index (0 = none), non-blocking
+  // Contract 3 primitives
+  OP_SENSE,    // SENSE <device> <channel> — push a sensor's reading (°C, %, hPa)
   OP_UNKNOWN
 };
 

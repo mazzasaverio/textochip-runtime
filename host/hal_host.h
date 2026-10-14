@@ -34,3 +34,5 @@ void host_set_quiet(bool quiet);
 int host_get_tone();
 int host_get_servo();
 void host_reset_pins();
+// A sensor reading SENSE returns on the host ("bme280.temp" -> 23).
+void host_set_sense(const std::string& key, int value);

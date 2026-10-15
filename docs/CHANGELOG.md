@@ -9,6 +9,16 @@ terminal), the `textochip` IDE and compiler that talk to it through the bytecode
 serial contract in `SPEC.md`, and contributors who build it from source.
 Implementation details stay in git and in `LOG.md`.
 
+## 0.10.1 - 2026-10-15T20:00+02:00 - Nordic DK: sensors on real header pins
+
+- **Line and obstacle sensors on P3.07–P3.10:** on the nRF54LM20 DK they were mapped to
+  P2.00–P2.03, the external flash's lines, which reach header P4 only through the board
+  configurator (user guide v0.7.0, Table 4); P2.00–P2.05 are now reserved.
+- **The right motor's logical PWM pin maps to P1.06,** the pad the overlay drives; it
+  pointed at P2.05, the flash's chip select.
+- Verified: every host test (`make check`), CI's firmware build 38778527249 (77accc7),
+  published without a bench check (the owner's rule of 2026-10-14).
+
 ## 0.10.0 - 2026-10-14T23:00+02:00 - TIME, and the ISA in one file
 
 - **TIME:** pushes the milliseconds since the program started, so a stopwatch or a

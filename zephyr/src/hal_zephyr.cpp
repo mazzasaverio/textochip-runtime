@@ -159,7 +159,6 @@ static const struct gpio_dt_spec g_hc_trig =
     GPIO_DT_SPEC_GET(DT_ALIAS(hcsr04_trig), gpios);
 static const struct gpio_dt_spec g_hc_echo =
     GPIO_DT_SPEC_GET(DT_ALIAS(hcsr04_echo), gpios);
-static bool g_hc_ready = false;
 #endif
 
 // ── Non-volatile storage: NVS on the board's `storage` flash partition (192 KB
@@ -482,12 +481,12 @@ int analogRead(int /*pin*/) {
 // out of range). Returns cm, or 400 ("nothing in range") on timeout / no sensor.
 int distanceCm() {
 #ifdef HAS_HCSR04
-  if (!g_hc_ready) {
-    if (!gpio_is_ready_dt(&g_hc_trig) || !gpio_is_ready_dt(&g_hc_echo)) return 400;
-    gpio_pin_configure_dt(&g_hc_trig, GPIO_OUTPUT_INACTIVE);
-    gpio_pin_configure_dt(&g_hc_echo, GPIO_INPUT);
-    g_hc_ready = true;
-  }
+  if (!gpio_is_ready_dt(&g_hc_trig) || !gpio_is_ready_dt(&g_hc_echo)) return 400;
+  // Configured on every read, not once: on the ESP32-S3 the two pads are
+  // shared with the external RGB LED (overlay), and a program that drove
+  // them as outputs would otherwise leave ECHO an output until a reboot.
+  gpio_pin_configure_dt(&g_hc_trig, GPIO_OUTPUT_INACTIVE);
+  gpio_pin_configure_dt(&g_hc_echo, GPIO_INPUT);
   // 10 us trigger pulse.
   gpio_pin_set_dt(&g_hc_trig, 0);
   k_busy_wait(2);

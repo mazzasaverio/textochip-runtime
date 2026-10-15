@@ -1,5 +1,16 @@
 # Project log
 
+## 2026-10-16
+
+- ESP32-S3 overlay: `hcsr04-trig` = gpio0 3, `hcsr04-echo` = gpio1 14 (GPIO46), with
+  `textochip,gpio-pin` nodes. The pads are the IDE profile's RGB LED green (3) and blue
+  (46); the owner chose them over PIR/blue LED and relay/PIR (2026-10-15). Both are
+  strapping pins that must be low at reset; the HC-SR04's idle levels are low.
+- `distanceCm()`: the `g_hc_ready` latch is gone; TRIG and ECHO are configured on every
+  call (a shared pad may have been an output in the previous program).
+- The IDE's `lib/boards/esp32s3.json` gets `hal.distance` {GPIO3, GPIO46} in the same
+  task.
+
 ## 2026-10-10
 
 - Aligned the repo with the owner's core standard: `AGENTS.md` rewritten to the template

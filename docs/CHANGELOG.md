@@ -9,6 +9,17 @@ terminal), the `textochip` IDE and compiler that talk to it through the bytecode
 serial contract in `SPEC.md`, and contributors who build it from source.
 Implementation details stay in git and in `LOG.md`.
 
+## 0.10.2 - 2026-10-16T01:00+02:00 - ESP32-S3: the distance sensor
+
+- **HC-SR04 on the ESP32-S3:** `DISTANCE()` reads the sensor on TRIG GPIO3 and ECHO
+  GPIO46; until now the ESP32-S3 had no hcsr04 aliases and always read 400. No pad was
+  free, so the two are shared with the external RGB LED's green and blue legs: a
+  program uses one or the other (the IDE says so). The board answers CAPS with `dist`.
+- **The sensor's pins are set up on every read,** so a program that drove them as
+  outputs before does not leave ECHO an output until a reboot (all boards).
+- Verified: every host test (`make check`), CI's firmware build; build-proven, no bench
+  check on an ESP32-S3 yet.
+
 ## 0.10.1 - 2026-10-15T20:00+02:00 - Nordic DK: sensors on real header pins
 
 - **Line and obstacle sensors on P3.07–P3.10:** on the nRF54LM20 DK they were mapped to

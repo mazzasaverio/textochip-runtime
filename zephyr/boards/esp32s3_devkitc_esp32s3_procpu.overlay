@@ -260,3 +260,34 @@ pwm0: &ledc0 {
 		color-mapping = <LED_COLOR_ID_GREEN LED_COLOR_ID_RED LED_COLOR_ID_BLUE>;
 	};
 };
+
+/* HC-SR04 ultrasonic — DISTANCE() (hal_zephyr.cpp, the hcsr04 aliases).
+ *
+ * TRIG on GPIO3 (our output), ECHO on GPIO46 (our input). The ESP32-S3 has no
+ * free general pad left (the mic owns 15-17, the motors 10-14 and 21, PSRAM
+ * 33-37, flash 26-32, USB 19-20, UART0 43-44, the on-board RGB LED 48), so the
+ * sensor shares the two pads the IDE gives the external RGB LED's green and
+ * blue legs: a program uses one or the other, and the IDE says so (owner's
+ * choice, 2026-10-15). Both are strapping pins that must read low at reset:
+ * TRIG and ECHO idle low, so the sensor keeps them where they need to be.
+ * distanceCm() configures both on every read, so a program that drove them
+ * as LED outputs before leaves nothing behind.
+ *
+ * ⚠ A classic HC-SR04 runs on 5 V and its ECHO answers at 5 V: level-shift or
+ * divide ECHO down (or use an HC-SR04P at 3.3 V) before GPIO46.
+ * Build-proven only (Firmware workflow); bench pending.
+ */
+/ {
+	aliases {
+		hcsr04-trig = &tc_hcsr04_trig;
+		hcsr04-echo = &tc_hcsr04_echo;
+	};
+	tc_hcsr04_trig: tc-hcsr04-trig {
+		compatible = "textochip,gpio-pin";
+		gpios = <&gpio0 3 GPIO_ACTIVE_HIGH>;
+	};
+	tc_hcsr04_echo: tc-hcsr04-echo {
+		compatible = "textochip,gpio-pin";
+		gpios = <&gpio1 14 GPIO_ACTIVE_HIGH>;
+	};
+};

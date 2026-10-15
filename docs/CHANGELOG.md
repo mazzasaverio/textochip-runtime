@@ -9,7 +9,7 @@ terminal), the `textochip` IDE and compiler that talk to it through the bytecode
 serial contract in `SPEC.md`, and contributors who build it from source.
 Implementation details stay in git and in `LOG.md`.
 
-## 0.10.2 - 2026-10-16T01:00+02:00 - ESP32-S3: the distance sensor
+## 0.10.2 - 2026-10-15T22:50+02:00 - ESP32-S3: the distance sensor
 
 - **HC-SR04 on the ESP32-S3:** `DISTANCE()` reads the sensor on TRIG GPIO3 and ECHO
   GPIO46; until now the ESP32-S3 had no hcsr04 aliases and always read 400. No pad was

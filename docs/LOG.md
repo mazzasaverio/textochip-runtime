@@ -1,6 +1,6 @@
 # Project log
 
-## 2026-10-16
+## 2026-10-15
 
 - ESP32-S3 overlay: `hcsr04-trig` = gpio0 3, `hcsr04-echo` = gpio1 14 (GPIO46), with
   `textochip,gpio-pin` nodes. The pads are the IDE profile's RGB LED green (3) and blue

@@ -67,6 +67,11 @@ DK overlay `tc_tdm_default`, all on the **PORT1** header)
 > probe showed the clock never leaving the pin. Nordic's own i2s tests for this DK use
 > P1.23/P1.14/P1.31, and so does our overlay.
 >
+> A second reason, found 2026-10-15 in the DK user guide v0.7.0 (Table 4): **P2.00–P2.05 are
+> the external flash's QSPI lines and are not connected to header P4 by default**. A wire on
+> the P4 hole of P2.00 reaches nothing, whatever the peripheral. No part uses P2.00–P2.05 any
+> more: the line sensors and the obstacle sensor moved to P3.07–P3.10 (`src/pads.cpp`).
+>
 > On the PORT headers the holes are silkscreened by **GPIO number** (`14`, `23`, `31`); the
 > Arduino-style `D` aliases are a different numbering and are **not printed on this board** —
 > `D14` is `P1.05`, not `P1.14`, and following the alias puts a wire in the mic's word-select.

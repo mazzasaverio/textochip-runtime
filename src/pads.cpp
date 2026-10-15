@@ -95,6 +95,8 @@ const char* reserved(PadBoard board, int pad) {
       if (pad == 32 + 10 || pad == 32 + 3 || pad == 32 + 4 || pad == 96 + 4)
         return "the camera's SPI";
       if (pad == 32 + 11 || pad == 32 + 12) return "the ultrasonic sensor";
+      if (pad >= 64 && pad <= 64 + 5)
+        return "the external flash (not on the header by default)";
       return nullptr;
     case PAD_UNOR4:
       if (pad == 10 || pad == 11) return "the ultrasonic sensor";
@@ -143,11 +145,14 @@ int legacyPad(PadBoard board, int logical) {
         case 12: return 32 + 7;   // motor L pwm  -> P1.07
         case 13: return 96 + 5;   // motor R dir1 -> P3.05
         case 14: return 32 + 5;   // motor R dir2 -> P1.05
-        case 21: return 64 + 5;   // motor R pwm  -> P2.05
-        case 38: return 64 + 0;   // line left    -> P2.00
-        case 39: return 64 + 1;   // line center  -> P2.01
-        case 40: return 64 + 2;   // line right   -> P2.02
-        case 41: return 64 + 3;   // obstacle     -> P2.03
+        case 21: return 32 + 6;   // motor R pwm  -> P1.06 (pwm21 ch1, as the overlay)
+        // P2.00-P2.05 are the DK's external flash, not on header P4 by
+        // default (user guide v0.7.0, Table 4): line and obstacle sit on
+        // PORT3's free pads instead (2026-10-15).
+        case 38: return 96 + 7;   // line left    -> P3.07
+        case 39: return 96 + 8;   // line center  -> P3.08
+        case 40: return 96 + 9;   // line right   -> P3.09
+        case 41: return 96 + 10;  // obstacle     -> P3.10
         // The relay, where the IDE wires it. It used to fall through to raw
         // 42 = P1.10, the camera's SPI clock (2026-10-13).
         case 42: return 4;        // relay        -> P0.04

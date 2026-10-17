@@ -34,6 +34,9 @@ void host_set_quiet(bool quiet);
 // and a clean slate of pins, for tests that compare two runs.
 int host_get_tone();
 int host_get_servo();
+// The same, per pad: the ESP32-S3 drives two buzzers and two servos.
+int host_get_tone_on(int pin);
+int host_get_servo_on(int pin);
 void host_reset_pins();
 // A sensor reading SENSE returns on the host ("bme280.temp" -> 23).
 void host_set_sense(const std::string& key, int value);

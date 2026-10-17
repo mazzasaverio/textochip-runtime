@@ -166,7 +166,8 @@ storage partition moves to the new layout before the board follows main again.
 - **ESP32-S3**: the full product path on real hardware. Serial protocol, LEDs, buzzer
   (LEDC PWM), button, servo, ADC, SAVE + boot autorun, TFLM linked on-device.
   The HC-SR04 (`DIST`, TRIG GPIO3, ECHO GPIO46, shared with the external RGB LED) is
-  build-proven only (0.10.2), bench pending.
+  build-proven only (0.10.2), bench pending. So are the second buzzer (GPIO42) and the
+  second servo (GPIO47) of 0.11.0.
 - **Nordic nRF54LM20 DK**: serial protocol (interrupt-driven RX), on-board LEDs and
   button, buzzer PWM, the **L298N motors drive real wheels** (`MOVE`), **voice is
   live** (the INMP441 I2S mic on the TDM peripheral feeds VOICE(), with Nordic's Axon-NPU

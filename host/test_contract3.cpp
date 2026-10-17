@@ -45,6 +45,27 @@ static void rules() {
   expect("esp32: the buzzer only on its PWM pad: " + r,
          r == "ERROR: R0 GPIO7: this board's TONE is wired to GPIO5");
   expect("esp32: the buzzer on GPIO5 loads", loaded(load({"RES 0 TONE GPIO5", "TONE R0 440"})));
+  // A second buzzer (GPIO42) and a second servo (GPIO47), each on its own
+  // LEDC channel (pads::secondPad); not each other's pad.
+  r = load({"RES 0 TONE GPIO5", "RES 1 TONE GPIO42", "RES 2 SERVO GPIO8", "RES 3 SERVO GPIO47",
+            "TONE R0 440", "TONE R1 880", "SERVO R2 30", "SERVO R3 150", "WAIT 1000"});
+  expect("esp32: two buzzers and two servos load: " + r, loaded(r));
+  host_reset_pins();
+  runtime::feedLine("RUN");
+  for (int i = 0; i < 6; i++) runtime::tick();
+  expect("esp32: both buzzers sound",
+         host_get_tone_on(5) == 440 && host_get_tone_on(42) == 880);
+  expect("esp32: both servos turn",
+         host_get_servo_on(8) == 30 && host_get_servo_on(47) == 150);
+  runtime::feedLine("STOP");
+  expect("esp32: STOP silences both buzzers",
+         host_get_tone_on(5) == 0 && host_get_tone_on(42) == 0);
+  r = load({"RES 0 TONE GPIO47", "TONE R0 440"});
+  expect("esp32: the second servo's pad is no buzzer: " + r,
+         r == "ERROR: R0 GPIO47: this board's TONE is wired to GPIO5");
+  r = load({"RES 0 SERVO GPIO42", "SERVO R0 90"});
+  expect("esp32: the second buzzer's pad is no servo: " + r,
+         r == "ERROR: R0 GPIO42: this board's SERVO is wired to GPIO8");
   r = load({"RES 0 DOUT GPIO4", "SET R1 1"});
   expect("an undeclared resource: " + r, r == "ERROR: instruction 0 (SET): R1 is not declared");
   r = load({"RES 0 DIN GPIO4", "SET R0 1"});
@@ -91,6 +112,8 @@ static void rules() {
   expect("uno: D10 is the ultrasonic's: " + r, r == "ERROR: R0 D10: the ultrasonic sensor");
   r = load({"RES 0 ADC A3", "AREAD R0"});
   expect("uno: the ADC is A0: " + r, r == "ERROR: R0 A3: this board's ADC is wired to A0");
+  r = load({"RES 0 TONE D5", "RES 1 TONE D7"});
+  expect("uno: one buzzer only: " + r, r == "ERROR: R1 D7: this board's TONE is wired to D5");
 }
 
 // ── 2. the same program, two contracts ──────────────────────────────────────

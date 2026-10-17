@@ -35,6 +35,8 @@ std::map<std::string, int> g_sense;  // "bme280.temp" -> a reading (host_set_sen
 bool g_quiet = false;
 int g_toneHz = 0;
 int g_servoAngle = -1;
+std::map<int, int> g_toneOn;   // pad -> Hz (0 = off), each buzzer
+std::map<int, int> g_servoOn;  // pad -> last angle, each servo
 // A 64-pixel strip on the host: the frame last shown, for the tests.
 std::vector<long> g_pixels, g_shown;
 bool g_pixelsDirty = false;
@@ -45,11 +47,21 @@ bool g_rowsDirty = false;
 
 int host_get_tone() { return g_toneHz; }
 int host_get_servo() { return g_servoAngle; }
+int host_get_tone_on(int pin) {
+  auto it = g_toneOn.find(pin);
+  return it == g_toneOn.end() ? 0 : it->second;
+}
+int host_get_servo_on(int pin) {
+  auto it = g_servoOn.find(pin);
+  return it == g_servoOn.end() ? -1 : it->second;
+}
 void host_reset_pins() {
   g_level.fill(0);
   g_mode.fill(0);
   g_toneHz = 0;
   g_servoAngle = -1;
+  g_toneOn.clear();
+  g_servoOn.clear();
 }
 const std::string& host_last_line() { return g_lastLine; }
 void host_set_sense(const std::string& key, int value) { g_sense[key] = value; }
@@ -173,10 +185,17 @@ void displayShow() {
 
 void tone(int pin, int hz) {
   g_toneHz = hz;
+  g_toneOn[pin] = hz;
   if (!g_quiet) std::printf("    [t=%6ums] buzzer pin%d -> %d Hz\n", g_now, pin, hz);
 }
 void toneOff(int pin) {
   g_toneHz = 0;
+  if (pin < 0) {
+    // every buzzer (the VM's stop path)
+    for (auto& t : g_toneOn) t.second = 0;
+  } else {
+    g_toneOn[pin] = 0;
+  }
   if (!g_quiet) std::printf("    [t=%6ums] buzzer pin%d off\n", g_now, pin);
 }
 
@@ -184,6 +203,7 @@ void servo(int pin, int angle) {
   if (angle < 0) angle = 0;
   if (angle > 180) angle = 180;
   g_servoAngle = angle;
+  g_servoOn[pin] = angle;
   if (!g_quiet) std::printf("    [t=%6ums] servo pin%d -> %d deg\n", g_now, pin, angle);
 }
 

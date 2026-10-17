@@ -60,9 +60,9 @@ void pixelSet(int index, long rgb);
 void pixelsShow();
 int pixelsMax();
 
-// Buzzer (square wave)
+// Buzzer (square wave) on a TONE pad (pads::fixedPad, pads::secondPad).
 void tone(int pin, int hz);  // hz>0 start
-void toneOff(int pin);
+void toneOff(int pin);       // pin < 0: every buzzer
 
 // Hobby servo (e.g. SG90) — position to `angle` (0..180°) via a 50 Hz PWM frame.
 void servo(int pin, int angle);

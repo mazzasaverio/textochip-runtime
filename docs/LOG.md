@@ -1,5 +1,21 @@
 # Project log
 
+## 2026-10-17
+
+- A second buzzer and a second servo on the ESP32-S3 (textochip's owner: "fai anche il
+  secondo buzzer e il secondo servo", then "solo ESP32-S3"). `pads::secondPad`: TONE
+  GPIO42, SERVO GPIO47; `VM::check` accepts either pad of a kind. GPIO46 was the first
+  choice for the servo, dropped: it is the HC-SR04's ECHO since 0.10.2. GPIO42 is the
+  IDE profile's relay default and GPIO47 the RGB LED's red leg; no pad was free.
+- Overlay: `channel4@4` on timer 3 (its own frequency), `channel5@5` on timer 1 (the
+  servo's 50 Hz), no pinctrl group for them: the pads stay GPIOs at boot.
+  `hal_zephyr`: `tone`/`toneOff`/`servo` pick the channel from the pad and route it
+  with `esp_rom_gpio_connect_out_signal(pad, LEDC_LS_SIG_OUT0_IDX + ch)` after
+  `pinMode(pad, OUT)`, on every call (a previous program may have left the pad a GPIO).
+- `stopActuators` calls `toneOff(-1)`: every buzzer. The host HAL keeps tones and
+  servo angles per pad (`host_get_tone_on`, `host_get_servo_on`).
+- Not built locally (no `west` on this machine); CI's firmware workflow builds it.
+
 ## 2026-10-15
 
 - ESP32-S3 overlay: `hcsr04-trig` = gpio0 3, `hcsr04-echo` = gpio1 14 (GPIO46), with

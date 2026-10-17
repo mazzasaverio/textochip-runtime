@@ -126,6 +126,17 @@ int fixedPad(PadBoard board, ResKind kind) {
   return -1;
 }
 
+int secondPad(PadBoard board, ResKind kind) {
+  // The ESP32-S3 only: its LEDC has channels and timers to spare (the
+  // overlay's channel4 on timer 3, channel5 on the servo's timer 1). The UNO R4
+  // and the DK have no free PWM instance for them (textochip docs/spec.md,
+  // 2026-10-17). No pad is free: GPIO42 is the kit relay's default pad and
+  // GPIO47 the external RGB LED's red leg (its green and blue legs already
+  // carry the distance sensor, 0.10.2); a program uses one or the other.
+  if (board != PAD_ESP32S3) return -1;
+  return kind == RES_TONE ? 42 : kind == RES_SERVO ? 47 : -1;
+}
+
 int legacyPad(PadBoard board, int logical) {
   switch (board) {
     case PAD_NRF54LM20:

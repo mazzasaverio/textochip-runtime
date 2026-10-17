@@ -71,7 +71,10 @@ SET R0 1
   - a pad a program may not use: the flash, the PSRAM, the USB, a strapping pin, a pad
     shorted to ground, one a driver claims at boot (`ERROR: R0 GPIO19: the USB port`);
   - a `TONE`, `SERVO` or `ADC` resource on another pad than the one that peripheral is
-    wired to (`ERROR: R0 GPIO7: this board's TONE is wired to GPIO5`);
+    wired to (`ERROR: R0 GPIO7: this board's TONE is wired to GPIO5`). The ESP32-S3
+    wires a second buzzer and a second servo (`pads::secondPad`, since 0.11.0): `TONE`
+    on GPIO5 or GPIO42, `SERVO` on GPIO8 or GPIO47, each pair playing independently;
+    GPIO42 and GPIO47 are plain GPIOs at boot and become PWM when a program drives them;
   - two resources on one pad, an undeclared resource, an instruction that uses a
     resource against its kind, a bare pin number in a contract-3 program.
   A saved program that fails the check does not autorun.
@@ -238,7 +241,8 @@ parsing.
 can grow: `build` is the runtime git hash (the same as `VER`), `contract` this SPEC's
 version, `max` the program cap in instructions, `board` the id the IDE knows the board by
 (`textochip/lib/boards/<id>.json`), `prims` the primitives this build compiled in, from
-`digital`, `adc`, `tone`, `servo`, `move`, `dist`, `infer`. The IDE ignores keys it does
+`digital`, `adc`, `tone`, `servo`, `move`, `dist`, `infer`, and `tone2`, `servo2` when the
+board drives a second buzzer and a second servo (the ESP32-S3). The IDE ignores keys it does
 not know, and a firmware that answers `ERROR: unknown command` predates the handshake.
 
 While a **voice program runs**, the firmware streams edge-AI feedback on the console: a heartbeat

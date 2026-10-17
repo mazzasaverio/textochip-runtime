@@ -22,6 +22,13 @@
 #ifdef TC_PWM_NODE
 #include <zephyr/drivers/pwm.h>
 #endif
+// The ESP32-S3's second buzzer and second servo (pads::secondPad): the LEDC
+// signal is routed to their pads through the GPIO matrix (hal::tone/servo).
+#if defined(TC_PWM_NODE) && defined(CONFIG_SOC_SERIES_ESP32S3)
+#include <esp_rom_gpio.h>
+#include <soc/gpio_sig_map.h>
+#define TC_SECOND_PWM 1
+#endif
 // Analog input: a `zephyr,user` node with an `io-channels` ADC ref (see overlay).
 #define ADC_NODE DT_PATH(zephyr_user)
 // The rail probe has its OWN devicetree node. It used to share /zephyr,user,
@@ -536,16 +543,49 @@ static const struct device* const pwm_motor = DEVICE_DT_GET(DT_ALIAS(tc_pwm_moto
 #define HAS_MOTORS 1
 #endif
 
-void tone(int /*pin*/, int hz) {
+// A second buzzer and a second servo on the ESP32-S3 (pads::secondPad): LEDC
+// channel 4 (timer 3) on GPIO42 and channel 5 (the servo's timer 1, 50 Hz) on
+// GPIO47. Those pads are plain GPIOs at boot, so the kit's relay and RGB LED
+// can use them; the LEDC signal is routed to the pad each time the program
+// drives it, which also takes it back from a previous program that used it as
+// a GPIO.
+#ifdef TC_SECOND_PWM
+static constexpr int kTone2Ch = 4;
+static constexpr int kServo2Ch = 5;
+static void routeLedc(int pad, int ch) {
+  pinMode(pad, 1);  // output enabled, GPIO function
+  esp_rom_gpio_connect_out_signal(pad, LEDC_LS_SIG_OUT0_IDX + ch, false, false);
+}
+static bool isSecond(int pin, ResKind kind) {
+  return pin >= 0 && pin == pads::secondPad(kPadBoard, kind);
+}
+#endif
+
+void tone(int pin, int hz) {
   if (hz <= 0) return;
   uint32_t period = 1000000000u / (uint32_t)hz;  // ns
-  // TODO(board): map `pin` -> its PWM channel via the overlay; channel 0 assumed.
-  pwm_set(pwm_dev, 0, period, period / 2, 0);
+#ifdef TC_SECOND_PWM
+  if (isSecond(pin, RES_TONE)) {
+    routeLedc(pin, kTone2Ch);
+    pwm_set(pwm_dev, kTone2Ch, period, period / 2, 0);
+    return;
+  }
+#endif
+  (void)pin;
+  pwm_set(pwm_dev, 0, period, period / 2, 0);  // the overlay's buzzer channel
 }
 // Silence = a valid period with a 0 pulse width (constant LOW). A period of 0
 // is rejected by the LEDC driver, which would leave the channel running its
 // boot-default duty → a continuous tone. Keep a real period, drop the duty.
-void toneOff(int /*pin*/) { pwm_set(pwm_dev, 0, 1000000u, 0, 0); }
+// A negative pin (the VM's stop path) silences every buzzer.
+void toneOff(int pin) {
+#ifdef TC_SECOND_PWM
+  if (pin < 0 || isSecond(pin, RES_TONE)) pwm_set(pwm_dev, kTone2Ch, 1000000u, 0, 0);
+  if (isSecond(pin, RES_TONE)) return;
+#endif
+  (void)pin;
+  pwm_set(pwm_dev, 0, 1000000u, 0, 0);
+}
 
 // Servo on PWM channel 1 (overlay: LEDC_CH1 on a SEPARATE timer so the 50 Hz
 // servo frame is independent of the buzzer's variable tone frequency on ch0).
@@ -560,11 +600,19 @@ static const struct device* const pwm_servo = DEVICE_DT_GET(DT_ALIAS(tc_pwm_serv
 #define SERVO_DEV pwm_dev
 #define SERVO_CH 1
 #endif
-void servo(int /*pin*/, int angle) {
+void servo(int pin, int angle) {
   if (angle < 0) angle = 0;
   if (angle > 180) angle = 180;
   uint32_t pulse = 500000u + (uint32_t)angle * 2000000u / 180u;  // ns
-  pwm_set(SERVO_DEV, SERVO_CH, 20000000u, pulse, 0);              // 20 ms = 50 Hz
+#ifdef TC_SECOND_PWM
+  if (isSecond(pin, RES_SERVO)) {
+    routeLedc(pin, kServo2Ch);
+    pwm_set(pwm_dev, kServo2Ch, 20000000u, pulse, 0);
+    return;
+  }
+#endif
+  (void)pin;
+  pwm_set(SERVO_DEV, SERVO_CH, 20000000u, pulse, 0);  // 20 ms = 50 Hz
 }
 
 #ifdef HAS_MOTORS
@@ -1034,6 +1082,9 @@ std::string capabilities() {
 #endif
 #ifdef TC_PWM_NODE
   out += ",tone,servo";
+#endif
+#ifdef TC_SECOND_PWM
+  out += ",tone2,servo2";  // a second buzzer (GPIO42) and servo (GPIO47)
 #endif
 #ifdef HAS_MOTORS
   out += ",move";

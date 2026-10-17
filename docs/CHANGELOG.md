@@ -9,6 +9,22 @@ terminal), the `textochip` IDE and compiler that talk to it through the bytecode
 serial contract in `SPEC.md`, and contributors who build it from source.
 Implementation details stay in git and in `LOG.md`.
 
+## 0.11.0 - 2026-10-17T11:30+02:00 - ESP32-S3: a second buzzer and a second servo
+
+- **Two buzzers and two servos on the ESP32-S3:** a program may drive a second buzzer
+  on GPIO42 and a second servo on GPIO47, each on an LEDC channel of its own (the
+  second buzzer on its own timer, so the two play different notes; the second servo on
+  the first one's 50 Hz timer). The two pads stay plain GPIOs at boot and turn PWM when
+  a program drives them, so the kit relay and the RGB LED's red leg keep working in
+  programs that do not. The board answers CAPS with `tone2,servo2`.
+- **Stop silences every buzzer:** STOP, HALT, the end of a program and an error turn
+  off both buzzers, not only the first.
+- The UNO R4 and the Nordic DK keep one of each: their PWM instances have no room for a
+  second (textochip `docs/spec.md`, 2026-10-17).
+- Verified: every host test (`make check`; new cases in `test-contract3`: both pairs
+  load and play, STOP silences both, each pad refuses the other kind, the UNO refuses a
+  second buzzer); CI's firmware build. Build-proven, not bench-proven.
+
 ## 0.10.2 - 2026-10-15T22:50+02:00 - ESP32-S3: the distance sensor
 
 - **HC-SR04 on the ESP32-S3:** `DISTANCE()` reads the sensor on TRIG GPIO3 and ECHO

@@ -37,6 +37,12 @@ const char* reserved(PadBoard board, int pad);
 // any pad goes (the host) or the kind is a plain GPIO one.
 int fixedPad(PadBoard board, ResKind kind);
 
+// A second pad the board wires the same peripheral to, or -1: on the ESP32-S3
+// a second buzzer (TONE, GPIO42, LEDC channel 4) and a second servo (SERVO,
+// GPIO47, LEDC channel 5). Plain GPIOs at boot (the kit's relay and RGB LED
+// may use them); the HAL routes the PWM to them when a program drives one.
+int secondPad(PadBoard board, ResKind kind);
+
 // Contract 2: the pad a logical pin number lands on, or -1 for none. The pin
 // map the HAL used to keep (map_pin), kept for programs saved before contract 3.
 int legacyPad(PadBoard board, int logical);

@@ -113,6 +113,21 @@ pwm0: &ledc0 {
 		reg = <0x3>;
 		timer = <2>;
 	};
+	/* A second buzzer: its OWN timer (3), its tone independent of the first.
+	 * No pinctrl here: GPIO42 stays a plain GPIO at boot (the kit's relay may
+	 * use it) and hal_zephyr routes this channel to it when a program sounds it
+	 * (pads::secondPad). */
+	channel4@4 {
+		reg = <0x4>;
+		timer = <3>;
+	};
+	/* A second servo on the servo's timer (1): both frames are 50 Hz. Routed to
+	 * GPIO47 (the external RGB LED's red leg otherwise) by hal_zephyr, like
+	 * channel 4. */
+	channel5@5 {
+		reg = <0x5>;
+		timer = <1>;
+	};
 };
 
 /*

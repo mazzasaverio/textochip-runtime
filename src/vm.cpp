@@ -8,10 +8,11 @@
 // drive the physical actuators SAFE — above all the motors: a robot must not
 // keep rolling after STOP (a real safety bug, not cosmetic). The buzzer is
 // silenced too. The servo holds its last angle (there is no "off" and it's
-// harmless). Pin 0 is a placeholder — the HAL owns the motor/buzzer pins.
+// harmless). A negative pin silences every buzzer the board has (the
+// ESP32-S3 has two, pads::secondPad).
 static void stopActuators() {
   hal::move(0, 0);
-  hal::toneOff(0);
+  hal::toneOff(-1);
 }
 
 void VM::reset() {
@@ -95,7 +96,7 @@ std::string VM::check() const {
       if (res[j].pad == res[i].pad) return r + ": already R" + std::to_string(j);
     const ResKind kind = (ResKind)res[i].kind;
     const int fixed = pads::fixedPad(board, kind);
-    if (fixed >= 0 && fixed != res[i].pad)
+    if (fixed >= 0 && fixed != res[i].pad && pads::secondPad(board, kind) != res[i].pad)
       return r + ": this board's " + pads::kindName(kind) + " is wired to " + pads::name(board, fixed);
   }
   for (int i = 0; i < count; i++) {
